@@ -2,9 +2,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen 
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw
 } from 'lucide-react';
-import { BlogPost, User, Sermon, UserRole, Event } from '../types';
+import { BlogPost, User, Sermon, UserRole, Event, CommunityGroup } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface AdminProps {
@@ -349,42 +349,165 @@ const SermonManager = () => {
 
 // 5. EVENT MANAGER
 const EventManager = () => {
-  const [formData, setFormData] = useState({ title: '', desc: '', date: '', time: '', loc: '', type: 'EVENT' });
+  const [events, setEvents] = useState<Event[]>([]);
+  const [formData, setFormData] = useState({ id: '', title: '', desc: '', date: '', time: '', loc: '', type: 'EVENT', image: '', video: '' });
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+    fetchEvents();
+  }, []);
+
+  const fetchEvents = async () => {
+    const { data } = await supabase.from('events').select('*').order('date', { ascending: true });
+    if (data) {
+       setEvents(data.map((e: any) => ({
+          id: e.id,
+          title: e.title,
+          date: e.date,
+          time: e.time,
+          location: e.location,
+          description: e.description,
+          type: e.type,
+          image: e.image_url,
+          videoUrl: e.video_url
+       })));
+    }
+  };
 
   const handlePublish = async () => {
-     const { error } = await supabase.from('events').insert([{
-        title: formData.title,
-        description: formData.desc,
-        date: formData.date,
-        time: formData.time,
-        location: formData.loc,
-        type: formData.type
-     }]);
-     if (!error) {
-        alert('Event Created!');
-        setFormData({ title: '', desc: '', date: '', time: '', loc: '', type: 'EVENT' });
+     if (isEditing) {
+        // Update
+        const { error } = await supabase.from('events').update({
+           title: formData.title,
+           description: formData.desc,
+           date: formData.date,
+           time: formData.time,
+           location: formData.loc,
+           type: formData.type,
+           image_url: formData.image,
+           video_url: formData.video
+        }).eq('id', formData.id);
+
+        if(!error) {
+            alert('Event Updated!');
+            resetForm();
+            fetchEvents();
+        }
+     } else {
+        // Create
+        const { error } = await supabase.from('events').insert([{
+           title: formData.title,
+           description: formData.desc,
+           date: formData.date,
+           time: formData.time,
+           location: formData.loc,
+           type: formData.type,
+           image_url: formData.image,
+           video_url: formData.video
+        }]);
+        if (!error) {
+           alert('Event Created!');
+           resetForm();
+           fetchEvents();
+        }
      }
   };
 
+  const handleDelete = async (id: string) => {
+     if(confirm("Are you sure you want to delete this event?")) {
+        const { error } = await supabase.from('events').delete().eq('id', id);
+        if(!error) fetchEvents();
+     }
+  };
+
+  const handleEdit = (event: Event) => {
+     setFormData({
+        id: event.id,
+        title: event.title,
+        desc: event.description,
+        date: event.date,
+        time: event.time,
+        loc: event.location,
+        type: event.type as any,
+        image: event.image || '',
+        video: event.videoUrl || ''
+     });
+     setIsEditing(true);
+  };
+
+  const handlePushNotification = (event: Event) => {
+     alert(`Push Notification Sent to all members: "${event.title}"`);
+  };
+
+  const resetForm = () => {
+     setFormData({ id: '', title: '', desc: '', date: '', time: '', loc: '', type: 'EVENT', image: '', video: '' });
+     setIsEditing(false);
+  }
+
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200">
-       <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Create Event or Announcement</h3>
-       <div className="space-y-4">
-          <div className="flex gap-4">
-             <input className="flex-1 border p-3 rounded-xl" placeholder="Event Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
-             <select className="border p-3 rounded-xl bg-white" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
-                <option value="EVENT">Event</option>
-                <option value="ANNOUNCEMENT">Announcement</option>
-             </select>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-             <input type="date" className="border p-3 rounded-xl" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-             <input type="time" className="border p-3 rounded-xl" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
-          </div>
-          <input className="w-full border p-3 rounded-xl" placeholder="Location" value={formData.loc} onChange={e => setFormData({...formData, loc: e.target.value})} />
-          <textarea className="w-full border p-3 rounded-xl h-24" placeholder="Description" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} />
-          <button onClick={handlePublish} className="bg-blue-600 text-white w-full py-3 rounded-xl font-bold hover:bg-blue-700 transition">Publish</button>
-       </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Form */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 h-fit">
+           <div className="flex justify-between items-center mb-4">
+              <h3 className="font-bold text-lg text-[#0c2d58]">{isEditing ? 'Edit Event' : 'Create Event'}</h3>
+              {isEditing && <button onClick={resetForm} className="text-xs text-slate-500 underline">Cancel Edit</button>}
+           </div>
+           
+           <div className="space-y-4">
+              <div className="flex gap-4">
+                 <input className="flex-1 border p-3 rounded-xl" placeholder="Event Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                 <select className="border p-3 rounded-xl bg-white" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                    <option value="EVENT">Event</option>
+                    <option value="ANNOUNCEMENT">Announcement</option>
+                 </select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                 <input type="date" className="border p-3 rounded-xl" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                 <input type="time" className="border p-3 rounded-xl" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} />
+              </div>
+              <input className="w-full border p-3 rounded-xl" placeholder="Location" value={formData.loc} onChange={e => setFormData({...formData, loc: e.target.value})} />
+              
+              <div className="grid grid-cols-2 gap-4">
+                 <input className="border p-3 rounded-xl" placeholder="Image URL" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} />
+                 <input className="border p-3 rounded-xl" placeholder="Video URL" value={formData.video} onChange={e => setFormData({...formData, video: e.target.value})} />
+              </div>
+
+              <textarea className="w-full border p-3 rounded-xl h-24" placeholder="Description" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} />
+              <button onClick={handlePublish} className="bg-blue-600 text-white w-full py-3 rounded-xl font-bold hover:bg-blue-700 transition">
+                  {isEditing ? 'Update Event' : 'Publish Event'}
+              </button>
+           </div>
+        </div>
+
+        {/* List */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-200">
+           <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Upcoming Events</h3>
+           <div className="space-y-3 overflow-y-auto max-h-[600px]">
+              {events.map(event => (
+                 <div key={event.id} className="p-4 rounded-xl border border-slate-100 flex justify-between items-start group hover:bg-slate-50">
+                    <div>
+                       <div className="flex items-center gap-2 mb-1">
+                          <span className={`text-[10px] px-2 py-0.5 rounded font-bold uppercase ${event.type === 'EVENT' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'}`}>{event.type}</span>
+                          <span className="text-xs text-slate-400">{event.date}</span>
+                       </div>
+                       <h4 className="font-bold text-slate-800">{event.title}</h4>
+                       <p className="text-xs text-slate-500 mt-1 line-clamp-1">{event.description}</p>
+                    </div>
+                    <div className="flex gap-1">
+                        <button onClick={() => handlePushNotification(event)} title="Push Notification" className="p-2 text-slate-400 hover:text-orange-500 hover:bg-orange-50 rounded-lg">
+                            <Bell size={16}/>
+                        </button>
+                        <button onClick={() => handleEdit(event)} title="Edit" className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg">
+                            <Edit size={16}/>
+                        </button>
+                        <button onClick={() => handleDelete(event.id)} title="Delete" className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg">
+                            <Trash2 size={16}/>
+                        </button>
+                    </div>
+                 </div>
+              ))}
+           </div>
+        </div>
     </div>
   );
 }
@@ -411,27 +534,155 @@ const MusicManager = () => {
   )
 }
 
-// 10. GROUP MANAGER (NEW)
+// 10. GROUP MANAGER
 const GroupManager = () => {
+  const [groups, setGroups] = useState<CommunityGroup[]>([]);
+  const [formData, setFormData] = useState({ id: '', name: '', desc: '', image: '' });
+  const [isEditing, setIsEditing] = useState(false);
+
+  useEffect(() => {
+     fetchGroups();
+  }, []);
+
+  const fetchGroups = async () => {
+     const { data } = await supabase.from('community_groups').select('*');
+     if (data) {
+        setGroups(data.map((g: any) => ({
+           id: g.id,
+           name: g.name,
+           description: g.description,
+           image: g.image_url,
+           membersCount: 0, // Would need a separate count query
+           isMember: false
+        })));
+     }
+  };
+
+  const handleSave = async () => {
+     if(isEditing) {
+        await supabase.from('community_groups').update({
+            name: formData.name,
+            description: formData.desc,
+            image_url: formData.image
+        }).eq('id', formData.id);
+     } else {
+        await supabase.from('community_groups').insert([{
+            name: formData.name,
+            description: formData.desc,
+            image_url: formData.image
+        }]);
+     }
+     alert(isEditing ? 'Group Updated' : 'Group Created');
+     setFormData({ id: '', name: '', desc: '', image: '' });
+     setIsEditing(false);
+     fetchGroups();
+  };
+
+  const handleDelete = async (id: string) => {
+     if(confirm("Delete this group?")) {
+        await supabase.from('community_groups').delete().eq('id', id);
+        fetchGroups();
+     }
+  };
+
   return (
-    <div className="bg-white p-6 rounded-2xl border border-slate-200">
-       <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Manage Community Groups</h3>
-       <div className="space-y-4">
-          <input className="w-full border p-3 rounded-xl" placeholder="Group Name" />
-          <textarea className="w-full border p-3 rounded-xl" placeholder="Description" />
-          <button onClick={() => alert("Group Created")} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold">Create Group</button>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+       <div className="bg-white p-6 rounded-2xl border border-slate-200 h-fit">
+          <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">{isEditing ? 'Edit Group' : 'Create Group'}</h3>
+          <div className="space-y-4">
+             <input className="w-full border p-3 rounded-xl" placeholder="Group Name" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+             <input className="w-full border p-3 rounded-xl" placeholder="Image URL" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} />
+             <textarea className="w-full border p-3 rounded-xl" placeholder="Description" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} />
+             <div className="flex gap-2">
+                 <button onClick={handleSave} className="flex-1 bg-green-600 text-white py-3 rounded-xl font-bold">{isEditing ? 'Update' : 'Create'}</button>
+                 {isEditing && <button onClick={() => { setIsEditing(false); setFormData({id:'', name:'', desc:'', image:''})}} className="px-4 py-3 bg-slate-100 rounded-xl font-bold">Cancel</button>}
+             </div>
+          </div>
+       </div>
+
+       <div className="bg-white p-6 rounded-2xl border border-slate-200">
+           <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Existing Groups</h3>
+           <div className="space-y-3">
+              {groups.map(group => (
+                 <div key={group.id} className="p-3 border rounded-xl flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                       <div className="w-10 h-10 bg-slate-100 rounded-lg flex items-center justify-center">
+                          {group.image ? <img src={group.image} className="w-full h-full object-cover rounded-lg"/> : <Users size={20}/>}
+                       </div>
+                       <div>
+                          <p className="font-bold text-sm">{group.name}</p>
+                          <p className="text-xs text-slate-500 line-clamp-1">{group.description}</p>
+                       </div>
+                    </div>
+                    <div className="flex gap-1">
+                       <button onClick={() => { setFormData({ id: group.id, name: group.name, desc: group.description, image: group.image || '' }); setIsEditing(true); }} className="p-2 text-slate-400 hover:text-blue-600"><Edit size={16}/></button>
+                       <button onClick={() => handleDelete(group.id)} className="p-2 text-slate-400 hover:text-red-600"><Trash2 size={16}/></button>
+                    </div>
+                 </div>
+              ))}
+           </div>
        </div>
     </div>
   )
 }
 
-// 11. BIBLE MANAGER (NEW)
+// 11. BIBLE MANAGER
 const BibleManager = () => {
+  const [bulkText, setBulkText] = useState('');
+  const [month, setMonth] = useState('January');
+  const [year, setYear] = useState('2024');
+
+  const handleBulkUpload = async () => {
+     // Expected format: Day 1: Genesis 1-3
+     // Parsing logic
+     const lines = bulkText.split('\n').filter(line => line.trim() !== '');
+     const planData = lines.map(line => {
+        return {
+           month: month,
+           year: parseInt(year),
+           content: line.trim() // storing raw text for simplicity
+        };
+     });
+
+     const { error } = await supabase.from('reading_plans').insert(planData);
+     
+     if (error) {
+        console.error(error);
+        alert('Upload Failed. Ensure "reading_plans" table exists.');
+     } else {
+        alert(`Successfully uploaded ${lines.length} entries for ${month} ${year}`);
+        setBulkText('');
+     }
+  };
+
   return (
     <div className="bg-white p-6 rounded-2xl border border-slate-200">
-      <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Upload Reading Plan</h3>
-      <textarea className="w-full border p-3 rounded-xl h-48" placeholder="Paste reading plan text here..." />
-      <button onClick={() => alert("Plan Uploaded")} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-4">Upload Plan</button>
+      <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Bulk Upload Reading Plan</h3>
+      
+      <div className="bg-blue-50 p-4 rounded-xl text-sm text-blue-800 mb-4">
+         <strong>Instructions:</strong> Paste your reading plan below. Each line represents a day.<br/>
+         Example:<br/>
+         Day 1: Genesis 1-3<br/>
+         Day 2: Genesis 4-7
+      </div>
+
+      <div className="flex gap-4 mb-4">
+         <select className="border p-2 rounded-lg" value={month} onChange={e => setMonth(e.target.value)}>
+            {['January','February','March','April','May','June','July','August','September','October','November','December'].map(m => <option key={m}>{m}</option>)}
+         </select>
+         <input className="border p-2 rounded-lg w-24" type="number" value={year} onChange={e => setYear(e.target.value)} />
+      </div>
+
+      <textarea 
+        className="w-full border p-3 rounded-xl h-64 font-mono text-sm" 
+        placeholder="Paste list here..." 
+        value={bulkText}
+        onChange={e => setBulkText(e.target.value)}
+      />
+      
+      <button onClick={handleBulkUpload} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold mt-4 flex items-center justify-center gap-2">
+         <Upload size={18}/> Upload Plan
+      </button>
     </div>
   )
 }

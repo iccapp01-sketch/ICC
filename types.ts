@@ -83,6 +83,7 @@ export interface Event {
   type: 'EVENT' | 'ANNOUNCEMENT';
   rsvpCount?: number;
   image?: string;
+  videoUrl?: string;
 }
 
 export interface MusicTrack {

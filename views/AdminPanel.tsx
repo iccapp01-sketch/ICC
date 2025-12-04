@@ -124,7 +124,7 @@ const MembersManager = () => {
       setEditingUser(null);
       fetchUsers();
     } else {
-      alert('Error updating user');
+      alert(`Error updating user: ${error.message}`);
     }
   };
 
@@ -270,21 +270,26 @@ const ContentManager = () => {
   const [formData, setFormData] = useState({ title: '', content: '', excerpt: '', image: '', category: 'Faith' });
   
   const handlePublish = async () => {
-    const { error } = await supabase.from('blog_posts').insert([{
-       title: formData.title,
-       content: formData.content,
-       excerpt: formData.excerpt,
-       image_url: formData.image,
-       category: formData.category,
-       author: 'Admin'
-    }]);
+    try {
+      const { error } = await supabase.from('blog_posts').insert([{
+         title: formData.title,
+         content: formData.content,
+         excerpt: formData.excerpt,
+         image_url: formData.image,
+         category: formData.category,
+         author: 'Admin'
+      }]);
 
-    if (!error) {
-      alert('Blog Published!');
-      setFormData({ title: '', content: '', excerpt: '', image: '', category: 'Faith' });
-    } else {
-      console.error("Blog Error:", error);
-      alert('Error publishing blog. Check console.');
+      if (!error) {
+        alert('Blog Published!');
+        setFormData({ title: '', content: '', excerpt: '', image: '', category: 'Faith' });
+      } else {
+        console.error("Blog Error:", JSON.stringify(error, null, 2));
+        alert(`Error publishing blog: ${error.message || 'Check console'}`);
+      }
+    } catch (e: any) {
+        console.error("Unexpected Blog Error:", e);
+        alert(`Unexpected error: ${e.message}`);
     }
   };
 
@@ -326,6 +331,9 @@ const SermonManager = () => {
     if (!error) {
        alert('Sermon Uploaded!');
        setFormData({ title: '', preacher: '', date: '', duration: '', video: '' });
+    } else {
+        console.error("Sermon Error:", JSON.stringify(error, null, 2));
+        alert(`Error uploading sermon: ${error.message}`);
     }
   };
 
@@ -375,9 +383,10 @@ const EventManager = () => {
   };
 
   const handlePublish = async () => {
+     let error;
      if (isEditing) {
         // Update
-        const { error } = await supabase.from('events').update({
+        const res = await supabase.from('events').update({
            title: formData.title,
            description: formData.desc,
            date: formData.date,
@@ -387,6 +396,7 @@ const EventManager = () => {
            image_url: formData.image,
            video_url: formData.video
         }).eq('id', formData.id);
+        error = res.error;
 
         if(!error) {
             alert('Event Updated!');
@@ -395,7 +405,7 @@ const EventManager = () => {
         }
      } else {
         // Create
-        const { error } = await supabase.from('events').insert([{
+        const res = await supabase.from('events').insert([{
            title: formData.title,
            description: formData.desc,
            date: formData.date,
@@ -405,11 +415,18 @@ const EventManager = () => {
            image_url: formData.image,
            video_url: formData.video
         }]);
+        error = res.error;
+        
         if (!error) {
            alert('Event Created!');
            resetForm();
            fetchEvents();
         }
+     }
+
+     if (error) {
+        console.error("Event Error:", JSON.stringify(error, null, 2));
+        alert(`Error saving event: ${error.message}`);
      }
   };
 
@@ -417,6 +434,7 @@ const EventManager = () => {
      if(confirm("Are you sure you want to delete this event?")) {
         const { error } = await supabase.from('events').delete().eq('id', id);
         if(!error) fetchEvents();
+        else alert(`Error deleting event: ${error.message}`);
      }
   };
 
@@ -559,29 +577,39 @@ const GroupManager = () => {
   };
 
   const handleSave = async () => {
+     let error;
      if(isEditing) {
-        await supabase.from('community_groups').update({
+        const res = await supabase.from('community_groups').update({
             name: formData.name,
             description: formData.desc,
             image_url: formData.image
         }).eq('id', formData.id);
+        error = res.error;
      } else {
-        await supabase.from('community_groups').insert([{
+        const res = await supabase.from('community_groups').insert([{
             name: formData.name,
             description: formData.desc,
             image_url: formData.image
         }]);
+        error = res.error;
      }
-     alert(isEditing ? 'Group Updated' : 'Group Created');
-     setFormData({ id: '', name: '', desc: '', image: '' });
-     setIsEditing(false);
-     fetchGroups();
+
+     if (!error) {
+        alert(isEditing ? 'Group Updated' : 'Group Created');
+        setFormData({ id: '', name: '', desc: '', image: '' });
+        setIsEditing(false);
+        fetchGroups();
+     } else {
+        console.error("Group Error:", JSON.stringify(error, null, 2));
+        alert(`Error saving group: ${error.message}`);
+     }
   };
 
   const handleDelete = async (id: string) => {
      if(confirm("Delete this group?")) {
-        await supabase.from('community_groups').delete().eq('id', id);
-        fetchGroups();
+        const { error } = await supabase.from('community_groups').delete().eq('id', id);
+        if(!error) fetchGroups();
+        else alert(`Error deleting group: ${error.message}`);
      }
   };
 
@@ -647,8 +675,8 @@ const BibleManager = () => {
      const { error } = await supabase.from('reading_plans').insert(planData);
      
      if (error) {
-        console.error(error);
-        alert('Upload Failed. Ensure "reading_plans" table exists.');
+        console.error("Bible Plan Error:", JSON.stringify(error, null, 2));
+        alert(`Upload Failed: ${error.message}. Ensure "reading_plans" table exists.`);
      } else {
         alert(`Successfully uploaded ${lines.length} entries for ${month} ${year}`);
         setBulkText('');

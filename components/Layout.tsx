@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar, User } from 'lucide-react';
+import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar, User, Menu } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -35,7 +35,6 @@ export const Layout: React.FC<LayoutProps> = ({
         
         {/* Left: Branding */}
         <div className="flex items-center gap-3">
-           {/* Logo removed as per previous request, keeping text clean */}
            <span className="text-lg font-bold text-slate-900 dark:text-white leading-none">ICC App</span>
         </div>
 

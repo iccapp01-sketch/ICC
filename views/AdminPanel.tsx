@@ -150,6 +150,7 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
     fetchStats();
   }, []);
 
+  // UPDATED SQL TO PREVENT 'POLICY ALREADY EXISTS' ERRORS
   const SQL_CODE = `
 -- SECURITY FUNCTION TO FIX INFINITE RECURSION
 create or replace function public.is_admin()
@@ -173,12 +174,17 @@ create table if not exists public.profiles (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 alter table public.profiles enable row level security;
+
+-- DROP POLICIES BEFORE CREATING TO PREVENT ERRORS
 drop policy if exists "Public profiles" on public.profiles;
 create policy "Public profiles" on public.profiles for select using (true);
+
 drop policy if exists "Users update own" on public.profiles;
 create policy "Users update own" on public.profiles for update using (auth.uid() = id);
+
 drop policy if exists "Users insert own" on public.profiles;
 create policy "Users insert own" on public.profiles for insert with check (auth.uid() = id);
+
 drop policy if exists "Admin manage profiles" on public.profiles;
 create policy "Admin manage profiles" on public.profiles for all using ( public.is_admin() );
 
@@ -255,7 +261,7 @@ create table if not exists public.notifications (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
--- ENABLE RLS & ADMIN POLICIES FOR ALL TABLES
+-- ENABLE RLS
 alter table public.blog_posts enable row level security;
 alter table public.blog_comments enable row level security;
 alter table public.sermons enable row level security;
@@ -268,47 +274,84 @@ alter table public.community_group_members enable row level security;
 alter table public.reading_plans enable row level security;
 alter table public.notifications enable row level security;
 
--- Public Read / Admin Write Policies (Generic Loop Concept)
+-- RECREATE POLICIES (DROP FIRST)
+drop policy if exists "Public read blogs" on public.blog_posts;
 create policy "Public read blogs" on public.blog_posts for select using (true);
+
+drop policy if exists "Admin manage blogs" on public.blog_posts;
 create policy "Admin manage blogs" on public.blog_posts for all using ( public.is_admin() );
 
+drop policy if exists "Public read comments" on public.blog_comments;
 create policy "Public read comments" on public.blog_comments for select using (true);
+
+drop policy if exists "Auth insert comments" on public.blog_comments;
 create policy "Auth insert comments" on public.blog_comments for insert with check (auth.uid() = user_id);
 
+drop policy if exists "Public read sermons" on public.sermons;
 create policy "Public read sermons" on public.sermons for select using (true);
+
+drop policy if exists "Admin manage sermons" on public.sermons;
 create policy "Admin manage sermons" on public.sermons for all using ( public.is_admin() );
 
+drop policy if exists "Public read events" on public.events;
 create policy "Public read events" on public.events for select using (true);
+
+drop policy if exists "Admin manage events" on public.events;
 create policy "Admin manage events" on public.events for all using ( public.is_admin() );
 
+drop policy if exists "Auth rsvp" on public.event_rsvps;
 create policy "Auth rsvp" on public.event_rsvps for all using (auth.uid() = user_id or public.is_admin());
 
+drop policy if exists "Public read music" on public.music_tracks;
 create policy "Public read music" on public.music_tracks for select using (true);
+
+drop policy if exists "Admin manage music" on public.music_tracks;
 create policy "Admin manage music" on public.music_tracks for all using ( public.is_admin() );
 
+drop policy if exists "Public read playlists" on public.playlists;
 create policy "Public read playlists" on public.playlists for select using (true);
+
+drop policy if exists "Auth manage playlists" on public.playlists;
 create policy "Auth manage playlists" on public.playlists for all using (auth.uid() = user_id or public.is_admin());
 
+drop policy if exists "Public read groups" on public.community_groups;
 create policy "Public read groups" on public.community_groups for select using (true);
+
+drop policy if exists "Admin manage groups" on public.community_groups;
 create policy "Admin manage groups" on public.community_groups for all using ( public.is_admin() );
 
+drop policy if exists "Auth join groups" on public.community_group_members;
 create policy "Auth join groups" on public.community_group_members for all using (auth.uid() = user_id or public.is_admin());
 
+drop policy if exists "Public read plans" on public.reading_plans;
 create policy "Public read plans" on public.reading_plans for select using (true);
+
+drop policy if exists "Admin manage plans" on public.reading_plans;
 create policy "Admin manage plans" on public.reading_plans for all using ( public.is_admin() );
 
+drop policy if exists "Public read notifs" on public.notifications;
 create policy "Public read notifs" on public.notifications for select using (true);
+
+drop policy if exists "Admin manage notifs" on public.notifications;
 create policy "Admin manage notifs" on public.notifications for all using ( public.is_admin() );
 
 -- STORAGE POLICIES
 insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('blog-images', 'blog-images', true) on conflict do nothing;
 
+drop policy if exists "Public Access Music" on storage.objects;
 create policy "Public Access Music" on storage.objects for select using ( bucket_id = 'music' );
+
+drop policy if exists "Admin Upload Music" on storage.objects;
 create policy "Admin Upload Music" on storage.objects for insert with check ( bucket_id = 'music' and public.is_admin() );
+
+drop policy if exists "Admin Delete Music" on storage.objects;
 create policy "Admin Delete Music" on storage.objects for delete using ( bucket_id = 'music' and public.is_admin() );
 
+drop policy if exists "Public Access Blog" on storage.objects;
 create policy "Public Access Blog" on storage.objects for select using ( bucket_id = 'blog-images' );
+
+drop policy if exists "Admin Upload Blog" on storage.objects;
 create policy "Admin Upload Blog" on storage.objects for insert with check ( bucket_id = 'blog-images' and public.is_admin() );
   `;
 
@@ -618,7 +661,7 @@ const SermonManager = () => {
                  <h3 className="font-bold text-lg text-[#0c2d58] mb-4">Library</h3>
                  {sermons.map(s => (
                      <div key={s.id} className="flex justify-between items-center p-3 border-b">
-                         <div><p className="font-bold text-sm">{s.title}</p><p className="text-xs text-slate-500">{s.preacher}</p></div>
+                         <div><p className="font-bold text-sm text-slate-900">{s.title}</p><p className="text-xs text-slate-500">{s.preacher}</p></div>
                          <button onClick={()=>handleDelete(s.id)} className="text-red-500"><Trash2 size={16}/></button>
                      </div>
                  ))}
@@ -699,7 +742,7 @@ const MusicManager = () => {
                             <option value="PODCAST">Podcast</option>
                         </select>
                         <div className="flex gap-2 items-center">
-                            <label className="bg-slate-100 px-3 py-2 rounded text-xs cursor-pointer hover:bg-slate-200">
+                            <label className="bg-slate-100 px-3 py-2 rounded text-xs cursor-pointer hover:bg-slate-200 text-slate-800">
                                 <Upload size={14}/> Upload MP3
                                 <input type="file" hidden accept="audio/*" onChange={handleUpload} />
                             </label>
@@ -711,7 +754,7 @@ const MusicManager = () => {
                     <div className="h-[400px] overflow-y-auto">
                         {tracks.map(t => (
                             <div key={t.id} className="flex justify-between p-2 border-b">
-                                <div><p className="font-bold text-sm">{t.title}</p><p className="text-xs">{t.type}</p></div>
+                                <div><p className="font-bold text-sm text-slate-900">{t.title}</p><p className="text-xs text-slate-500">{t.type}</p></div>
                                 <button onClick={()=>deleteTrack(t.id)} className="text-red-500"><Trash2 size={14}/></button>
                             </div>
                         ))}
@@ -724,7 +767,7 @@ const MusicManager = () => {
                         <input className="w-full border p-2 rounded text-slate-900" placeholder="Playlist Name" value={plForm.name} onChange={e=>setPlForm({...plForm, name: e.target.value})} />
                         <div className="h-48 overflow-y-auto border p-2 rounded">
                             {tracks.map(t => (
-                                <label key={t.id} className="flex items-center gap-2 text-sm p-1 hover:bg-slate-50">
+                                <label key={t.id} className="flex items-center gap-2 text-sm p-1 hover:bg-slate-50 text-slate-800">
                                     <input type="checkbox" checked={plForm.tracks.includes(t.id)} onChange={e => {
                                         if(e.target.checked) setPlForm({...plForm, tracks: [...plForm.tracks, t.id]});
                                         else setPlForm({...plForm, tracks: plForm.tracks.filter(id => id !== t.id)});
@@ -738,7 +781,7 @@ const MusicManager = () => {
                     <div>
                         {playlists.map(p => (
                             <div key={p.id} className="flex justify-between p-2 border-b items-center">
-                                <span className="font-bold text-sm">{p.name} ({p.tracks?.length || 0})</span>
+                                <span className="font-bold text-sm text-slate-900">{p.name} ({p.tracks?.length || 0})</span>
                                 <button onClick={()=>deletePlaylist(p.id)} className="text-red-500"><Trash2 size={14}/></button>
                             </div>
                         ))}
@@ -776,7 +819,7 @@ const GroupManager = () => {
                 <h3 className="font-bold mb-4">Existing Groups</h3>
                 {groups.map(g => (
                     <div key={g.id} className="flex justify-between p-2 border-b">
-                        <span className="font-bold">{g.name}</span>
+                        <span className="font-bold text-slate-900">{g.name}</span>
                         <button onClick={()=>deleteGroup(g.id)} className="text-red-500"><Trash2 size={16}/></button>
                     </div>
                 ))}
@@ -840,7 +883,7 @@ const EventManager = () => {
                 {events.map(e => (
                     <div key={e.id} className="p-3 border-b mb-2">
                         <div className="flex justify-between">
-                            <h4 className="font-bold">{e.title}</h4>
+                            <h4 className="font-bold text-slate-900">{e.title}</h4>
                             <div className="flex gap-2">
                                 <button onClick={()=>handleExport(e.id)} className="text-green-600"><Download size={16}/></button>
                                 <button onClick={()=>deleteEvent(e.id)} className="text-red-500"><Trash2 size={16}/></button>

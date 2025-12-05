@@ -274,23 +274,29 @@ const ContentManager = () => {
   };
 
   const handleSave = async () => {
+     // Prepare payload, ensuring empty strings are null if preferred, but Supabase text columns handle empty strings fine.
+     // However, for URLs, null is often safer if unique constraints exist (unlikely here).
      const blogData = {
         title: formData.title,
         category: formData.category,
         excerpt: formData.excerpt,
         content: formData.content,
-        image_url: formData.image,
+        image_url: formData.image || null,
         video_url: formData.video || null,
         author: 'Admin'
      };
 
      let error;
-     if(isEditing) {
-        const res = await supabase.from('blog_posts').update(blogData).eq('id', formData.id);
-        error = res.error;
-     } else {
-        const res = await supabase.from('blog_posts').insert([blogData]);
-        error = res.error;
+     try {
+        if(isEditing) {
+            const res = await supabase.from('blog_posts').update(blogData).eq('id', formData.id);
+            error = res.error;
+        } else {
+            const res = await supabase.from('blog_posts').insert([blogData]);
+            error = res.error;
+        }
+     } catch(e: any) {
+        error = e;
      }
 
      if(!error) {
@@ -299,7 +305,8 @@ const ContentManager = () => {
         setIsEditing(false);
         fetchBlogs();
      } else {
-        alert("Error: " + error.message);
+        console.error("Blog Publish Error:", error);
+        alert("Error publishing blog: " + (error.message || JSON.stringify(error)));
      }
   };
 
@@ -489,15 +496,19 @@ const MusicManager = () => {
     };
 
     const handleSave = async () => {
-        const { error } = await supabase.from('music_tracks').insert([{
+        // Ensure payload fields match schema. Empty strings for URL might cause issues if not nullable.
+        const payload = {
             title: formData.title,
             artist: formData.artist,
             url: formData.url,
             type: formData.type
-        }]);
+        };
+
+        const { error } = await supabase.from('music_tracks').insert([payload]);
 
         if (error) {
-            alert("Error: " + error.message);
+            console.error("Music Upload Error:", error);
+            alert("Error uploading track: " + error.message);
         } else {
             alert("Track Uploaded!");
             setFormData({ title: '', artist: '', url: '', type: 'MUSIC' });

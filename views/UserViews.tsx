@@ -21,16 +21,6 @@ const DAILY_VERSE: BibleVerse = {
 const BIBLE_API_KEY = 'j6HVB3_hdmcH_ue5C6QMx';
 const BIBLE_ID = 'de4e12af7f28f599-01'; // KJV
 
-const MOCK_PLAYLISTS: Playlist[] = [
-  { 
-    id: '1', name: 'Worship Essentials', tracks: [
-      { id: '1', title: 'Amazing Grace', artist: 'ICC Worship Team', duration: '4:20', date: '2024', isOffline: true, url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3', type: 'MUSIC' },
-      { id: '2', title: 'Way Maker', artist: 'ICC Worship Team', duration: '5:10', date: '2024', isOffline: false, url: 'https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3', type: 'MUSIC' },
-    ]
-  }
-];
-
-// --- HELPER FUNCTIONS ---
 const getYouTubeID = (url: string) => {
   if (!url) return null;
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
@@ -262,7 +252,7 @@ export const EventsView = ({ onBack }: { onBack?: () => void }) => {
   )
 }
 
-// 3. COMMUNITY VIEW (Social Feed Style)
+// 3. COMMUNITY VIEW
 export const CommunityView = () => {
   const [activeGroup, setActiveGroup] = useState<CommunityGroup | null>(null);
   const [allGroups, setAllGroups] = useState<CommunityGroup[]>([]);
@@ -271,10 +261,9 @@ export const CommunityView = () => {
   // Feed State
   const [posts, setPosts] = useState<GroupPost[]>([]);
   const [newPostContent, setNewPostContent] = useState('');
-  const [expandedComments, setExpandedComments] = useState<string | null>(null); // Post ID
+  const [expandedComments, setExpandedComments] = useState<string | null>(null); 
   const [newComment, setNewComment] = useState('');
 
-  // 1. Fetch Groups
   useEffect(() => {
     const fetchGroups = async () => {
        setLoadingGroups(true);
@@ -301,39 +290,6 @@ export const CommunityView = () => {
     fetchGroups();
   }, []);
 
-  // 2. Fetch Posts Mock
-  useEffect(() => {
-    if(activeGroup) {
-       setPosts([
-         {
-           id: '1',
-           groupId: activeGroup.id,
-           userId: '101',
-           userName: 'Sarah Jenkins',
-           userAvatar: '',
-           content: 'Really enjoyed the youth service last night! The worship was amazing. 🙌',
-           likes: 12,
-           comments: [
-             { id: 'c1', postId: '1', userId: '102', userName: 'Mike', content: 'It was powerful!', createdAt: '10m ago' }
-           ],
-           createdAt: '2 hours ago'
-         },
-         {
-           id: '2',
-           groupId: activeGroup.id,
-           userId: '103',
-           userName: 'Pastor David',
-           userAvatar: '',
-           content: 'Reminder: We have a leadership meeting this Tuesday. Please check your emails for the agenda.',
-           imageUrl: 'https://picsum.photos/600/300',
-           likes: 24,
-           comments: [],
-           createdAt: '5 hours ago'
-         }
-       ]);
-    }
-  }, [activeGroup]);
-
   const handleCreatePost = () => {
     if(!newPostContent.trim()) return;
     const newPost: GroupPost = {
@@ -350,32 +306,9 @@ export const CommunityView = () => {
     setNewPostContent('');
   };
 
-  const handleLike = (postId: string) => {
-     setPosts(posts.map(p => 
-        p.id === postId 
-        ? { ...p, likes: p.likedByMe ? p.likes - 1 : p.likes + 1, likedByMe: !p.likedByMe }
-        : p
-     ));
-  };
-
-  const handleAddComment = (postId: string) => {
-     if(!newComment.trim()) return;
-     const comment: GroupComment = {
-        id: Date.now().toString(),
-        postId,
-        userId: 'me',
-        userName: 'Me',
-        content: newComment,
-        createdAt: 'Just now'
-     };
-     setPosts(posts.map(p => p.id === postId ? { ...p, comments: [...p.comments, comment] } : p));
-     setNewComment('');
-  };
-
   if (activeGroup) {
      return (
        <div className="h-full flex flex-col bg-slate-100 dark:bg-slate-900">
-         {/* Group Header */}
          <div className="p-4 bg-white dark:bg-slate-800 flex items-center justify-between border-b border-slate-200 dark:border-slate-700 sticky top-0 z-20 shadow-sm">
             <div className="flex items-center gap-3">
               <button onClick={() => setActiveGroup(null)}><ArrowLeft className="text-slate-500 dark:text-slate-400"/></button>
@@ -384,109 +317,27 @@ export const CommunityView = () => {
                 <p className="text-xs text-slate-500 dark:text-slate-400">{activeGroup.membersCount} members</p>
               </div>
             </div>
-            <button><MoreVertical className="text-slate-500 dark:text-slate-400" size={20}/></button>
          </div>
-         
-         {/* Feed Content */}
-         <div className="flex-1 overflow-y-auto pb-20">
-            {/* Create Post Widget */}
-            <div className="bg-white dark:bg-slate-800 p-4 mb-2 shadow-sm">
-                <div className="flex gap-3">
-                   <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 flex items-center justify-center text-slate-500"><User size={20}/></div>
-                   <input 
-                     className="flex-1 bg-slate-100 dark:bg-slate-900 rounded-full px-4 text-sm outline-none dark:text-white"
-                     placeholder={`What's on your mind?`}
-                     value={newPostContent}
-                     onChange={e => setNewPostContent(e.target.value)}
-                   />
-                </div>
-                <div className="flex justify-between items-center mt-3 pt-2 border-t border-slate-100 dark:border-slate-700">
-                   <button className="flex items-center gap-2 text-slate-500 text-xs font-bold px-2 py-1 hover:bg-slate-50 dark:hover:bg-slate-700 rounded-lg">
-                      <ImageIcon size={16} className="text-green-500"/> Photo/Video
-                   </button>
-                   <button 
-                     onClick={handleCreatePost}
-                     disabled={!newPostContent.trim()}
-                     className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50"
-                   >
-                      Post
-                   </button>
-                </div>
+         <div className="flex-1 overflow-y-auto pb-20 p-4">
+            <div className="bg-white dark:bg-slate-800 p-4 mb-4 rounded-xl shadow-sm">
+                <input 
+                  className="w-full bg-slate-100 dark:bg-slate-900 rounded-full px-4 py-2 text-sm outline-none dark:text-white mb-2"
+                  placeholder={`What's on your mind?`}
+                  value={newPostContent}
+                  onChange={e => setNewPostContent(e.target.value)}
+                />
+                <button onClick={handleCreatePost} disabled={!newPostContent.trim()} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg text-xs font-bold disabled:opacity-50 float-right">Post</button>
             </div>
-
-            {/* Posts Feed */}
-            <div className="space-y-2">
-               {posts.map(post => (
-                  <div key={post.id} className="bg-white dark:bg-slate-800 p-4 shadow-sm">
-                     {/* Post Header */}
-                     <div className="flex items-center gap-3 mb-3">
-                        <div className="w-10 h-10 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-600 flex items-center justify-center font-bold">
-                           {post.userName.charAt(0)}
-                        </div>
-                        <div>
-                           <p className="font-bold text-sm text-slate-900 dark:text-white">{post.userName}</p>
-                           <p className="text-xs text-slate-500">{post.createdAt}</p>
-                        </div>
-                     </div>
-                     
-                     {/* Post Content */}
-                     <p className="text-sm text-slate-800 dark:text-slate-200 mb-3 whitespace-pre-wrap">{post.content}</p>
-                     {post.imageUrl && <img src={post.imageUrl} className="w-full rounded-lg mb-3" />}
-                     
-                     {/* Stats */}
-                     <div className="flex justify-between text-xs text-slate-500 mb-3 pb-2 border-b border-slate-100 dark:border-slate-700">
-                        <span>{post.likes} Likes</span>
-                        <span>{post.comments.length} Comments</span>
-                     </div>
-
-                     {/* Actions */}
-                     <div className="flex justify-between gap-1">
-                        <button 
-                           onClick={() => handleLike(post.id)}
-                           className={`flex-1 flex items-center justify-center gap-2 py-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition font-medium text-sm ${post.likedByMe ? 'text-blue-600' : 'text-slate-500'}`}
-                        >
-                           <ThumbsUp size={18} /> Like
-                        </button>
-                        <button 
-                           onClick={() => setExpandedComments(expandedComments === post.id ? null : post.id)}
-                           className="flex-1 flex items-center justify-center gap-2 py-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition font-medium text-sm text-slate-500"
-                        >
-                           <MessageCircle size={18} /> Comment
-                        </button>
-                        <button className="flex-1 flex items-center justify-center gap-2 py-2 rounded hover:bg-slate-50 dark:hover:bg-slate-700 transition font-medium text-sm text-slate-500">
-                           <Share2 size={18} /> Share
-                        </button>
-                     </div>
-
-                     {/* Comments Section */}
-                     {expandedComments === post.id && (
-                        <div className="mt-3 pt-3 bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl animate-fade-in">
-                           <div className="space-y-3 mb-3">
-                              {post.comments.map(comment => (
-                                 <div key={comment.id} className="flex gap-2">
-                                    <div className="w-8 h-8 rounded-full bg-slate-300 dark:bg-slate-600 shrink-0"></div>
-                                    <div className="bg-slate-200 dark:bg-slate-700 rounded-2xl px-3 py-2">
-                                       <p className="text-xs font-bold text-slate-900 dark:text-white">{comment.userName}</p>
-                                       <p className="text-sm text-slate-800 dark:text-slate-200">{comment.content}</p>
-                                    </div>
-                                 </div>
-                              ))}
-                           </div>
-                           <div className="flex gap-2">
-                              <input 
-                                 className="flex-1 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-full px-3 py-1.5 text-sm outline-none"
-                                 placeholder="Write a comment..."
-                                 value={newComment}
-                                 onChange={e => setNewComment(e.target.value)}
-                                 onKeyDown={e => e.key === 'Enter' && handleAddComment(post.id)}
-                              />
-                              <button onClick={() => handleAddComment(post.id)} className="text-blue-600 p-1"><Send size={18}/></button>
-                           </div>
-                        </div>
-                     )}
+            {posts.map(post => (
+               <div key={post.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm mb-3">
+                  <h4 className="font-bold text-sm text-slate-900 dark:text-white">{post.userName}</h4>
+                  <p className="text-sm text-slate-800 dark:text-slate-200 my-2">{post.content}</p>
+                  <div className="flex gap-4 text-xs text-slate-500">
+                     <button>Like ({post.likes})</button>
+                     <button>Comment ({post.comments.length})</button>
                   </div>
-               ))}
-            </div>
+               </div>
+            ))}
          </div>
        </div>
      )
@@ -494,37 +345,19 @@ export const CommunityView = () => {
 
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24">
-      <div className="bg-blue-600 p-6 rounded-3xl text-white mb-6 shadow-lg relative overflow-hidden">
-         <div className="relative z-10">
-            <h1 className="text-2xl font-bold mb-1">Community Groups</h1>
-            <p className="text-blue-100 text-sm">Connect & Grow Together</p>
-         </div>
-         <div className="absolute -right-4 -bottom-8 opacity-20">
-            <Users size={120} />
-         </div>
-      </div>
-
-      <h2 className="font-bold text-slate-900 dark:text-white mb-4 ml-1">Your Groups</h2>
-      
-      {loadingGroups ? <p className="text-center text-slate-500">Loading Groups...</p> : (
+      <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Groups</h2>
+      {loadingGroups ? <p className="text-center text-slate-500">Loading...</p> : (
         <div className="space-y-4">
-            {allGroups.length === 0 && <p className="text-center text-slate-500">No active groups found.</p>}
             {allGroups.map(group => (
-            <div key={group.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4 hover:shadow-md transition">
-                <div className="w-14 h-14 bg-blue-50 dark:bg-slate-700 text-blue-600 dark:text-blue-400 rounded-full flex items-center justify-center shrink-0 border border-blue-100 dark:border-slate-600 overflow-hidden">
-                {group.image ? <img src={group.image} className="w-full h-full object-cover"/> : <Users size={28} />}
+            <div key={group.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex items-center gap-4">
+                <div className="w-12 h-12 bg-blue-50 dark:bg-slate-700 rounded-full flex items-center justify-center overflow-hidden">
+                {group.image ? <img src={group.image} className="w-full h-full object-cover"/> : <Users size={20} />}
                 </div>
                 <div className="flex-1">
-                <h3 className="font-bold text-lg text-slate-900 dark:text-white">{group.name}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{group.description}</p>
-                <span className="text-[10px] bg-slate-100 dark:bg-slate-700 text-slate-500 px-2 py-0.5 rounded font-medium">Active Member</span>
+                <h3 className="font-bold text-slate-900 dark:text-white">{group.name}</h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400">{group.description}</p>
                 </div>
-                <button 
-                    onClick={() => setActiveGroup(group)}
-                    className="px-4 py-2 rounded-lg text-xs font-bold transition shadow-sm bg-blue-600 text-white hover:bg-blue-700"
-                >
-                Open Feed
-                </button>
+                <button onClick={() => setActiveGroup(group)} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-xs font-bold">Open</button>
             </div>
             ))}
         </div>
@@ -564,25 +397,16 @@ export const NotificationsView = () => {
 
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24">
-       <div className="flex items-center justify-between mb-6">
-          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Notifications</h1>
-          <button className="text-xs text-blue-500 font-bold">Mark all read</button>
-       </div>
-
+       <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Notifications</h1>
        {loading ? <p className="text-center text-slate-500">Loading...</p> : (
          <div className="space-y-4">
             {notifications.length === 0 && <p className="text-center text-slate-500">No new notifications.</p>}
             {notifications.map(notif => (
-                <div key={notif.id} className="p-4 rounded-2xl flex gap-4 bg-white dark:bg-slate-800 border-l-4 border-blue-500 shadow-sm animate-fade-in">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${
-                        notif.type === 'COMMENT' ? 'bg-blue-100 text-blue-600' :
-                        notif.type === 'EVENT' ? 'bg-orange-100 text-orange-600' : 'bg-green-100 text-green-600'
-                    }`}>
-                        <Bell size={18}/>
-                    </div>
+                <div key={notif.id} className="p-4 rounded-2xl flex gap-4 bg-white dark:bg-slate-800 border-l-4 border-blue-500 shadow-sm">
+                    <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 shrink-0"><Bell size={18}/></div>
                     <div>
                         <h4 className="font-bold text-sm text-slate-900 dark:text-white">{notif.title}</h4>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 leading-snug">{notif.message}</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300">{notif.message}</p>
                         <p className="text-xs text-slate-400 mt-1">{notif.created_at}</p>
                     </div>
                 </div>
@@ -593,7 +417,7 @@ export const NotificationsView = () => {
   )
 }
 
-// 5. BIBLE VIEW (API Integration)
+// 5. BIBLE VIEW
 export const BibleView = () => {
   const [books, setBooks] = useState<any[]>([]);
   const [chapters, setChapters] = useState<any[]>([]);
@@ -604,21 +428,17 @@ export const BibleView = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Fetch Books
   useEffect(() => {
     const fetchBooks = async () => {
       setLoading(true);
       setError('');
       try {
-        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books`, {
-          headers: { 'api-key': BIBLE_API_KEY }
-        });
+        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books`, { headers: { 'api-key': BIBLE_API_KEY } });
         if (!res.ok) throw new Error('Failed to fetch books');
         const data = await res.json();
         setBooks(data.data);
       } catch (err: any) {
-        console.error("Bible API Error:", err);
-        setError('Could not connect to Bible API. Please check your internet connection.');
+        setError('Could not connect to Bible API.');
       } finally {
         setLoading(false);
       }
@@ -630,93 +450,35 @@ export const BibleView = () => {
     setSelectedBook(book);
     setLoading(true);
     try {
-        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books/${book.id}/chapters`, {
-            headers: { 'api-key': BIBLE_API_KEY }
-        });
-        if (!res.ok) throw new Error('Failed to fetch chapters');
+        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books/${book.id}/chapters`, { headers: { 'api-key': BIBLE_API_KEY } });
         const data = await res.json();
         setChapters(data.data);
         setView('chapters');
-    } catch (err: any) {
-        setError(err.message);
-    } finally {
-        setLoading(false);
-    }
+    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
 
   const handleChapterSelect = async (chapterId: string) => {
     setSelectedChapter(chapterId);
     setLoading(true);
     try {
-        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/chapters/${chapterId}?content-type=html`, {
-            headers: { 'api-key': BIBLE_API_KEY }
-        });
-        if (!res.ok) throw new Error('Failed to fetch content');
+        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/chapters/${chapterId}?content-type=html`, { headers: { 'api-key': BIBLE_API_KEY } });
         const data = await res.json();
         setContent(data.data.content);
         setView('text');
-    } catch (err: any) {
-        setError(err.message);
-    } finally {
-        setLoading(false);
-    }
+    } catch (err: any) { setError(err.message); } finally { setLoading(false); }
   };
 
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24 flex flex-col">
       <div className="flex items-center gap-2 mb-4">
-        {view !== 'books' && (
-           <button onClick={() => setView(view === 'text' ? 'chapters' : 'books')} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm">
-             <ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/>
-           </button>
-        )}
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
-            {view === 'books' ? 'Holy Bible' : view === 'chapters' ? selectedBook.name : selectedChapter}
-        </h1>
+        {view !== 'books' && <button onClick={() => setView(view === 'text' ? 'chapters' : 'books')}><ArrowLeft size={24} className="text-slate-500"/></button>}
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">{view === 'books' ? 'Holy Bible' : view === 'chapters' ? selectedBook.name : selectedChapter}</h1>
       </div>
-
-      {loading && <div className="flex-1 flex items-center justify-center text-slate-500">Loading...</div>}
-      
-      {error && (
-          <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-200 text-center">
-              <p>{error}</p>
-              <button onClick={() => window.location.reload()} className="mt-2 text-xs font-bold underline">Retry</button>
-          </div>
-      )}
-
-      {!loading && !error && (
+      {loading ? <div className="text-center text-slate-500">Loading...</div> : error ? <div className="text-red-500 text-center">{error}</div> : (
         <div className="flex-1 overflow-y-auto">
-           {view === 'books' && (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                 {books.map(book => (
-                    <button key={book.id} onClick={() => handleBookSelect(book)} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:border-blue-500 text-left">
-                        <span className="font-bold text-slate-700 dark:text-slate-200">{book.name}</span>
-                    </button>
-                 ))}
-              </div>
-           )}
-           
-           {view === 'chapters' && (
-              <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
-                 {chapters.map(chap => (
-                    <button key={chap.id} onClick={() => handleChapterSelect(chap.id)} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-center text-slate-700 dark:text-slate-200">
-                        {chap.number}
-                    </button>
-                 ))}
-              </div>
-           )}
-
-           {view === 'text' && (
-              <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 prose dark:prose-invert max-w-none">
-                 <div className="bible-content" dangerouslySetInnerHTML={{ __html: content }} />
-                 <style>{`
-                    .bible-content .p { margin-bottom: 1em; line-height: 1.8; }
-                    .bible-content .v { font-size: 0.7em; color: #94a3b8; font-weight: bold; vertical-align: super; margin-right: 4px; }
-                    .bible-content .q1, .bible-content .q2 { margin-left: 20px; font-style: italic; color: #475569; }
-                    .bible-content .wj { color: #e11d48; } /* Words of Jesus in Red */
-                 `}</style>
-              </div>
-           )}
+           {view === 'books' && <div className="grid grid-cols-2 gap-3">{books.map(b => <button key={b.id} onClick={() => handleBookSelect(b)} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-left font-bold text-slate-700 dark:text-slate-200">{b.name}</button>)}</div>}
+           {view === 'chapters' && <div className="grid grid-cols-5 gap-3">{chapters.map(c => <button key={c.id} onClick={() => handleChapterSelect(c.id)} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200">{c.number}</button>)}</div>}
+           {view === 'text' && <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 prose dark:prose-invert" dangerouslySetInnerHTML={{ __html: content }} />}
         </div>
       )}
     </div>
@@ -726,57 +488,25 @@ export const BibleView = () => {
 // 6. BLOG VIEW
 export const BlogView = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
-  const [loading, setLoading] = useState(true);
-
   useEffect(() => {
     const fetchBlogs = async () => {
-        try {
-            const { data, error } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-            if (error) throw error;
-            if(data) {
-                setBlogs(data.map((b:any) => ({
-                    id: b.id,
-                    title: b.title,
-                    author: b.author,
-                    date: new Date(b.created_at).toLocaleDateString(),
-                    category: b.category,
-                    excerpt: b.excerpt,
-                    content: b.content,
-                    image: b.image_url || 'https://picsum.photos/800/400',
-                    likes: 0,
-                    comments: 0
-                })));
-            }
-        } catch (err) {
-            console.error("Fetch blogs error", err);
-        } finally {
-            setLoading(false);
-        }
+        const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
+        if(data) setBlogs(data.map((b:any) => ({ ...b, date: new Date(b.created_at).toLocaleDateString(), image: b.image_url })));
     }
     fetchBlogs();
   }, []);
-
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Latest Articles</h1>
-        {loading ? <p className="text-center text-slate-500">Loading...</p> : (
-            <div className="space-y-6">
-                {blogs.map(blog => (
-                    <div key={blog.id} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700">
-                        {blog.image && <img src={blog.image} className="w-full h-48 object-cover" />}
-                        <div className="p-5">
-                            <div className="flex items-center gap-2 mb-3">
-                                <span className="text-[10px] font-bold uppercase bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded">{blog.category}</span>
-                                <span className="text-xs text-slate-400">{blog.date}</span>
-                            </div>
-                            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{blog.title}</h3>
-                            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 line-clamp-3">{blog.excerpt}</p>
-                            <button className="text-blue-600 dark:text-blue-400 font-bold text-sm flex items-center gap-1">Read Full Article <ChevronRight size={16}/></button>
-                        </div>
-                    </div>
-                ))}
+        <div className="space-y-6">{blogs.map(blog => (
+            <div key={blog.id} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-slate-200 dark:border-slate-700">
+                {blog.image && <img src={blog.image} className="w-full h-48 object-cover" />}
+                <div className="p-5">
+                    <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">{blog.title}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-4 line-clamp-3">{blog.excerpt}</p>
+                </div>
             </div>
-        )}
+        ))}</div>
     </div>
   );
 };
@@ -784,87 +514,104 @@ export const BlogView = () => {
 // 7. SERMONS VIEW
 export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
+    const [playingSermon, setPlayingSermon] = useState<string | null>(null);
     
     useEffect(() => {
         const fetchSermons = async () => {
-            try {
-                const { data, error } = await supabase.from('sermons').select('*').order('date_preached', { ascending: false });
-                if (error) throw error;
-                if (data) {
-                    setSermons(data.map((s:any) => ({
-                        id: s.id,
-                        title: s.title,
-                        preacher: s.preacher,
-                        date: s.date_preached,
-                        duration: s.duration,
-                        videoUrl: s.video_url,
-                        thumbnail: s.thumbnail_url || 'https://picsum.photos/800/450',
-                        views: 0
-                    })));
-                }
-            } catch (err) {
-                console.error("Fetch sermons error", err);
-            }
+            const { data } = await supabase.from('sermons').select('*').order('date_preached', { ascending: false });
+            if (data) setSermons(data.map((s:any) => ({ ...s, date: s.date_preached, videoUrl: s.video_url, thumbnail: s.thumbnail_url || 'https://picsum.photos/800/450' })));
         };
         fetchSermons();
     }, []);
+
+    const playVideo = (url: string) => {
+       const id = getYouTubeID(url);
+       if(id) setPlayingSermon(id);
+       else alert("Invalid YouTube URL");
+    };
 
     return (
         <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Sermons</h1>
             <div className="space-y-4">
                 {sermons.map(sermon => (
-                    <div key={sermon.id} className="flex gap-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700">
+                    <div key={sermon.id} className="flex gap-4 bg-white dark:bg-slate-800 p-3 rounded-2xl border border-slate-200 dark:border-slate-700" onClick={() => sermon.videoUrl && playVideo(sermon.videoUrl)}>
                         <div className="w-24 h-24 rounded-xl bg-slate-200 shrink-0 relative overflow-hidden">
                             <img src={sermon.thumbnail} className="w-full h-full object-cover" />
                             <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
-                                <div className="bg-white/90 p-1.5 rounded-full"><Play size={12} className="text-slate-900 ml-0.5"/></div>
+                                <Play size={20} className="text-white fill-current"/>
                             </div>
                         </div>
                         <div className="flex-1 py-1">
                             <h3 className="font-bold text-slate-900 dark:text-white line-clamp-2 mb-1">{sermon.title}</h3>
                             <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">{sermon.preacher}</p>
-                            <div className="flex items-center gap-3 text-[10px] text-slate-400">
-                                <span className="flex items-center gap-1"><Calendar size={10}/> {sermon.date}</span>
-                                <span className="flex items-center gap-1"><Clock size={10}/> {sermon.duration}</span>
-                            </div>
                         </div>
                     </div>
                 ))}
             </div>
+
+            {playingSermon && (
+                <div className="fixed inset-0 bg-black z-[60] flex items-center justify-center p-4">
+                   <button onClick={() => setPlayingSermon(null)} className="absolute top-4 right-4 text-white p-2 bg-white/20 rounded-full"><X size={24}/></button>
+                   <div className="w-full aspect-video max-w-4xl bg-black rounded-xl overflow-hidden shadow-2xl">
+                      <iframe 
+                        width="100%" height="100%" 
+                        src={`https://www.youtube.com/embed/${playingSermon}?autoplay=1`} 
+                        title="Sermon Video" frameBorder="0" 
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                        allowFullScreen
+                      ></iframe>
+                   </div>
+                </div>
+            )}
         </div>
     );
 };
 
-// 8. MUSIC VIEW
+// 8. MUSIC VIEW (With Player)
 export const MusicView = () => {
-  // Simple Mock or Supabase fetch
-  const playlists = MOCK_PLAYLISTS;
+  const [tracks, setTracks] = useState<MusicTrack[]>([]);
+  const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
+
+  useEffect(() => {
+     const fetchMusic = async () => {
+        const { data } = await supabase.from('music_tracks').select('*').order('created_at', { ascending: false });
+        if(data) setTracks(data.map((t:any) => ({...t, isOffline: false})));
+     };
+     fetchMusic();
+  }, []);
+
+  useEffect(() => {
+     if(currentTrack && audioRef.current) {
+        audioRef.current.src = currentTrack.url;
+        audioRef.current.play().catch(e => console.error("Playback error:", e));
+     }
+  }, [currentTrack]);
 
   return (
-    <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24">
+    <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-32">
         <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">Worship Music</h1>
-        {playlists.map(playlist => (
-            <div key={playlist.id} className="mb-8">
-                <h3 className="font-bold text-lg text-slate-800 dark:text-slate-200 mb-3">{playlist.name}</h3>
-                <div className="space-y-3">
-                    {playlist.tracks.map((track, idx) => (
-                        <div key={track.id} className="flex items-center justify-between bg-white dark:bg-slate-800 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                            <div className="flex items-center gap-3">
-                                <span className="text-slate-400 font-bold text-sm w-4 text-center">{idx + 1}</span>
-                                <div>
-                                    <p className="font-bold text-sm text-slate-900 dark:text-white">{track.title}</p>
-                                    <p className="text-xs text-slate-500">{track.artist}</p>
-                                </div>
-                            </div>
-                            <button className="w-8 h-8 rounded-full bg-blue-50 dark:bg-slate-700 text-blue-600 flex items-center justify-center">
-                                <Play size={14} fill="currentColor" />
-                            </button>
+        <div className="space-y-3">
+            {tracks.map((track, idx) => (
+                <div key={track.id} onClick={() => setCurrentTrack(track)} className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition ${currentTrack?.id === track.id ? 'bg-blue-50 border-blue-200 dark:bg-blue-900/20' : 'bg-white border-slate-200 dark:bg-slate-800 dark:border-slate-700'}`}>
+                    <div className="flex items-center gap-3">
+                        <span className="text-slate-400 font-bold text-sm w-4 text-center">{idx + 1}</span>
+                        <div>
+                            <p className={`font-bold text-sm ${currentTrack?.id === track.id ? 'text-blue-600' : 'text-slate-900 dark:text-white'}`}>{track.title}</p>
+                            <p className="text-xs text-slate-500">{track.artist}</p>
                         </div>
-                    ))}
+                    </div>
+                    {currentTrack?.id === track.id && <div className="w-2 h-2 rounded-full bg-blue-500 animate-pulse"></div>}
                 </div>
-            </div>
-        ))}
+            ))}
+        </div>
+
+        {/* Fixed Player */}
+        <div className="fixed bottom-[72px] left-0 right-0 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-3 flex items-center gap-4 px-4 shadow-lg z-40">
+           <audio ref={audioRef} controls className="w-full h-10" />
+           {/* Custom UI overlay could go here, but native controls are most reliable for cross-browser */}
+        </div>
     </div>
   );
 };
@@ -882,15 +629,11 @@ export const ContactView = ({ onBack }: { onBack: () => void }) => {
                  <div>
                     <h3 className="font-bold text-slate-900 dark:text-white mb-1">Church Office</h3>
                     <p className="text-sm text-slate-500">123 Church Street, Isipingo</p>
-                    <p className="text-sm text-slate-500">Durban, South Africa</p>
                  </div>
-                 
                  <div>
                     <h3 className="font-bold text-slate-900 dark:text-white mb-1">Service Times</h3>
                     <p className="text-sm text-slate-500">Sunday Service: 09:00 AM</p>
-                    <p className="text-sm text-slate-500">Youth Meeting: Friday 06:00 PM</p>
                  </div>
-
                  <div>
                     <h3 className="font-bold text-slate-900 dark:text-white mb-1">Get in Touch</h3>
                     <p className="text-sm text-slate-500 flex items-center gap-2"><Phone size={14}/> +27 31 123 4567</p>
@@ -915,6 +658,7 @@ export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode, onNavigat
         firstName: user?.firstName || '',
         lastName: user?.lastName || '',
         phone: user?.phone || '',
+        dob: user?.dob || ''
     });
 
     const handleSave = () => {
@@ -923,10 +667,9 @@ export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode, onNavigat
     };
 
     return (
-        <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24">
+        <div className="min-h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24 overflow-y-auto">
             <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-6">My Profile</h1>
             
-            {/* Profile Card */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 flex flex-col items-center">
                 <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-3xl font-bold mb-4">
                     {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
@@ -939,22 +682,27 @@ export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode, onNavigat
                              <input className="flex-1 bg-slate-100 dark:bg-slate-900 p-2 rounded-lg border dark:border-slate-700 dark:text-white" value={editData.lastName} onChange={e => setEditData({...editData, lastName: e.target.value})} placeholder="Last Name" />
                         </div>
                         <input className="w-full bg-slate-100 dark:bg-slate-900 p-2 rounded-lg border dark:border-slate-700 dark:text-white" value={editData.phone} onChange={e => setEditData({...editData, phone: e.target.value})} placeholder="Phone" />
+                        <label className="text-xs text-slate-500 ml-1">Date of Birth</label>
+                        <input type="date" className="w-full bg-slate-100 dark:bg-slate-900 p-2 rounded-lg border dark:border-slate-700 dark:text-white" value={editData.dob} onChange={e => setEditData({...editData, dob: e.target.value})} />
+                        
                         <div className="flex gap-2 mt-2">
                              <button onClick={handleSave} className="flex-1 bg-green-600 text-white py-2 rounded-lg font-bold text-sm">Save</button>
                              <button onClick={() => setIsEditing(false)} className="flex-1 bg-slate-200 text-slate-700 py-2 rounded-lg font-bold text-sm">Cancel</button>
                         </div>
                     </div>
                 ) : (
-                    <>
+                    <div className="w-full text-center">
                         <h2 className="text-xl font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
-                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-4">{user?.email}</p>
-                        <button onClick={() => setIsEditing(true)} className="px-6 py-2 rounded-full border border-slate-300 dark:border-slate-600 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700">Edit Profile</button>
-                    </>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-1">{user?.email}</p>
+                        <p className="text-slate-500 dark:text-slate-400 text-sm mb-1">{user?.phone}</p>
+                        {user?.dob && <p className="text-slate-400 text-xs mb-4">Born: {user.dob}</p>}
+                        
+                        <button onClick={() => setIsEditing(true)} className="px-6 py-2 rounded-full border border-slate-300 dark:border-slate-600 text-sm font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 mt-2">Edit Profile</button>
+                    </div>
                 )}
             </div>
 
-            {/* Menu */}
-            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden mb-6">
                 <button onClick={toggleTheme} className="w-full p-4 flex items-center justify-between border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                     <div className="flex items-center gap-3 text-slate-700 dark:text-slate-200">
                         {isDarkMode ? <Moon size={20}/> : <Sparkles size={20}/>}
@@ -980,16 +728,12 @@ export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode, onNavigat
                      </div>
                      <ChevronRight size={16} className="text-slate-400" />
                 </button>
-
-                <button onClick={onLogout} className="w-full p-4 flex items-center justify-between text-red-500 hover:bg-red-50 dark:hover:bg-red-900/10">
-                     <div className="flex items-center gap-3">
-                         <LogOut size={20} />
-                         <span className="font-medium">Log Out</span>
-                     </div>
-                </button>
             </div>
-            
-            <p className="text-center text-xs text-slate-400 mt-6">Version 1.0.0 • Isipingo Community Church</p>
+
+            <button onClick={onLogout} className="w-full p-4 flex items-center justify-center gap-3 bg-red-50 text-red-600 rounded-2xl hover:bg-red-100 font-bold mb-8">
+                 <LogOut size={20} />
+                 <span>Log Out</span>
+            </button>
         </div>
     );
 };

@@ -14,7 +14,7 @@ export interface User {
   email: string;
   phone: string;
   dob: string;
-  gender?: string; // Added gender
+  gender?: string;
   role: UserRole;
   avatar?: string;
   joinedDate: string;
@@ -55,16 +55,29 @@ export interface CommunityGroup {
   membersCount: number;
   isMember: boolean;
   status?: 'Joined' | 'Pending' | 'None';
-  pendingRequests?: number;
 }
 
-export interface ChatMessage {
+export interface GroupPost {
   id: string;
-  user: string;
-  avatar?: string;
-  message: string;
-  timestamp: string;
+  groupId: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  content: string;
+  imageUrl?: string;
   likes: number;
+  comments: GroupComment[];
+  createdAt: string;
+  likedByMe?: boolean;
+}
+
+export interface GroupComment {
+  id: string;
+  postId: string;
+  userId: string;
+  userName: string;
+  content: string;
+  createdAt: string;
 }
 
 export interface BibleVerse {
@@ -84,6 +97,15 @@ export interface Event {
   rsvpCount?: number;
   image?: string;
   videoUrl?: string;
+}
+
+export interface Notification {
+  id: string;
+  title: string;
+  message: string;
+  type: 'EVENT' | 'ANNOUNCEMENT' | 'COMMENT';
+  created_at: string;
+  isRead: boolean;
 }
 
 export interface MusicTrack {

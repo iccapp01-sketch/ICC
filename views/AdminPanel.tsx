@@ -226,7 +226,7 @@ create table if not exists public.music_tracks (
 create table if not exists public.playlists (
   id uuid default gen_random_uuid() primary key,
   title text, description text, tracks jsonb default '[]'::jsonb,
-  user_id uuid references public.profiles on delete cascade, -- Optional, null for Admin playlists
+  user_id uuid references public.profiles on delete cascade,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 

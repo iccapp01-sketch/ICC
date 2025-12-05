@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar } from 'lucide-react';
+import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar, User } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -35,6 +35,7 @@ export const Layout: React.FC<LayoutProps> = ({
         
         {/* Left: Branding */}
         <div className="flex items-center gap-3">
+           {/* Logo removed as per previous request, keeping text clean */}
            <span className="text-lg font-bold text-slate-900 dark:text-white leading-none">ICC App</span>
         </div>
 
@@ -59,8 +60,8 @@ export const Layout: React.FC<LayoutProps> = ({
              onClick={() => onTabChange('profile')}
              className={`p-1 rounded-full border-2 transition ${activeTab === 'profile' ? 'border-blue-500' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'}`}
           >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold uppercase">
-              {userName ? userName.substring(0,2) : 'GU'}
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold uppercase overflow-hidden">
+              {userName ? userName.substring(0,2) : <User size={16}/>}
             </div>
           </button>
         </div>

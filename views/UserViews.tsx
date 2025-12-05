@@ -339,6 +339,9 @@ export const EventsView = ({ onBack }: any) => {
 export const BlogView = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
     const [selectedBlog, setSelectedBlog] = useState<BlogPost | null>(null);
+    const [comments, setComments] = useState<any[]>([]);
+    const [newComment, setNewComment] = useState('');
+    const [loadingComments, setLoadingComments] = useState(false);
 
     useEffect(() => {
         const fetch = async () => {
@@ -347,22 +350,81 @@ export const BlogView = () => {
                 // Map image_url to image to fix visibility
                 setBlogs(data.map((b: any) => ({
                     ...b,
-                    image: b.image_url
+                    image: b.image_url,
+                    likes: b.likes || 0,
+                    comments: b.comments || 0
                 })));
             }
         };
         fetch();
     }, []);
 
+    const fetchComments = async (blogId: string) => {
+        setLoadingComments(true);
+        const { data } = await supabase.from('blog_comments')
+            .select(`
+                id, content, created_at,
+                profiles (first_name, last_name)
+            `)
+            .eq('blog_id', blogId)
+            .order('created_at', { ascending: true });
+        
+        if (data) setComments(data);
+        setLoadingComments(false);
+    };
+
+    const handleSelectBlog = (blog: BlogPost) => {
+        setSelectedBlog(blog);
+        fetchComments(blog.id);
+    };
+
+    const handleLike = async (blog: BlogPost) => {
+        const newLikes = (blog.likes || 0) + 1;
+        // Optimistic update
+        setBlogs(blogs.map(b => b.id === blog.id ? {...b, likes: newLikes} : b));
+        if(selectedBlog && selectedBlog.id === blog.id) setSelectedBlog({...selectedBlog, likes: newLikes});
+
+        await supabase.from('blog_posts').update({ likes: newLikes }).eq('id', blog.id);
+    };
+
+    const handlePostComment = async () => {
+        if (!selectedBlog || !newComment.trim()) return;
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return alert("Please login to comment");
+
+        const { error } = await supabase.from('blog_comments').insert({
+            blog_id: selectedBlog.id,
+            user_id: user.id,
+            content: newComment
+        });
+
+        if (!error) {
+            setNewComment('');
+            fetchComments(selectedBlog.id);
+            // Increment comment count on blog
+             await supabase.from('blog_posts').update({ comments: (selectedBlog.comments || 0) + 1 }).eq('id', selectedBlog.id);
+        }
+    };
+
     const handleShare = (blog: BlogPost) => {
         if (navigator.share) {
+            let url = window.location.href;
+            if(!url.startsWith('http')) url = window.location.origin; // Fallback for weird envs
+            
             navigator.share({
                 title: blog.title,
                 text: blog.excerpt,
-                url: window.location.href, 
-            }).catch(console.error);
+                url: url, 
+            }).catch((err) => {
+                console.error("Share failed:", err);
+                // Fallback
+                navigator.clipboard.writeText(url);
+                alert("Link copied to clipboard!");
+            });
         } else {
-            alert("Share feature not supported on this browser.");
+            navigator.clipboard.writeText(window.location.href);
+            alert("Link copied to clipboard!");
         }
     };
 
@@ -373,13 +435,45 @@ export const BlogView = () => {
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-56 object-cover rounded-2xl mb-6" />}
                 <h1 className="text-3xl font-black mb-4 dark:text-white">{selectedBlog.title}</h1>
                 <div className="flex items-center gap-4 mb-6">
-                    <button className="flex items-center gap-1 text-slate-500 hover:text-red-500"><Heart size={20}/> Like</button>
-                    <button className="flex items-center gap-1 text-slate-500 hover:text-blue-500"><MessageCircle size={20}/> Comment</button>
+                    <button onClick={() => handleLike(selectedBlog)} className="flex items-center gap-1 text-slate-500 hover:text-red-500">
+                        <Heart size={20} fill={selectedBlog.likes ? "currentColor" : "none"} className={selectedBlog.likes ? "text-red-500" : ""}/> {selectedBlog.likes || 0} Like
+                    </button>
+                    <button className="flex items-center gap-1 text-slate-500 hover:text-blue-500">
+                        <MessageCircle size={20}/> {comments.length} Comment
+                    </button>
                     <button onClick={() => handleShare(selectedBlog)} className="flex items-center gap-1 text-slate-500 hover:text-green-500"><Share2 size={20}/> Share</button>
                 </div>
-                {/* Added whitespace-pre-wrap to fix cramped text */}
-                <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-300">
+                
+                <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-300 mb-8 border-b pb-8 border-slate-200 dark:border-slate-700">
                     {selectedBlog.content}
+                </div>
+
+                {/* Comments Section */}
+                <div>
+                    <h3 className="font-bold text-lg mb-4 dark:text-white">Comments</h3>
+                    <div className="flex gap-2 mb-6">
+                        <input 
+                            className="flex-1 border p-3 rounded-xl dark:bg-slate-800 dark:border-slate-700 dark:text-white"
+                            placeholder="Write a comment..."
+                            value={newComment}
+                            onChange={(e) => setNewComment(e.target.value)}
+                        />
+                        <button onClick={handlePostComment} className="bg-blue-600 text-white p-3 rounded-xl"><Send size={20}/></button>
+                    </div>
+                    
+                    <div className="space-y-4">
+                        {loadingComments ? <p className="text-slate-400 text-sm">Loading comments...</p> : 
+                            comments.map(c => (
+                                <div key={c.id} className="bg-slate-50 dark:bg-slate-800 p-3 rounded-xl">
+                                    <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">
+                                        {c.profiles?.first_name} {c.profiles?.last_name}
+                                    </p>
+                                    <p className="text-sm text-slate-800 dark:text-slate-200">{c.content}</p>
+                                </div>
+                            ))
+                        }
+                        {comments.length === 0 && !loadingComments && <p className="text-slate-400 text-sm italic">No comments yet. Be the first!</p>}
+                    </div>
                 </div>
             </div>
         )
@@ -393,7 +487,13 @@ export const BlogView = () => {
                     {blog.image && <div className="h-32 bg-cover bg-center rounded-xl mb-3" style={{backgroundImage: `url(${blog.image})`}}></div>}
                     <h3 className="font-bold mb-2 dark:text-white">{blog.title}</h3>
                     <p className="text-xs text-slate-500 mb-3 line-clamp-2">{blog.excerpt}</p>
-                    <button onClick={() => setSelectedBlog(blog)} className="text-sm font-bold text-blue-600 bg-blue-50 dark:bg-slate-700 px-3 py-2 rounded-lg w-full">Read More</button>
+                    <div className="flex justify-between items-center mt-2">
+                        <span className="text-xs text-slate-400 flex gap-2">
+                            <span className="flex items-center gap-1"><Heart size={12}/> {blog.likes || 0}</span>
+                            <span className="flex items-center gap-1"><MessageCircle size={12}/> {blog.comments || 0}</span>
+                        </span>
+                        <button onClick={() => handleSelectBlog(blog)} className="text-sm font-bold text-blue-600 bg-blue-50 dark:bg-slate-700 px-3 py-2 rounded-lg">Read More</button>
+                    </div>
                 </div>
             ))}
         </div>

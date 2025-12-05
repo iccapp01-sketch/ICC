@@ -199,11 +199,35 @@ create table if not exists public.blog_posts (
   title text not null, author text, category text, content text, excerpt text, image_url text, video_url text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
+alter table public.blog_posts add column if not exists likes int default 0;
+alter table public.blog_posts add column if not exists comments int default 0;
+
+create table if not exists public.blog_comments (
+  id uuid default gen_random_uuid() primary key,
+  blog_id uuid references public.blog_posts(id) on delete cascade,
+  user_id uuid references public.profiles(id) on delete cascade,
+  content text,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
 alter table public.blog_posts enable row level security;
+alter table public.blog_comments enable row level security;
+
 drop policy if exists "Public blogs" on public.blog_posts;
 create policy "Public blogs" on public.blog_posts for select using (true);
 drop policy if exists "Admin blog" on public.blog_posts;
 create policy "Admin blog" on public.blog_posts for all using ( public.is_admin() );
+-- Allow authenticated users to update likes (basic implementation)
+drop policy if exists "Auth users update blogs" on public.blog_posts;
+create policy "Auth users update blogs" on public.blog_posts for update using ( auth.role() = 'authenticated' );
+
+drop policy if exists "Public view comments" on public.blog_comments;
+create policy "Public view comments" on public.blog_comments for select using (true);
+drop policy if exists "Auth users comment" on public.blog_comments;
+create policy "Auth users comment" on public.blog_comments for insert with check (auth.uid() = user_id);
+drop policy if exists "Admin manage comments" on public.blog_comments;
+create policy "Admin manage comments" on public.blog_comments for all using ( public.is_admin() );
+
 
 -- Sermons
 create table if not exists public.sermons (
@@ -451,7 +475,7 @@ const MembersManager = () => {
                     <button onClick={handleExport} className="bg-green-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2">
                         <Download size={16}/> Export Excel
                     </button>
-                    <input className="border p-2 rounded-lg" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+                    <input className="border p-2 rounded-lg text-slate-900" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
                  </div>
             </div>
              <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
@@ -491,13 +515,13 @@ const MembersManager = () => {
              {editingMember && (
                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
                      <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-                         <h3 className="font-bold text-lg mb-4">Edit Member</h3>
+                         <h3 className="font-bold text-lg mb-4 text-slate-900">Edit Member</h3>
                          <div className="space-y-3 mb-6">
-                            <input className="w-full border p-2 rounded" value={editingMember.firstName} onChange={e=>setEditingMember({...editingMember, firstName: e.target.value})} placeholder="First Name" />
-                            <input className="w-full border p-2 rounded" value={editingMember.lastName} onChange={e=>setEditingMember({...editingMember, lastName: e.target.value})} placeholder="Last Name" />
-                            <input className="w-full border p-2 rounded" value={editingMember.email} onChange={e=>setEditingMember({...editingMember, email: e.target.value})} placeholder="Email" />
-                            <input className="w-full border p-2 rounded" value={editingMember.phone} onChange={e=>setEditingMember({...editingMember, phone: e.target.value})} placeholder="Phone" />
-                            <select className="w-full border p-2 rounded" value={editingMember.role} onChange={e=>setEditingMember({...editingMember, role: e.target.value as any})}>
+                            <input className="w-full border p-2 rounded text-slate-900" value={editingMember.firstName} onChange={e=>setEditingMember({...editingMember, firstName: e.target.value})} placeholder="First Name" />
+                            <input className="w-full border p-2 rounded text-slate-900" value={editingMember.lastName} onChange={e=>setEditingMember({...editingMember, lastName: e.target.value})} placeholder="Last Name" />
+                            <input className="w-full border p-2 rounded text-slate-900" value={editingMember.email} onChange={e=>setEditingMember({...editingMember, email: e.target.value})} placeholder="Email" />
+                            <input className="w-full border p-2 rounded text-slate-900" value={editingMember.phone} onChange={e=>setEditingMember({...editingMember, phone: e.target.value})} placeholder="Phone" />
+                            <select className="w-full border p-2 rounded text-slate-900" value={editingMember.role} onChange={e=>setEditingMember({...editingMember, role: e.target.value as any})}>
                                 <option value="MEMBER">Member</option>
                                 <option value="MODERATOR">Moderator</option>
                                 <option value="AUTHOR">Author</option>
@@ -506,7 +530,7 @@ const MembersManager = () => {
                          </div>
                          <div className="flex gap-2">
                              <button onClick={handleUpdateMember} className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Save</button>
-                             <button onClick={() => setEditingMember(null)} className="px-4 py-2 border rounded">Cancel</button>
+                             <button onClick={() => setEditingMember(null)} className="px-4 py-2 border rounded text-slate-700">Cancel</button>
                          </div>
                      </div>
                  </div>
@@ -604,38 +628,38 @@ const ContentManager = () => {
                   <div className="p-3 bg-slate-50 rounded-xl border mb-4">
                       <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Manage Categories</label>
                       <div className="flex gap-2 mb-2">
-                          <input className="border p-2 rounded text-xs flex-1" placeholder="New Category" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
+                          <input className="border p-2 rounded text-xs flex-1 text-slate-900" placeholder="New Category" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
                           <button onClick={handleAddCategory} className="bg-blue-600 text-white px-3 rounded text-xs"><Plus size={14}/></button>
                       </div>
                       <div className="flex flex-wrap gap-2">
                           {categories.map(c => (
-                              <span key={c} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1">
+                              <span key={c} className="bg-white border px-2 py-1 rounded text-xs flex items-center gap-1 text-slate-800">
                                   {c} <button onClick={()=>handleDeleteCategory(c)} className="text-red-500 hover:text-red-700"><X size={10}/></button>
                               </span>
                           ))}
                       </div>
                   </div>
 
-                  <input className="w-full border p-3 rounded-xl" placeholder="Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                  <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
                   <div className="flex gap-4">
-                      <input className="flex-1 border p-3 rounded-xl" placeholder="Author" value={formData.author} onChange={e => setFormData({...formData, author: e.target.value})} />
-                      <select className="flex-1 border p-3 rounded-xl" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                      <input className="flex-1 border p-3 rounded-xl text-slate-900" placeholder="Author" value={formData.author} onChange={e => setFormData({...formData, author: e.target.value})} />
+                      <select className="flex-1 border p-3 rounded-xl text-slate-900" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
                           {categories.map(c => <option key={c}>{c}</option>)}
                       </select>
                   </div>
-                  <input className="w-full border p-3 rounded-xl" placeholder="Excerpt" value={formData.excerpt} onChange={e => setFormData({...formData, excerpt: e.target.value})} />
-                  <textarea className="w-full border p-3 rounded-xl h-40" placeholder="Content" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})}></textarea>
+                  <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Excerpt" value={formData.excerpt} onChange={e => setFormData({...formData, excerpt: e.target.value})} />
+                  <textarea className="w-full border p-3 rounded-xl h-40 text-slate-900" placeholder="Content" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})}></textarea>
                   
                   {/* Media Upload */}
                   <div className="border p-3 rounded-xl bg-slate-50">
                      <label className="text-xs font-bold text-slate-500 uppercase block mb-2">Media</label>
                      <div className="flex items-center gap-2 mb-2">
-                         <label className="bg-white border px-3 py-2 rounded text-xs font-bold cursor-pointer hover:bg-slate-100 flex items-center gap-2">
+                         <label className="bg-white border px-3 py-2 rounded text-xs font-bold cursor-pointer hover:bg-slate-100 flex items-center gap-2 text-slate-700">
                              {uploading ? <Loader2 size={14} className="animate-spin"/> : <Upload size={14}/>} Upload Image (PC)
                              <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
                          </label>
                          <span className="text-xs text-slate-400">or</span>
-                         <input className="flex-1 border p-2 rounded text-sm" placeholder="Paste Image URL" value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} />
+                         <input className="flex-1 border p-2 rounded text-sm text-slate-900" placeholder="Paste Image URL" value={formData.image_url} onChange={e => setFormData({...formData, image_url: e.target.value})} />
                      </div>
                   </div>
                   
@@ -648,7 +672,7 @@ const ContentManager = () => {
                   {blogs.map(b => (
                       <div key={b.id} className="p-4 border rounded-xl hover:bg-slate-50 transition flex justify-between">
                           <div>
-                            <h4 className="font-bold">{b.title}</h4>
+                            <h4 className="font-bold text-slate-900">{b.title}</h4>
                             <p className="text-xs text-slate-500 mb-2">{b.category}</p>
                           </div>
                           <div className="flex gap-2 text-xs">
@@ -707,23 +731,23 @@ const SermonManager = () => {
             <div className="bg-white p-6 rounded-2xl border border-slate-200">
                 <h3 className="font-bold text-lg text-[#0c2d58] mb-4">{isEditing ? 'Edit Sermon' : 'Upload Sermon'}</h3>
                 <div className="space-y-4">
-                    <input className="w-full border p-3 rounded-xl" placeholder="Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
-                    <input className="w-full border p-3 rounded-xl" placeholder="Preacher" value={formData.preacher} onChange={e => setFormData({...formData, preacher: e.target.value})} />
+                    <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                    <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Preacher" value={formData.preacher} onChange={e => setFormData({...formData, preacher: e.target.value})} />
                     <div className="flex gap-2">
-                        <input className="flex-1 border p-3 rounded-xl" type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
-                        <input className="flex-1 border p-3 rounded-xl" placeholder="Duration (45:00)" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} />
+                        <input className="flex-1 border p-3 rounded-xl text-slate-900" type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                        <input className="flex-1 border p-3 rounded-xl text-slate-900" placeholder="Duration (45:00)" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} />
                     </div>
-                    <input className="w-full border p-3 rounded-xl" placeholder="YouTube URL" value={formData.video_url} onChange={e => setFormData({...formData, video_url: e.target.value})} />
+                    <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="YouTube URL" value={formData.video_url} onChange={e => setFormData({...formData, video_url: e.target.value})} />
                     <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Save</button>
                 </div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold text-lg mb-4">Sermon Library</h3>
+                <h3 className="font-bold text-lg mb-4 text-slate-900">Sermon Library</h3>
                 <div className="space-y-4 max-h-[600px] overflow-y-auto">
                     {sermons.map(s => (
                         <div key={s.id} className="p-4 border rounded-xl flex justify-between items-center">
                             <div>
-                                <h4 className="font-bold text-sm">{s.title}</h4>
+                                <h4 className="font-bold text-sm text-slate-900">{s.title}</h4>
                                 <p className="text-xs text-slate-500">{s.preacher} • {s.videoUrl}</p>
                             </div>
                             <div className="flex gap-2">
@@ -811,17 +835,17 @@ const MusicManager = () => {
     return (
         <div>
              <div className="flex gap-4 mb-6">
-                 <button onClick={()=>setActiveTab('tracks')} className={`px-4 py-2 rounded-lg font-bold ${activeTab==='tracks'?'bg-blue-600 text-white':'bg-white'}`}>Tracks</button>
-                 <button onClick={()=>setActiveTab('playlists')} className={`px-4 py-2 rounded-lg font-bold ${activeTab==='playlists'?'bg-blue-600 text-white':'bg-white'}`}>Playlists</button>
+                 <button onClick={()=>setActiveTab('tracks')} className={`px-4 py-2 rounded-lg font-bold ${activeTab==='tracks'?'bg-blue-600 text-white':'bg-white text-slate-700'}`}>Tracks</button>
+                 <button onClick={()=>setActiveTab('playlists')} className={`px-4 py-2 rounded-lg font-bold ${activeTab==='playlists'?'bg-blue-600 text-white':'bg-white text-slate-700'}`}>Playlists</button>
              </div>
              
              {activeTab === 'tracks' ? (
                  <div className="grid lg:grid-cols-2 gap-6">
                      <div className="bg-white p-6 border rounded-2xl space-y-4">
-                         <h3 className="font-bold text-lg">Add New Track</h3>
+                         <h3 className="font-bold text-lg text-slate-900">Add New Track</h3>
                          <div className="flex gap-2 mb-2">
-                             <button onClick={()=>setIsUploadMode('file')} className={`flex-1 py-1 text-xs rounded ${isUploadMode==='file'?'bg-slate-200 font-bold':''}`}>Upload File</button>
-                             <button onClick={()=>setIsUploadMode('url')} className={`flex-1 py-1 text-xs rounded ${isUploadMode==='url'?'bg-slate-200 font-bold':''}`}>External URL</button>
+                             <button onClick={()=>setIsUploadMode('file')} className={`flex-1 py-1 text-xs rounded ${isUploadMode==='file'?'bg-slate-200 font-bold text-slate-900':'text-slate-600'}`}>Upload File</button>
+                             <button onClick={()=>setIsUploadMode('url')} className={`flex-1 py-1 text-xs rounded ${isUploadMode==='url'?'bg-slate-200 font-bold text-slate-900':'text-slate-600'}`}>External URL</button>
                          </div>
                          
                          {isUploadMode === 'file' ? (
@@ -831,12 +855,12 @@ const MusicManager = () => {
                                  <input type="file" accept="audio/*" className="hidden" onChange={handleFileUpload}/>
                              </label>
                          ) : (
-                             <input className="w-full border p-2 rounded" placeholder="Paste URL (YouTube/Spotify/MP3)" value={trackForm.url} onChange={e=>setTrackForm({...trackForm, url: e.target.value})} />
+                             <input className="w-full border p-2 rounded text-slate-900" placeholder="Paste URL (YouTube/Spotify/MP3)" value={trackForm.url} onChange={e=>setTrackForm({...trackForm, url: e.target.value})} />
                          )}
 
-                         <input className="w-full border p-2 rounded" placeholder="Track Title" value={trackForm.title} onChange={e=>setTrackForm({...trackForm, title: e.target.value})} />
-                         <input className="w-full border p-2 rounded" placeholder="Artist" value={trackForm.artist} onChange={e=>setTrackForm({...trackForm, artist: e.target.value})} />
-                         <select className="w-full border p-2 rounded" value={trackForm.type} onChange={e=>setTrackForm({...trackForm, type: e.target.value})}>
+                         <input className="w-full border p-2 rounded text-slate-900" placeholder="Track Title" value={trackForm.title} onChange={e=>setTrackForm({...trackForm, title: e.target.value})} />
+                         <input className="w-full border p-2 rounded text-slate-900" placeholder="Artist" value={trackForm.artist} onChange={e=>setTrackForm({...trackForm, artist: e.target.value})} />
+                         <select className="w-full border p-2 rounded text-slate-900" value={trackForm.type} onChange={e=>setTrackForm({...trackForm, type: e.target.value})}>
                              <option value="MUSIC">Music</option>
                              <option value="PODCAST">Podcast</option>
                          </select>
@@ -846,7 +870,7 @@ const MusicManager = () => {
                          {tracks.map(t => (
                              <div key={t.id} className="flex justify-between items-center p-3 border-b hover:bg-slate-50">
                                  <div>
-                                     <div className="font-bold text-sm">{t.title}</div>
+                                     <div className="font-bold text-sm text-slate-900">{t.title}</div>
                                      <div className="text-xs text-slate-500">{t.type} • {t.artist}</div>
                                  </div>
                                  <button onClick={()=>handleDeleteTrack(t.id)} className="text-red-500"><Trash2 size={16}/></button>
@@ -857,9 +881,9 @@ const MusicManager = () => {
              ) : (
                  <div className="grid lg:grid-cols-2 gap-6">
                      <div className="bg-white p-6 border rounded-2xl space-y-4">
-                         <h3 className="font-bold text-lg">Create Playlist</h3>
-                         <input className="w-full border p-2 rounded" placeholder="Playlist Name" value={playlistForm.title} onChange={e=>setPlaylistForm({...playlistForm, title: e.target.value})} />
-                         <input className="w-full border p-2 rounded" placeholder="Description" value={playlistForm.description} onChange={e=>setPlaylistForm({...playlistForm, description: e.target.value})} />
+                         <h3 className="font-bold text-lg text-slate-900">Create Playlist</h3>
+                         <input className="w-full border p-2 rounded text-slate-900" placeholder="Playlist Name" value={playlistForm.title} onChange={e=>setPlaylistForm({...playlistForm, title: e.target.value})} />
+                         <input className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={playlistForm.description} onChange={e=>setPlaylistForm({...playlistForm, description: e.target.value})} />
                          
                          <div className="border rounded-xl p-2 max-h-60 overflow-y-auto">
                              <p className="text-xs font-bold text-slate-500 mb-2 px-2">Select Songs:</p>
@@ -873,7 +897,7 @@ const MusicManager = () => {
                                             else setPlaylistForm({...playlistForm, selectedTracks: playlistForm.selectedTracks.filter(id => id !== t.id)});
                                         }}
                                      />
-                                     <span className="text-sm">{t.title}</span>
+                                     <span className="text-sm text-slate-900">{t.title}</span>
                                  </label>
                              ))}
                          </div>
@@ -884,7 +908,7 @@ const MusicManager = () => {
                          {playlists.map(p => (
                              <div key={p.id} className="flex justify-between p-3 border-b items-center">
                                  <div>
-                                    <div className="font-bold">{p.name}</div>
+                                    <div className="font-bold text-slate-900">{p.name}</div>
                                     <div className="text-xs text-slate-500">{p.tracks?.length || 0} songs</div>
                                  </div>
                                  <button onClick={()=>handleDeletePlaylist(p.id)} className="text-red-500"><Trash2 size={16}/></button>
@@ -920,16 +944,16 @@ const GroupManager = () => {
     return (
         <div className="grid lg:grid-cols-2 gap-8">
             <div className="bg-white p-6 border rounded-2xl space-y-4">
-                <h3 className="font-bold text-lg">Create Group</h3>
-                <input className="w-full border p-2 rounded" placeholder="Group Name" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} />
-                <textarea className="w-full border p-2 rounded" placeholder="Description" value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} />
+                <h3 className="font-bold text-lg text-slate-900">Create Group</h3>
+                <input className="w-full border p-2 rounded text-slate-900" placeholder="Group Name" value={formData.name} onChange={e=>setFormData({...formData, name: e.target.value})} />
+                <textarea className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} />
                 <button onClick={handleSave} className="w-full bg-blue-600 text-white py-2 rounded font-bold">Create Group</button>
             </div>
             <div className="bg-white p-6 border rounded-2xl space-y-2">
-                <h3 className="font-bold text-lg mb-4">Existing Groups</h3>
+                <h3 className="font-bold text-lg mb-4 text-slate-900">Existing Groups</h3>
                 {groups.map(g => (
                     <div key={g.id} className="p-3 border rounded flex justify-between items-center">
-                        <span className="font-bold">{g.name}</span>
+                        <span className="font-bold text-slate-900">{g.name}</span>
                         <button onClick={()=>handleDelete(g.id)} className="text-red-500"><Trash2 size={16}/></button>
                     </div>
                 ))}
@@ -956,14 +980,14 @@ const BibleManager = () => {
 
     return (
         <div className="bg-white p-6 rounded-2xl border">
-            <h3 className="font-bold text-lg mb-4">Upload Reading Plan</h3>
+            <h3 className="font-bold text-lg mb-4 text-slate-900">Upload Reading Plan</h3>
             <div className="flex gap-4 mb-4">
-                <select className="border p-2 rounded" value={month} onChange={e=>setMonth(e.target.value)}>
+                <select className="border p-2 rounded text-slate-900" value={month} onChange={e=>setMonth(e.target.value)}>
                     {['January','February','March','April','May','June','July','August','September','October','November','December'].map(m=><option key={m}>{m}</option>)}
                 </select>
-                <input type="number" className="border p-2 rounded" value={year} onChange={e=>setYear(parseInt(e.target.value))} />
+                <input type="number" className="border p-2 rounded text-slate-900" value={year} onChange={e=>setYear(parseInt(e.target.value))} />
             </div>
-            <textarea className="w-full h-40 border p-2 rounded mb-4" placeholder="Paste plan here (e.g. Day 1: Genesis 1)" value={planText} onChange={e=>setPlanText(e.target.value)}></textarea>
+            <textarea className="w-full h-40 border p-2 rounded mb-4 text-slate-900" placeholder="Paste plan here (e.g. Day 1: Genesis 1)" value={planText} onChange={e=>setPlanText(e.target.value)}></textarea>
             <button onClick={handleBulkUpload} className="bg-blue-600 text-white px-6 py-2 rounded font-bold">Upload Bulk</button>
         </div>
     )
@@ -998,16 +1022,16 @@ const EventManager = () => {
         <div className="grid lg:grid-cols-2 gap-8">
             <div className="bg-white p-6 border rounded-2xl space-y-4">
                 <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-lg">Create Event / Announcement</h3>
+                    <h3 className="font-bold text-lg text-slate-900">Create Event / Announcement</h3>
                 </div>
-                <input className="w-full border p-2 rounded" placeholder="Title" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} />
+                <input className="w-full border p-2 rounded text-slate-900" placeholder="Title" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} />
                 <div className="flex gap-2">
-                    <input type="date" className="flex-1 border p-2 rounded" value={formData.date} onChange={e=>setFormData({...formData, date: e.target.value})} />
-                    <input type="time" className="flex-1 border p-2 rounded" value={formData.time} onChange={e=>setFormData({...formData, time: e.target.value})} />
+                    <input type="date" className="flex-1 border p-2 rounded text-slate-900" value={formData.date} onChange={e=>setFormData({...formData, date: e.target.value})} />
+                    <input type="time" className="flex-1 border p-2 rounded text-slate-900" value={formData.time} onChange={e=>setFormData({...formData, time: e.target.value})} />
                 </div>
-                <input className="w-full border p-2 rounded" placeholder="Location" value={formData.location} onChange={e=>setFormData({...formData, location: e.target.value})} />
-                <textarea className="w-full border p-2 rounded" placeholder="Description" value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} />
-                <select className="w-full border p-2 rounded" value={formData.type} onChange={e=>setFormData({...formData, type: e.target.value})}>
+                <input className="w-full border p-2 rounded text-slate-900" placeholder="Location" value={formData.location} onChange={e=>setFormData({...formData, location: e.target.value})} />
+                <textarea className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={formData.description} onChange={e=>setFormData({...formData, description: e.target.value})} />
+                <select className="w-full border p-2 rounded text-slate-900" value={formData.type} onChange={e=>setFormData({...formData, type: e.target.value})}>
                     <option value="EVENT">Event</option>
                     <option value="ANNOUNCEMENT">Announcement</option>
                 </select>
@@ -1016,14 +1040,14 @@ const EventManager = () => {
 
             <div className="bg-white p-6 border rounded-2xl">
                 <div className="flex justify-between mb-4">
-                    <h3 className="font-bold text-lg">Upcoming Events</h3>
+                    <h3 className="font-bold text-lg text-slate-900">Upcoming Events</h3>
                     <button onClick={handleExport} className="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold flex items-center gap-1"><Download size={12}/> Export RSVP</button>
                 </div>
                 <div className="space-y-2">
                     {events.map(e => (
                         <div key={e.id} className="p-3 border rounded flex justify-between items-center">
                             <div>
-                                <div className="font-bold text-sm">{e.title}</div>
+                                <div className="font-bold text-sm text-slate-900">{e.title}</div>
                                 <div className="text-xs text-slate-500">{e.date} • {e.type}</div>
                             </div>
                             <button onClick={()=>handleDelete(e.id)} className="text-red-500"><Trash2 size={16}/></button>

@@ -5,7 +5,7 @@ import {
   Play, Download, Search, CheckCircle, ArrowLeft, Bookmark,
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
-  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2
+  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy
 } from 'lucide-react';
 import { BlogPost, Sermon, CommunityGroup, GroupPost, GroupComment, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -100,7 +100,17 @@ export const BibleView = () => {
     const [activeTab, setActiveTab] = useState('read');
 
     useEffect(() => {
-        fetch(`https://bible-api.com/${encodeURIComponent(book)}+${chapter}`).then(r=>r.json()).then(d=>setText(d.text));
+        const fetchText = async () => {
+            try {
+                const encodedBook = encodeURIComponent(book);
+                const res = await fetch(`https://bible-api.com/${encodedBook}+${chapter}`);
+                const data = await res.json();
+                setText(data.text || "Text not found.");
+            } catch (e) {
+                setText("Could not fetch scripture. Please check internet connection.");
+            }
+        };
+        fetchText();
     }, [book, chapter]);
 
     const openReadingMode = () => {
@@ -157,6 +167,7 @@ export const EventsView = ({ onBack }: any) => {
             <h1 className="text-2xl font-black mb-4 dark:text-white">Events</h1>
             {events.map(ev => (
                 <div key={ev.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl mb-4 border dark:border-slate-700">
+                    {ev.image && <div className="h-32 bg-cover bg-center rounded-xl mb-3" style={{backgroundImage: `url(${ev.image})`}}></div>}
                     <h3 className="font-bold dark:text-white">{ev.title}</h3>
                     <p className="text-xs text-slate-500 mb-4">{ev.date} at {ev.time}</p>
                     <div className="flex gap-2">
@@ -178,13 +189,15 @@ export const MusicView = () => {
     const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [isFullScreen, setIsFullScreen] = useState(false);
+    const [showPlaylistModal, setShowPlaylistModal] = useState<string | null>(null);
+    const [newPlaylistName, setNewPlaylistName] = useState('');
     
     // Audio Ref
     const audioRef = useRef<HTMLAudioElement>(null);
 
     useEffect(() => {
         if(activeTab === 'MY_PLAYLISTS') {
-             // Fetch Playlists logic
+             fetchPlaylists();
         } else {
              const fetchTracks = async () => {
                  const { data } = await supabase.from('music_tracks').select('*').eq('type', activeTab);
@@ -194,10 +207,23 @@ export const MusicView = () => {
         }
     }, [activeTab]);
 
+    const fetchPlaylists = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(user) {
+            const { data } = await supabase.from('playlists').select('*').eq('user_id', user.id);
+            if(data) setPlaylists(data.map((p:any) => ({...p, name: p.title})));
+        }
+    };
+
     useEffect(() => {
         if (currentTrack && audioRef.current) {
-            audioRef.current.src = currentTrack.url;
-            audioRef.current.play().then(() => setIsPlaying(true)).catch(e => console.error("Playback error", e));
+            if (currentTrack.url.includes('youtube')) {
+                 // YouTube logic handled in render
+                 setIsPlaying(true);
+            } else {
+                audioRef.current.src = currentTrack.url;
+                audioRef.current.play().then(() => setIsPlaying(true)).catch(e => console.error("Playback error", e));
+            }
         }
     }, [currentTrack]);
 
@@ -209,14 +235,45 @@ export const MusicView = () => {
         }
     };
 
+    const playNext = () => {
+        if(!currentTrack) return;
+        const idx = tracks.findIndex(t => t.id === currentTrack.id);
+        if(idx !== -1 && idx < tracks.length - 1) setCurrentTrack(tracks[idx + 1]);
+    };
+
+    const playPrev = () => {
+        if(!currentTrack) return;
+        const idx = tracks.findIndex(t => t.id === currentTrack.id);
+        if(idx > 0) setCurrentTrack(tracks[idx - 1]);
+    };
+
+    const handleCreatePlaylist = async () => {
+        if(!newPlaylistName) return;
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+        await supabase.from('playlists').insert({ title: newPlaylistName, user_id: user.id, tracks: [] });
+        setNewPlaylistName('');
+        fetchPlaylists();
+        alert("Playlist created! Go to My Playlists to view.");
+    };
+
+    const addToPlaylist = async (playlistId: string, track: MusicTrack) => {
+        const playlist = playlists.find(p => p.id === playlistId);
+        if(!playlist) return;
+        const newTracks = [...(playlist.tracks || []), track];
+        await supabase.from('playlists').update({ tracks: newTracks }).eq('id', playlistId);
+        setShowPlaylistModal(null);
+        alert("Added to playlist!");
+    };
+
     return (
         <div className="h-full flex flex-col pb-24">
-            <div className="flex px-4 pt-2 gap-4 border-b border-slate-200 dark:border-slate-800">
+            <div className="flex px-4 pt-2 gap-4 border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
                 {['MUSIC', 'PODCAST', 'MY_PLAYLISTS'].map(tab => (
                     <button 
                         key={tab} 
                         onClick={() => setActiveTab(tab as any)} 
-                        className={`pb-3 text-sm font-bold tracking-wide ${activeTab === tab ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400'}`}
+                        className={`pb-3 text-sm font-bold tracking-wide whitespace-nowrap ${activeTab === tab ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400'}`}
                     >
                         {tab.replace('_', ' ')}
                     </button>
@@ -224,57 +281,122 @@ export const MusicView = () => {
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                 {tracks.map(track => (
-                     <div key={track.id} onClick={() => setCurrentTrack(track)} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-2xl cursor-pointer">
-                         <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold">
-                             <Music size={20}/>
+                 {activeTab === 'MY_PLAYLISTS' ? (
+                     <div>
+                         <div className="flex gap-2 mb-4">
+                             <input className="flex-1 border p-2 rounded-xl" placeholder="New Playlist Name" value={newPlaylistName} onChange={e=>setNewPlaylistName(e.target.value)} />
+                             <button onClick={handleCreatePlaylist} className="bg-blue-600 text-white px-4 rounded-xl font-bold text-xs">Create</button>
                          </div>
-                         <div className="flex-1">
-                             <h4 className={`font-bold text-sm ${currentTrack?.id===track.id ? 'text-blue-600':'dark:text-white'}`}>{track.title}</h4>
-                             <p className="text-xs text-slate-500">{track.artist}</p>
-                         </div>
-                         <button className="p-2 text-slate-400"><Play size={16} fill={currentTrack?.id===track.id?"currentColor":"none"}/></button>
+                         {playlists.map(p => (
+                             <div key={p.id} onClick={() => { setTracks(p.tracks || []); if(p.tracks?.length) setCurrentTrack(p.tracks[0]); }} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm mb-2 cursor-pointer border border-slate-100 dark:border-slate-700">
+                                 <h4 className="font-bold dark:text-white">{p.name}</h4>
+                                 <p className="text-xs text-slate-500">{p.tracks?.length || 0} tracks</p>
+                             </div>
+                         ))}
                      </div>
-                 ))}
+                 ) : (
+                    tracks.map(track => (
+                        <div key={track.id} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-2xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                            <div onClick={() => setCurrentTrack(track)} className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 font-bold flex-shrink-0">
+                                <Music size={20}/>
+                            </div>
+                            <div onClick={() => setCurrentTrack(track)} className="flex-1 min-w-0">
+                                <h4 className={`font-bold text-sm truncate ${currentTrack?.id===track.id ? 'text-blue-600':'dark:text-white'}`}>{track.title}</h4>
+                                <p className="text-xs text-slate-500 truncate">{track.artist}</p>
+                            </div>
+                            <button onClick={()=>setShowPlaylistModal(track.id)} className="p-2 text-slate-400 hover:text-blue-600"><ListMusic size={16}/></button>
+                            {showPlaylistModal === track.id && (
+                                <div className="absolute right-8 bg-white shadow-xl rounded-xl p-2 z-10 border border-slate-100">
+                                    <p className="text-xs font-bold mb-2 px-2">Add to Playlist:</p>
+                                    {playlists.length === 0 && <p className="text-xs text-slate-400 px-2">No playlists</p>}
+                                    {playlists.map(p => (
+                                        <button key={p.id} onClick={()=>addToPlaylist(p.id, track)} className="block w-full text-left px-2 py-1 text-xs hover:bg-slate-50 rounded">
+                                            {p.name}
+                                        </button>
+                                    ))}
+                                    <button onClick={()=>setShowPlaylistModal(null)} className="w-full text-center text-xs text-red-500 mt-2 border-t pt-1">Cancel</button>
+                                </div>
+                            )}
+                        </div>
+                    ))
+                 )}
             </div>
 
-            {/* PLAYER DOCK */}
+            {/* BIG PLAYER DOCK */}
             {currentTrack && (
                 <div 
-                    className={`fixed bottom-[80px] left-4 right-4 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-3 flex items-center gap-4 z-40 transition-all cursor-pointer border border-slate-100 dark:border-slate-700`}
+                    className={`fixed bottom-[80px] left-2 right-2 bg-slate-900/95 backdrop-blur-md text-white rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] p-4 flex flex-col z-40 transition-all cursor-pointer border border-white/10`}
                     onClick={() => setIsFullScreen(true)}
                 >
-                    <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center text-white"><Music size={20}/></div>
-                    <div className="flex-1 min-w-0">
-                        <h4 className="font-bold text-sm dark:text-white truncate">{currentTrack.title}</h4>
-                        <p className="text-xs text-slate-500 truncate">{currentTrack.artist}</p>
+                    <div className="flex items-center gap-4">
+                        <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg">
+                            <Music size={24} className="text-blue-400"/>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <h4 className="font-bold text-base truncate leading-tight">{currentTrack.title}</h4>
+                            <p className="text-xs text-slate-400 truncate">{currentTrack.artist}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            <button onClick={(e)=>{e.stopPropagation(); playPrev();}} className="p-2 hover:bg-white/10 rounded-full"><SkipBack size={20}/></button>
+                            <button onClick={(e)=>{e.stopPropagation(); togglePlay();}} className="w-12 h-12 bg-white text-slate-900 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition">
+                                {isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-1"/>}
+                            </button>
+                            <button onClick={(e)=>{e.stopPropagation(); playNext();}} className="p-2 hover:bg-white/10 rounded-full"><SkipForward size={20}/></button>
+                        </div>
                     </div>
-                    <button onClick={(e)=>{e.stopPropagation(); togglePlay();}} className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center">
-                        {isPlaying ? <Pause size={18}/> : <Play size={18} fill="currentColor"/>}
-                    </button>
+                    {/* Progress Bar Visual */}
+                    <div className="mt-4 w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                        <div className="h-full bg-blue-500 w-1/3"></div>
+                    </div>
                 </div>
             )}
             
             {/* FULL SCREEN PLAYER MODAL */}
             {isFullScreen && currentTrack && (
-                <div className="fixed inset-0 bg-white dark:bg-slate-900 z-50 flex flex-col p-6">
-                    <button onClick={()=>setIsFullScreen(false)} className="self-start mb-8"><ChevronDown/></button>
-                    <div className="w-full aspect-square bg-slate-100 dark:bg-slate-800 rounded-3xl mb-8 flex items-center justify-center shadow-inner">
-                        <Music size={80} className="text-slate-300"/>
-                    </div>
-                    <h2 className="text-2xl font-bold dark:text-white mb-2">{currentTrack.title}</h2>
-                    <p className="text-lg text-slate-500 mb-8">{currentTrack.artist}</p>
+                <div className="fixed inset-0 bg-slate-900 z-50 flex flex-col p-8 text-white">
+                    <button onClick={()=>setIsFullScreen(false)} className="self-center mb-8 bg-white/10 p-2 rounded-full"><ChevronDown/></button>
                     
-                    <div className="flex justify-between items-center mb-8">
-                         <button className="p-4 bg-blue-600 rounded-full text-white shadow-xl hover:scale-105 transition w-full flex justify-center" onClick={togglePlay}>
-                             {isPlaying ? <Pause size={32} fill="currentColor"/> : <Play size={32} fill="currentColor" className="ml-1"/>}
-                         </button>
+                    {currentTrack.url.includes('youtube') ? (
+                         <div className="w-full aspect-square bg-black rounded-3xl mb-8 overflow-hidden shadow-2xl">
+                             <iframe 
+                                width="100%" height="100%" 
+                                src={`https://www.youtube.com/embed/${getYouTubeID(currentTrack.url)}?autoplay=1&controls=0`} 
+                                allow="autoplay"
+                             ></iframe>
+                         </div>
+                    ) : (
+                        <div className="w-full aspect-square bg-gradient-to-br from-blue-900 to-slate-800 rounded-3xl mb-8 flex items-center justify-center shadow-2xl border border-white/5">
+                            <Music size={120} className="text-white/20"/>
+                        </div>
+                    )}
+                    
+                    <div className="mt-auto">
+                        <h2 className="text-3xl font-bold mb-2 leading-tight">{currentTrack.title}</h2>
+                        <p className="text-xl text-slate-400 mb-8 font-medium">{currentTrack.artist}</p>
+                        
+                        <div className="w-full h-2 bg-white/10 rounded-full mb-8 overflow-hidden">
+                             <div className="h-full bg-blue-500 w-1/3 relative">
+                                 <div className="absolute right-0 top-1/2 -translate-y-1/2 w-4 h-4 bg-white rounded-full shadow"></div>
+                             </div>
+                        </div>
+
+                        <div className="flex justify-between items-center mb-8">
+                             <button className="text-slate-400 hover:text-white"><Shuffle size={24}/></button>
+                             <button onClick={playPrev} className="text-white hover:text-blue-400"><SkipBack size={32}/></button>
+                             <button className="w-20 h-20 bg-blue-600 rounded-full text-white shadow-[0_0_30px_rgba(37,99,235,0.4)] hover:scale-105 transition flex items-center justify-center" onClick={togglePlay}>
+                                 {isPlaying ? <Pause size={32} fill="currentColor"/> : <Play size={32} fill="currentColor" className="ml-1"/>}
+                             </button>
+                             <button onClick={playNext} className="text-white hover:text-blue-400"><SkipForward size={32}/></button>
+                             <button className="text-slate-400 hover:text-white"><Repeat size={24}/></button>
+                        </div>
                     </div>
                 </div>
             )}
 
-            {/* Hidden Audio Element */}
-            <audio ref={audioRef} onEnded={() => setIsPlaying(false)} />
+            {/* Hidden Audio Element (Only used if not YouTube) */}
+            {!currentTrack?.url.includes('youtube') && (
+                 <audio ref={audioRef} onEnded={() => {setIsPlaying(false); playNext();}} />
+            )}
         </div>
     );
 };
@@ -283,6 +405,10 @@ export const MusicView = () => {
 export const BlogView = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
     const [selectedBlog, setSelectedBlog] = useState<BlogPost | null>(null);
+    const [likes, setLikes] = useState(0);
+    const [comments, setComments] = useState<any[]>([]);
+    const [commentText, setCommentText] = useState('');
+    const [showShareMenu, setShowShareMenu] = useState(false);
 
     useEffect(() => {
         const fetchBlogs = async () => {
@@ -292,31 +418,128 @@ export const BlogView = () => {
         fetchBlogs();
     }, []);
 
-    const handleShare = async (blog: BlogPost) => {
-        if(navigator.share) {
-            try { await navigator.share({ title: blog.title, text: blog.excerpt, url: window.location.href }); } 
-            catch(e) { console.log(e); }
-        } else {
-            alert("Share not supported on this browser");
+    useEffect(() => {
+        if (selectedBlog) {
+            setLikes(selectedBlog.likes || 0);
+            const fetchComments = async () => {
+                const { data } = await supabase
+                    .from('blog_comments')
+                    .select('*, profiles(first_name, last_name)')
+                    .eq('post_id', selectedBlog.id)
+                    .order('created_at', { ascending: false });
+                if (data) setComments(data);
+            };
+            fetchComments();
+        }
+    }, [selectedBlog]);
+
+    const handleLike = async () => {
+        if(!selectedBlog) return;
+        const newLikes = likes + 1;
+        setLikes(newLikes);
+        await supabase.from('blog_posts').update({ likes: newLikes }).eq('id', selectedBlog.id);
+    }
+
+    const handleComment = async () => {
+        if(!commentText.trim() || !selectedBlog) return;
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return alert("Please login to comment");
+        
+        const { error } = await supabase.from('blog_comments').insert({
+            post_id: selectedBlog.id,
+            user_id: user.id,
+            content: commentText
+        });
+        
+        if(error) alert("Error posting comment");
+        else {
+            setCommentText('');
+            const { data } = await supabase.from('blog_comments').select('*, profiles(first_name, last_name)').eq('post_id', selectedBlog.id).order('created_at', { ascending: false });
+            if(data) setComments(data);
+        }
+    }
+
+    const handleShare = (platform?: string) => {
+        const url = window.location.href; 
+        const text = `Read "${selectedBlog?.title}" at ICC App`;
+        
+        if (!platform && navigator.share) {
+            navigator.share({ title: selectedBlog?.title, text, url }).catch(console.error);
+            return;
+        }
+
+        const encodedUrl = encodeURIComponent(url);
+        const encodedText = encodeURIComponent(text);
+
+        switch(platform) {
+            case 'whatsapp': 
+                window.open(`https://wa.me/?text=${encodedText}%20${encodedUrl}`, '_blank'); 
+                break;
+            case 'facebook': 
+                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, '_blank'); 
+                break;
+            case 'copy': 
+                navigator.clipboard.writeText(url); 
+                alert("Link copied to clipboard!"); 
+                break;
+            default: setShowShareMenu(!showShareMenu);
         }
     };
 
     if(selectedBlog) {
         return (
             <div className="p-4 pb-24 bg-white dark:bg-slate-900 min-h-full">
-                <button onClick={()=>setSelectedBlog(null)} className="mb-4 flex items-center gap-2 text-slate-500"><ArrowLeft size={16}/> Back</button>
+                <button onClick={()=>setSelectedBlog(null)} className="mb-4 flex items-center gap-2 text-slate-500"><ArrowLeft size={16}/> Back to Articles</button>
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm" alt="Blog cover" />}
                 <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{selectedBlog.title}</h1>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
                     <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
                 </div>
-                <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap mb-8">
                     {selectedBlog.content}
                 </div>
-                <div className="mt-8 border-t pt-4 flex gap-4">
-                    <button className="flex items-center gap-2 text-slate-500"><ThumbsUp size={18}/> Like</button>
-                    <button className="flex items-center gap-2 text-slate-500"><MessageCircle size={18}/> Comment</button>
-                    <button onClick={()=>handleShare(selectedBlog)} className="flex items-center gap-2 text-slate-500"><Share2 size={18}/> Share</button>
+                
+                <div className="border-t border-slate-200 dark:border-slate-700 pt-6">
+                    <div className="flex gap-4 mb-6">
+                        <button onClick={handleLike} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-red-50 hover:text-red-500 transition">
+                            <ThumbsUp size={20} fill={likes > (selectedBlog.likes || 0) ? "currentColor" : "none"}/> {likes} Likes
+                        </button>
+                        <div className="relative flex-1">
+                             <button onClick={() => handleShare()} className="w-full bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
+                                 <Share2 size={20}/> Share
+                             </button>
+                             {showShareMenu && (
+                                 <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-slate-800 shadow-xl rounded-xl border border-slate-200 dark:border-slate-700 p-2 flex flex-col gap-1 z-10">
+                                     <button onClick={()=>handleShare('whatsapp')} className="p-2 hover:bg-green-50 text-left text-sm font-bold text-slate-700 dark:text-slate-300 rounded flex items-center gap-2"><Phone size={14} className="text-green-500"/> WhatsApp</button>
+                                     <button onClick={()=>handleShare('facebook')} className="p-2 hover:bg-blue-50 text-left text-sm font-bold text-slate-700 dark:text-slate-300 rounded flex items-center gap-2"><LinkIcon size={14} className="text-blue-600"/> Facebook</button>
+                                     <button onClick={()=>handleShare('copy')} className="p-2 hover:bg-slate-50 text-left text-sm font-bold text-slate-700 dark:text-slate-300 rounded flex items-center gap-2"><Copy size={14}/> Copy Link</button>
+                                 </div>
+                             )}
+                        </div>
+                    </div>
+
+                    <h3 className="font-bold text-lg mb-4 dark:text-white">Comments</h3>
+                    <div className="flex gap-3 mb-6">
+                        <input 
+                            className="flex-1 bg-slate-50 dark:bg-slate-800 border-none rounded-xl px-4 py-3" 
+                            placeholder="Add a comment..." 
+                            value={commentText}
+                            onChange={e => setCommentText(e.target.value)}
+                        />
+                        <button onClick={handleComment} className="bg-blue-600 text-white p-3 rounded-xl"><Send size={20}/></button>
+                    </div>
+                    <div className="space-y-4">
+                        {comments.map(c => (
+                            <div key={c.id} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl">
+                                <div className="flex justify-between mb-1">
+                                    <span className="font-bold text-sm dark:text-white">{c.profiles?.first_name} {c.profiles?.last_name}</span>
+                                    <span className="text-xs text-slate-400">{new Date(c.created_at).toLocaleDateString()}</span>
+                                </div>
+                                <p className="text-sm text-slate-600 dark:text-slate-300">{c.content}</p>
+                            </div>
+                        ))}
+                        {comments.length === 0 && <p className="text-slate-400 text-sm text-center py-4">No comments yet. Be the first!</p>}
+                    </div>
                 </div>
             </div>
         )
@@ -336,7 +559,7 @@ export const BlogView = () => {
                              </div>
                              <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2">{blog.title}</h3>
                              <p className="text-xs text-slate-500 line-clamp-2 mb-3">{blog.excerpt}</p>
-                             <button onClick={()=>setSelectedBlog(blog)} className="text-xs font-bold text-blue-600 flex items-center gap-1">Read More <ChevronRight size={12}/></button>
+                             <button onClick={()=>setSelectedBlog(blog)} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline">Read More <ChevronRight size={12}/></button>
                         </div>
                     </div>
                 </div>

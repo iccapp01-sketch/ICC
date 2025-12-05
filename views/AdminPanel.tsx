@@ -280,8 +280,8 @@ const ContentManager = () => {
         excerpt: formData.excerpt,
         content: formData.content,
         image_url: formData.image,
-        video_url: formData.video,
-        author: 'Admin' // Should be current user
+        video_url: formData.video || null,
+        author: 'Admin'
      };
 
      let error;
@@ -299,7 +299,7 @@ const ContentManager = () => {
         setIsEditing(false);
         fetchBlogs();
      } else {
-        alert("Error: " + JSON.stringify(error));
+        alert("Error: " + error.message);
      }
   };
 
@@ -326,8 +326,10 @@ const ContentManager = () => {
              <input className="w-full border p-3 rounded-xl" placeholder="Video URL (Optional)" value={formData.video} onChange={e => setFormData({...formData, video: e.target.value})} />
              <textarea className="w-full border p-3 rounded-xl h-20" placeholder="Short Excerpt" value={formData.excerpt} onChange={e => setFormData({...formData, excerpt: e.target.value})} />
              <textarea className="w-full border p-3 rounded-xl h-40" placeholder="Full Content" value={formData.content} onChange={e => setFormData({...formData, content: e.target.value})} />
-             <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">{isEditing ? 'Update' : 'Publish'}</button>
-             {isEditing && <button onClick={() => {setIsEditing(false); setFormData({ id: '', title: '', category: 'Faith', excerpt: '', content: '', image: '', video: '' })}} className="w-full bg-slate-100 mt-2 py-2 rounded-xl text-xs font-bold">Cancel</button>}
+             <div className="flex gap-2">
+                 <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-3 rounded-xl font-bold">{isEditing ? 'Update' : 'Publish'}</button>
+                 {isEditing && <button onClick={() => {setIsEditing(false); setFormData({ id: '', title: '', category: 'Faith', excerpt: '', content: '', image: '', video: '' })}} className="px-4 bg-slate-100 rounded-xl text-xs font-bold">Cancel</button>}
+             </div>
           </div>
        </div>
        <div className="bg-white p-6 rounded-2xl border border-slate-200">
@@ -355,6 +357,7 @@ const ContentManager = () => {
 const SermonManager = () => {
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [formData, setFormData] = useState({ id: '', title: '', preacher: 'Pastor David', date: '', duration: '', video: '' });
+  const [isEditing, setIsEditing] = useState(false);
 
   useEffect(() => { fetchSermons(); }, []);
 
@@ -374,24 +377,46 @@ const SermonManager = () => {
      }
   };
 
+  const handleEdit = (s: Sermon) => {
+      setFormData({
+          id: s.id,
+          title: s.title,
+          preacher: s.preacher,
+          date: s.date,
+          duration: s.duration,
+          video: s.videoUrl || ''
+      });
+      setIsEditing(true);
+  };
+
   const handleSave = async () => {
      // Extract YouTube Thumbnail
      let thumbnail = '';
      const vidMatch = formData.video.match(/(?:youtu\.be\/|youtube\.com\/(?:.*v=|.*\/))([^"&?\/\s]{11})/);
      if(vidMatch) thumbnail = `https://img.youtube.com/vi/${vidMatch[1]}/hqdefault.jpg`;
 
-     const { error } = await supabase.from('sermons').insert([{
+     const payload = {
         title: formData.title,
         preacher: formData.preacher,
         date_preached: formData.date,
         duration: formData.duration,
         video_url: formData.video,
         thumbnail_url: thumbnail
-     }]);
+     };
+
+     let error;
+     if (isEditing) {
+         const res = await supabase.from('sermons').update(payload).eq('id', formData.id);
+         error = res.error;
+     } else {
+         const res = await supabase.from('sermons').insert([payload]);
+         error = res.error;
+     }
 
      if(!error) {
-        alert('Sermon Added');
+        alert(isEditing ? 'Sermon Updated' : 'Sermon Added');
         setFormData({ id: '', title: '', preacher: 'Pastor David', date: '', duration: '', video: '' });
+        setIsEditing(false);
         fetchSermons();
      } else {
         alert(error.message);
@@ -401,7 +426,10 @@ const SermonManager = () => {
   return (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
        <div className="bg-white p-6 rounded-2xl border border-slate-200 h-fit">
-          <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Upload Sermon</h3>
+          <div className="flex justify-between items-center mb-4">
+             <h3 className="font-bold text-lg text-[#0c2d58]">{isEditing ? 'Edit Sermon' : 'Upload Sermon'}</h3>
+             {isEditing && <button onClick={() => { setIsEditing(false); setFormData({ id: '', title: '', preacher: 'Pastor David', date: '', duration: '', video: '' })}} className="text-xs text-slate-500 underline">Cancel</button>}
+          </div>
           <div className="space-y-4">
              <input className="w-full border p-3 rounded-xl" placeholder="Sermon Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
              <input className="w-full border p-3 rounded-xl" placeholder="Preacher Name" value={formData.preacher} onChange={e => setFormData({...formData, preacher: e.target.value})} />
@@ -410,7 +438,7 @@ const SermonManager = () => {
                 <input className="border p-3 rounded-xl" placeholder="Duration (e.g. 45:00)" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} />
              </div>
              <input className="w-full border p-3 rounded-xl" placeholder="YouTube URL" value={formData.video} onChange={e => setFormData({...formData, video: e.target.value})} />
-             <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Add Sermon</button>
+             <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">{isEditing ? 'Update Sermon' : 'Add Sermon'}</button>
           </div>
        </div>
        <div className="bg-white p-6 rounded-2xl border border-slate-200">
@@ -423,7 +451,10 @@ const SermonManager = () => {
                        <p className="font-bold text-sm line-clamp-1">{s.title}</p>
                        <p className="text-xs text-slate-500">{s.preacher}</p>
                     </div>
-                    <button onClick={async () => { if(confirm("Delete?")) { await supabase.from('sermons').delete().eq('id', s.id); fetchSermons(); }}} className="text-red-500"><Trash2 size={16}/></button>
+                    <div className="flex gap-1">
+                        <button onClick={() => handleEdit(s)} className="p-2 text-blue-500"><Edit size={16}/></button>
+                        <button onClick={async () => { if(confirm("Delete?")) { await supabase.from('sermons').delete().eq('id', s.id); fetchSermons(); }}} className="p-2 text-red-500"><Trash2 size={16}/></button>
+                    </div>
                  </div>
               ))}
            </div>
@@ -438,26 +469,78 @@ const MusicManager = () => {
     const [formData, setFormData] = useState({ title: '', artist: '', url: '', type: 'MUSIC' });
 
     useEffect(() => {
-        // Fetch logic would go here if 'music_tracks' table exists
+        fetchTracks();
     }, []);
 
+    const fetchTracks = async () => {
+        const { data } = await supabase.from('music_tracks').select('*').order('created_at', { ascending: false });
+        if (data) {
+            setTracks(data.map((t: any) => ({
+                id: t.id,
+                title: t.title,
+                artist: t.artist,
+                url: t.url,
+                type: t.type,
+                date: t.created_at,
+                duration: '',
+                isOffline: false
+            })));
+        }
+    };
+
     const handleSave = async () => {
-        alert("Music upload functionality requires 'music_tracks' table in Supabase.");
-        // const { error } = await supabase.from('music_tracks').insert([formData]);
+        const { error } = await supabase.from('music_tracks').insert([{
+            title: formData.title,
+            artist: formData.artist,
+            url: formData.url,
+            type: formData.type
+        }]);
+
+        if (error) {
+            alert("Error: " + error.message);
+        } else {
+            alert("Track Uploaded!");
+            setFormData({ title: '', artist: '', url: '', type: 'MUSIC' });
+            fetchTracks();
+        }
+    };
+
+    const handleDelete = async (id: string) => {
+        if(confirm("Delete this track?")) {
+            await supabase.from('music_tracks').delete().eq('id', id);
+            fetchTracks();
+        }
     };
 
     return (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 max-w-2xl">
-            <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Add Music / Podcast</h3>
-            <div className="space-y-4">
-                <input className="w-full border p-3 rounded-xl" placeholder="Track Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
-                <input className="w-full border p-3 rounded-xl" placeholder="Artist" value={formData.artist} onChange={e => setFormData({...formData, artist: e.target.value})} />
-                <input className="w-full border p-3 rounded-xl" placeholder="Audio URL (MP3)" value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} />
-                <select className="w-full border p-3 rounded-xl" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
-                    <option value="MUSIC">Music Song</option>
-                    <option value="PODCAST">Podcast Episode</option>
-                </select>
-                <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Upload Track</button>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 h-fit">
+                <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Add Music / Podcast</h3>
+                <div className="space-y-4">
+                    <input className="w-full border p-3 rounded-xl" placeholder="Track Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
+                    <input className="w-full border p-3 rounded-xl" placeholder="Artist" value={formData.artist} onChange={e => setFormData({...formData, artist: e.target.value})} />
+                    <input className="w-full border p-3 rounded-xl" placeholder="Audio URL (MP3)" value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} />
+                    <select className="w-full border p-3 rounded-xl" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
+                        <option value="MUSIC">Music Song</option>
+                        <option value="PODCAST">Podcast Episode</option>
+                    </select>
+                    <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Upload Track</button>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Library</h3>
+                <div className="space-y-3">
+                    {tracks.map(t => (
+                        <div key={t.id} className="p-3 border rounded-xl flex items-center justify-between">
+                            <div>
+                                <span className={`text-[10px] font-bold px-1.5 rounded ${t.type === 'PODCAST' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'}`}>{t.type}</span>
+                                <p className="font-bold text-sm">{t.title}</p>
+                                <p className="text-xs text-slate-500">{t.artist}</p>
+                            </div>
+                            <button onClick={() => handleDelete(t.id)} className="text-red-500"><Trash2 size={16}/></button>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );
@@ -526,9 +609,9 @@ const EventManager = () => {
            time: formData.time,
            location: formData.loc,
            type: formData.type,
-           // Removed image_url and video_url because columns missing in DB
-           // image_url: formData.image,
-           // video_url: formData.video
+           // Ensure you run the SQL to add these columns!
+           image_url: formData.image || null,
+           video_url: formData.video || null
      };
 
      if (isEditing) {
@@ -604,6 +687,8 @@ const EventManager = () => {
               </div>
               <input className="w-full border p-3 rounded-xl" placeholder="Location" value={formData.loc} onChange={e => setFormData({...formData, loc: e.target.value})} />
               <textarea className="w-full border p-3 rounded-xl h-24" placeholder="Description" value={formData.desc} onChange={e => setFormData({...formData, desc: e.target.value})} />
+              <input className="w-full border p-3 rounded-xl" placeholder="Image URL" value={formData.image} onChange={e => setFormData({...formData, image: e.target.value})} />
+              <input className="w-full border p-3 rounded-xl" placeholder="Video URL" value={formData.video} onChange={e => setFormData({...formData, video: e.target.value})} />
               <button onClick={handlePublish} className="bg-blue-600 text-white w-full py-3 rounded-xl font-bold hover:bg-blue-700 transition">
                   {isEditing ? 'Update Event' : 'Publish Event'}
               </button>
@@ -671,7 +756,7 @@ const GroupManager = () => {
      const payload = {
         name: formData.name,
         description: formData.desc,
-        image_url: formData.image
+        image_url: formData.image || null
      };
 
      if(isEditing) {

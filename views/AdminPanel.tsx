@@ -42,13 +42,23 @@ const exportToCSV = (data: any[], filename: string) => {
 
 const handleSupabaseError = (error: any, context: string) => {
     console.error(`${context} Error:`, error);
-    const msg = error.message || JSON.stringify(error);
     
-    if (error.code === 'PGRST205' || error.code === '42P01') {
+    let msg = "Unknown error";
+    if (typeof error === 'string') {
+        msg = error;
+    } else if (error?.message) {
+        msg = error.message;
+    } else if (error?.error_description) {
+        msg = error.error_description;
+    } else {
+        msg = JSON.stringify(error);
+    }
+    
+    if (error?.code === 'PGRST205' || error?.code === '42P01') {
         alert(`Error: Table missing! Go to Dashboard Overview and use the SQL Generator to fix database schema.`);
-    } else if (error.code === '42501') {
-        alert(`Permission Denied: You do not have permission to perform this action. Ensure you are an Admin. Check Overview tab for SQL fixes.`);
-    } else if (error.code === '42P17') {
+    } else if (error?.code === '42501') {
+        alert(`Permission Denied: You do not have permission to perform this action. Ensure you are an Admin. Run the SQL Fix in Overview.`);
+    } else if (error?.code === '42P17') {
         alert(`System Error: Infinite Recursion. Please go to Overview > View SQL Fix and run the new 'is_admin()' function code.`);
     } else {
         alert(`${context} Action Failed: ${msg}`);
@@ -137,7 +147,7 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
   }, []);
 
   const SQL_CODE = `
--- FIX FOR INFINITE RECURSION ERROR & MISSING TABLES
+-- FIX FOR INFINITE RECURSION ERROR & MISSING TABLES & STORAGE POLICIES
 -- Run this in Supabase SQL Editor
 
 -- 1. Create SECURITY DEFINER function to bypass RLS recursion
@@ -281,15 +291,25 @@ create policy "Public notifications" on public.notifications for select using (t
 drop policy if exists "Admin notifications" on public.notifications;
 create policy "Admin notifications" on public.notifications for all using ( public.is_admin() );
 
--- Storage
+-- Storage Buckets & Policies
 insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('blog-images', 'blog-images', true) on conflict do nothing;
+
+-- Music Bucket
 drop policy if exists "Public Access Music" on storage.objects;
 create policy "Public Access Music" on storage.objects for select using ( bucket_id = 'music' );
 drop policy if exists "Admin Upload Music" on storage.objects;
 create policy "Admin Upload Music" on storage.objects for insert with check ( bucket_id = 'music' and public.is_admin() );
 drop policy if exists "Admin Delete Music" on storage.objects;
 create policy "Admin Delete Music" on storage.objects for delete using ( bucket_id = 'music' and public.is_admin() );
+
+-- Blog Images Bucket
+drop policy if exists "Public Access Blog Images" on storage.objects;
+create policy "Public Access Blog Images" on storage.objects for select using ( bucket_id = 'blog-images' );
+drop policy if exists "Admin Upload Blog Images" on storage.objects;
+create policy "Admin Upload Blog Images" on storage.objects for insert with check ( bucket_id = 'blog-images' and public.is_admin() );
+drop policy if exists "Admin Delete Blog Images" on storage.objects;
+create policy "Admin Delete Blog Images" on storage.objects for delete using ( bucket_id = 'blog-images' and public.is_admin() );
 
 -- Reading Plans
 create table if not exists public.reading_plans (
@@ -358,7 +378,6 @@ const MembersManager = () => {
     const fetchMembers = async () => {
         const { data, error } = await supabase.from('profiles').select('*');
         if (error) {
-            console.error("Error fetching members:", error);
             handleSupabaseError(error, "Fetch Members");
             return;
         }
@@ -453,10 +472,10 @@ const MembersManager = () => {
                         ) : (
                             filtered.map(m => (
                                 <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                    <td className="p-4 font-bold text-black">{m.firstName}</td>
-                                    <td className="p-4 font-bold text-black">{m.lastName}</td>
-                                    <td className="p-4 text-sm text-black">{m.email}</td>
-                                    <td className="p-4 text-sm text-black">{m.phone}</td>
+                                    <td className="p-4 font-bold text-slate-900">{m.firstName}</td>
+                                    <td className="p-4 font-bold text-slate-900">{m.lastName}</td>
+                                    <td className="p-4 text-sm text-slate-600">{m.email}</td>
+                                    <td className="p-4 text-sm text-slate-600">{m.phone}</td>
                                     <td className="p-4"><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold">{m.role}</span></td>
                                     <td className="p-4 flex gap-2">
                                         <button onClick={() => setEditingMember(m)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
@@ -643,9 +662,6 @@ const ContentManager = () => {
       </div>
   );
 };
-
-// ... SermonManager, MusicManager, GroupManager, BibleManager, EventManager are similar structure ...
-// Including them in full to ensure no file truncation
 
 const SermonManager = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);

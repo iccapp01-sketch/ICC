@@ -37,9 +37,8 @@ export const Auth: React.FC<AuthProps> = () => {
 
     try {
       // SPECIAL HANDLING FOR ADMIN DEMO ACCOUNT
-      // If user tries to login as admin but account doesn't exist, auto-create it.
       if (isLogin && formData.email === 'admin@icc.com' && formData.password === 'admin123') {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
+          const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
           });
@@ -70,11 +69,19 @@ export const Auth: React.FC<AuthProps> = () => {
                      last_name: 'User',
                      role: 'ADMIN'
                  }]);
-                 // Success - flow continues to App.tsx auth listener
                  return;
              }
+          } else if (signInData.user) {
+              // Login successful - FORCE update role to ADMIN to ensure permissions
+              await supabase.from('profiles').upsert({
+                  id: signInData.user.id,
+                  email: formData.email,
+                  role: 'ADMIN',
+                  first_name: 'Admin',
+                  last_name: 'User'
+              });
+              return;
           }
-          // If signIn was successful, just return, App.tsx handles the rest
           return;
       }
 

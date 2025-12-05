@@ -48,6 +48,8 @@ const handleSupabaseError = (error: any, context: string) => {
         alert(`Error: Table missing! Go to Dashboard Overview and use the SQL Generator to fix database schema.`);
     } else if (error.code === '42501') {
         alert(`Permission Denied: You do not have permission to perform this action. Ensure you are an Admin. Check Overview tab for SQL fixes.`);
+    } else if (error.code === '42P17') {
+        alert(`System Error: Infinite Recursion. Please go to Overview > View SQL Fix and run the new 'is_admin()' function code.`);
     } else {
         alert(`${context} Action Failed: ${msg}`);
     }
@@ -115,7 +117,6 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
       const { count: sermons } = await supabase.from('sermons').select('*', { count: 'exact', head: true });
       const { count: events } = await supabase.from('events').select('*', { count: 'exact', head: true });
       
-      // Try fetch pending group members if table exists
       let pending = 0;
       try {
           const { count } = await supabase.from('community_group_members').select('*', { count: 'exact', head: true }).eq('status', 'pending');
@@ -136,16 +137,29 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
   }, []);
 
   const SQL_CODE = `
--- Run this in Supabase SQL Editor to fix database schema and permissions
+-- FIX FOR INFINITE RECURSION ERROR & MISSING TABLES
+-- Run this in Supabase SQL Editor
 
--- 1. Profiles & RLS (Ensure columns exist)
+-- 1. Create SECURITY DEFINER function to bypass RLS recursion
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid()
+    and role = 'ADMIN'
+  );
+$$;
+
+-- 2. Profiles & RLS
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
   first_name text, last_name text, email text, phone text, dob text, gender text,
   role text default 'MEMBER',
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
--- Add columns if they are missing from old tables
 alter table public.profiles add column if not exists first_name text;
 alter table public.profiles add column if not exists last_name text;
 alter table public.profiles add column if not exists phone text;
@@ -154,22 +168,22 @@ alter table public.profiles add column if not exists role text default 'MEMBER';
 
 alter table public.profiles enable row level security;
 
--- Policies for Profiles
+-- Drop old policies to prevent conflicts
 drop policy if exists "Public profiles" on public.profiles;
-create policy "Public profiles" on public.profiles for select using (true);
-
 drop policy if exists "Users update own" on public.profiles;
-create policy "Users update own" on public.profiles for update using (auth.uid() = id);
-
 drop policy if exists "Users insert own" on public.profiles;
-create policy "Users insert own" on public.profiles for insert with check (auth.uid() = id);
-
 drop policy if exists "Admin manage profiles" on public.profiles;
-create policy "Admin manage profiles" on public.profiles for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN')
-);
 
--- 2. Blog Posts
+-- Create new robust policies
+create policy "Public profiles" on public.profiles for select using (true);
+create policy "Users update own" on public.profiles for update using (auth.uid() = id);
+create policy "Users insert own" on public.profiles for insert with check (auth.uid() = id);
+-- Use is_admin() function to prevent recursion
+create policy "Admin manage profiles" on public.profiles for all using ( public.is_admin() );
+
+-- 3. Content Tables (Blog, Sermons, etc) - Use is_admin() everywhere
+
+-- Blogs
 create table if not exists public.blog_posts (
   id uuid default gen_random_uuid() primary key,
   title text not null, author text, category text, content text, excerpt text, image_url text, video_url text,
@@ -179,11 +193,9 @@ alter table public.blog_posts enable row level security;
 drop policy if exists "Public blogs" on public.blog_posts;
 create policy "Public blogs" on public.blog_posts for select using (true);
 drop policy if exists "Admin blog" on public.blog_posts;
-create policy "Admin blog" on public.blog_posts for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN')
-);
+create policy "Admin blog" on public.blog_posts for all using ( public.is_admin() );
 
--- 3. Sermons
+-- Sermons
 create table if not exists public.sermons (
   id uuid default gen_random_uuid() primary key,
   title text, preacher text, date_preached text, duration text, video_url text, thumbnail_url text,
@@ -193,11 +205,9 @@ alter table public.sermons enable row level security;
 drop policy if exists "Public sermons" on public.sermons;
 create policy "Public sermons" on public.sermons for select using (true);
 drop policy if exists "Admin sermons" on public.sermons;
-create policy "Admin sermons" on public.sermons for all using (
-  exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN')
-);
+create policy "Admin sermons" on public.sermons for all using ( public.is_admin() );
 
--- 4. Music & Playlists
+-- Music
 create table if not exists public.music_tracks (
   id uuid default gen_random_uuid() primary key,
   title text, artist text, url text, type text default 'MUSIC',
@@ -213,13 +223,14 @@ alter table public.playlists enable row level security;
 drop policy if exists "Public music" on public.music_tracks;
 create policy "Public music" on public.music_tracks for select using (true);
 drop policy if exists "Admin music" on public.music_tracks;
-create policy "Admin music" on public.music_tracks for all using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+create policy "Admin music" on public.music_tracks for all using ( public.is_admin() );
+
 drop policy if exists "Public playlists" on public.playlists;
 create policy "Public playlists" on public.playlists for select using (true);
 drop policy if exists "Admin playlists" on public.playlists;
-create policy "Admin playlists" on public.playlists for all using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+create policy "Admin playlists" on public.playlists for all using ( public.is_admin() );
 
--- 5. Groups & Members
+-- Groups
 create table if not exists public.community_groups (
   id uuid default gen_random_uuid() primary key,
   name text, description text, image_url text,
@@ -234,44 +245,53 @@ create table if not exists public.community_group_members (
 );
 alter table public.community_groups enable row level security;
 alter table public.community_group_members enable row level security;
+
 drop policy if exists "Public groups" on public.community_groups;
 create policy "Public groups" on public.community_groups for select using (true);
 drop policy if exists "Admin groups" on public.community_groups;
-create policy "Admin groups" on public.community_groups for all using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+create policy "Admin groups" on public.community_groups for all using ( public.is_admin() );
+
 drop policy if exists "Public group members" on public.community_group_members;
 create policy "Public group members" on public.community_group_members for select using (true);
 drop policy if exists "Users join groups" on public.community_group_members;
 create policy "Users join groups" on public.community_group_members for insert with check (auth.uid() = user_id);
 drop policy if exists "Admin manage members" on public.community_group_members;
-create policy "Admin manage members" on public.community_group_members for update using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+create policy "Admin manage members" on public.community_group_members for all using ( public.is_admin() );
 
--- 6. Events & Notifications
+-- Events
 create table if not exists public.events (
   id uuid default gen_random_uuid() primary key,
   title text, date text, time text, location text, description text, type text, image_url text, video_url text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
--- Ensure columns exist for Events
-alter table public.events add column if not exists image_url text;
-alter table public.events add column if not exists video_url text;
+alter table public.events enable row level security;
+drop policy if exists "Public events" on public.events;
+create policy "Public events" on public.events for select using (true);
+drop policy if exists "Admin events" on public.events;
+create policy "Admin events" on public.events for all using ( public.is_admin() );
 
 create table if not exists public.notifications (
   id uuid default gen_random_uuid() primary key,
   title text, message text, type text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
-alter table public.events enable row level security;
 alter table public.notifications enable row level security;
-drop policy if exists "Public events" on public.events;
-create policy "Public events" on public.events for select using (true);
-drop policy if exists "Admin events" on public.events;
-create policy "Admin events" on public.events for all using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 drop policy if exists "Public notifications" on public.notifications;
 create policy "Public notifications" on public.notifications for select using (true);
 drop policy if exists "Admin notifications" on public.notifications;
-create policy "Admin notifications" on public.notifications for all using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+create policy "Admin notifications" on public.notifications for all using ( public.is_admin() );
 
--- 7. Reading Plans
+-- Storage
+insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
+insert into storage.buckets (id, name, public) values ('blog-images', 'blog-images', true) on conflict do nothing;
+drop policy if exists "Public Access Music" on storage.objects;
+create policy "Public Access Music" on storage.objects for select using ( bucket_id = 'music' );
+drop policy if exists "Admin Upload Music" on storage.objects;
+create policy "Admin Upload Music" on storage.objects for insert with check ( bucket_id = 'music' and public.is_admin() );
+drop policy if exists "Admin Delete Music" on storage.objects;
+create policy "Admin Delete Music" on storage.objects for delete using ( bucket_id = 'music' and public.is_admin() );
+
+-- Reading Plans
 create table if not exists public.reading_plans (
   id uuid default gen_random_uuid() primary key,
   month text, year int, content text,
@@ -281,17 +301,7 @@ alter table public.reading_plans enable row level security;
 drop policy if exists "Public plans" on public.reading_plans;
 create policy "Public plans" on public.reading_plans for select using (true);
 drop policy if exists "Admin plans" on public.reading_plans;
-create policy "Admin plans" on public.reading_plans for all using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
-
--- Storage Buckets
-insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
-insert into storage.buckets (id, name, public) values ('blog-images', 'blog-images', true) on conflict do nothing;
-drop policy if exists "Public Access Music" on storage.objects;
-create policy "Public Access Music" on storage.objects for select using ( bucket_id = 'music' );
-drop policy if exists "Admin Upload Music" on storage.objects;
-create policy "Admin Upload Music" on storage.objects for insert with check ( bucket_id = 'music' and exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN') );
-drop policy if exists "Admin Delete Music" on storage.objects;
-create policy "Admin Delete Music" on storage.objects for delete using ( bucket_id = 'music' and exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN') );
+create policy "Admin plans" on public.reading_plans for all using ( public.is_admin() );
   `;
 
   return (
@@ -303,7 +313,7 @@ create policy "Admin Delete Music" on storage.objects for delete using ( bucket_
               <div className="bg-blue-100 p-3 rounded-full text-blue-600"><Database size={24} /></div>
               <div className="flex-1">
                   <h3 className="text-lg font-bold text-blue-700">Database Status</h3>
-                  <p className="text-blue-600 mb-2">Ensure your database has all required tables and storage buckets.</p>
+                  <p className="text-blue-600 mb-2">Ensure your database has all required tables and updated security policies.</p>
                   <button onClick={() => setShowSql(!showSql)} className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 mt-2">
                       <Database size={16} /> {showSql ? 'Hide SQL' : 'View SQL Fix Code'}
                   </button>
@@ -333,7 +343,6 @@ create policy "Admin Delete Music" on storage.objects for delete using ( bucket_
              </div>
              <p className="text-slate-500 text-sm font-medium">Pending Group Requests</p>
           </div>
-          {/* ... other stats ... */}
       </div>
     </div>
   );
@@ -347,7 +356,12 @@ const MembersManager = () => {
     useEffect(() => { fetchMembers(); }, []);
 
     const fetchMembers = async () => {
-        const { data } = await supabase.from('profiles').select('*');
+        const { data, error } = await supabase.from('profiles').select('*');
+        if (error) {
+            console.error("Error fetching members:", error);
+            handleSupabaseError(error, "Fetch Members");
+            return;
+        }
         if(data) {
             setMembers(data.map((p: any) => ({
                 id: p.id,
@@ -434,19 +448,23 @@ const MembersManager = () => {
                         </tr>
                     </thead>
                     <tbody>
-                        {filtered.map(m => (
-                            <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                <td className="p-4 font-bold">{m.firstName}</td>
-                                <td className="p-4 font-bold">{m.lastName}</td>
-                                <td className="p-4 text-sm">{m.email}</td>
-                                <td className="p-4 text-sm">{m.phone}</td>
-                                <td className="p-4"><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold">{m.role}</span></td>
-                                <td className="p-4 flex gap-2">
-                                    <button onClick={() => setEditingMember(m)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
-                                    <button onClick={() => handleDeleteMember(m.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
-                                </td>
-                            </tr>
-                        ))}
+                        {filtered.length === 0 ? (
+                            <tr><td colSpan={6} className="p-4 text-center text-slate-500">No members found.</td></tr>
+                        ) : (
+                            filtered.map(m => (
+                                <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
+                                    <td className="p-4 font-bold">{m.firstName}</td>
+                                    <td className="p-4 font-bold">{m.lastName}</td>
+                                    <td className="p-4 text-sm">{m.email}</td>
+                                    <td className="p-4 text-sm">{m.phone}</td>
+                                    <td className="p-4"><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold">{m.role}</span></td>
+                                    <td className="p-4 flex gap-2">
+                                        <button onClick={() => setEditingMember(m)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>
+                                        <button onClick={() => handleDeleteMember(m.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
+                                    </td>
+                                </tr>
+                            ))
+                        )}
                     </tbody>
                 </table>
              </div>
@@ -626,6 +644,9 @@ const ContentManager = () => {
   );
 };
 
+// ... SermonManager, MusicManager, GroupManager, BibleManager, EventManager are similar structure ...
+// Including them in full to ensure no file truncation
+
 const SermonManager = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
     const [formData, setFormData] = useState({ id: '', title: '', preacher: '', date: '', duration: '', video_url: '' });
@@ -638,8 +659,21 @@ const SermonManager = () => {
         if(data) setSermons(data as any);
     }
     
+    // Helper to get thumbnail from YouTube URL
+    const getYouTubeID = (url: string) => { 
+        if (!url) return null; 
+        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null; 
+    };
+
     const handleSave = async () => {
-        const payload = { title: formData.title, preacher: formData.preacher, date_preached: formData.date, duration: formData.duration, video_url: formData.video_url };
+        const videoId = getYouTubeID(formData.video_url);
+        const thumbnailUrl = videoId ? `https://img.youtube.com/vi/${videoId}/default.jpg` : '';
+        const payload = { 
+            title: formData.title, preacher: formData.preacher, date_preached: formData.date, 
+            duration: formData.duration, video_url: formData.video_url, thumbnail_url: thumbnailUrl 
+        };
         const res = isEditing ? await supabase.from('sermons').update(payload).eq('id', formData.id) : await supabase.from('sermons').insert([payload]);
         if(!res.error) { alert("Sermon Saved!"); fetchSermons(); setFormData({ id: '', title: '', preacher: '', date: '', duration: '', video_url: '' }); setIsEditing(false); }
         else handleSupabaseError(res.error, 'Sermon');
@@ -659,6 +693,10 @@ const SermonManager = () => {
                 <div className="space-y-4">
                     <input className="w-full border p-3 rounded-xl" placeholder="Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
                     <input className="w-full border p-3 rounded-xl" placeholder="Preacher" value={formData.preacher} onChange={e => setFormData({...formData, preacher: e.target.value})} />
+                    <div className="flex gap-2">
+                        <input className="flex-1 border p-3 rounded-xl" type="date" value={formData.date} onChange={e => setFormData({...formData, date: e.target.value})} />
+                        <input className="flex-1 border p-3 rounded-xl" placeholder="Duration (45:00)" value={formData.duration} onChange={e => setFormData({...formData, duration: e.target.value})} />
+                    </div>
                     <input className="w-full border p-3 rounded-xl" placeholder="YouTube URL" value={formData.video_url} onChange={e => setFormData({...formData, video_url: e.target.value})} />
                     <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Save</button>
                 </div>
@@ -673,6 +711,7 @@ const SermonManager = () => {
                                 <p className="text-xs text-slate-500">{s.preacher} • {s.videoUrl}</p>
                             </div>
                             <div className="flex gap-2">
+                                <button onClick={() => { setIsEditing(true); setFormData({ id: s.id, title: s.title, preacher: s.preacher, date: s.date, duration: s.duration, video_url: s.videoUrl || '' }) }} className="text-blue-500"><Edit size={16}/></button>
                                 <button onClick={() => handleDelete(s.id)} className="text-red-500"><Trash2 size={16}/></button>
                             </div>
                         </div>
@@ -884,7 +923,34 @@ const GroupManager = () => {
 }
 
 const BibleManager = () => {
-    return <div className="p-10 text-center text-slate-500">Bible Plans Bulk Upload (Implemented in previous step)</div>
+    const [planText, setPlanText] = useState('');
+    const [month, setMonth] = useState('January');
+    const [year, setYear] = useState(2025);
+
+    const handleBulkUpload = async () => {
+        const lines = planText.split('\n').filter(l => l.trim().length > 0);
+        const entries = lines.map(line => ({
+            month, year, content: line.trim()
+        }));
+
+        const { error } = await supabase.from('reading_plans').insert(entries);
+        if(!error) { alert("Reading Plan Uploaded"); setPlanText(''); }
+        else handleSupabaseError(error, 'Upload Plan');
+    }
+
+    return (
+        <div className="bg-white p-6 rounded-2xl border">
+            <h3 className="font-bold text-lg mb-4">Upload Reading Plan</h3>
+            <div className="flex gap-4 mb-4">
+                <select className="border p-2 rounded" value={month} onChange={e=>setMonth(e.target.value)}>
+                    {['January','February','March','April','May','June','July','August','September','October','November','December'].map(m=><option key={m}>{m}</option>)}
+                </select>
+                <input type="number" className="border p-2 rounded" value={year} onChange={e=>setYear(parseInt(e.target.value))} />
+            </div>
+            <textarea className="w-full h-40 border p-2 rounded mb-4" placeholder="Paste plan here (e.g. Day 1: Genesis 1)" value={planText} onChange={e=>setPlanText(e.target.value)}></textarea>
+            <button onClick={handleBulkUpload} className="bg-blue-600 text-white px-6 py-2 rounded font-bold">Upload Bulk</button>
+        </div>
+    )
 }
 
 const EventManager = () => {
@@ -908,7 +974,6 @@ const EventManager = () => {
     }
 
     const handleExport = () => {
-        // Mock RSVP export for now as requested
         const mockRsvpData = events.map(e => ({ Event: e.title, Date: e.date, 'Yes': 12, 'No': 4, 'Maybe': 3 })); 
         exportToCSV(mockRsvpData, 'event_rsvps');
     }
@@ -935,4 +1000,21 @@ const EventManager = () => {
 
             <div className="bg-white p-6 border rounded-2xl">
                 <div className="flex justify-between mb-4">
-                    <h3 className="font-
+                    <h3 className="font-bold text-lg">Upcoming Events</h3>
+                    <button onClick={handleExport} className="bg-green-600 text-white text-xs px-3 py-1 rounded font-bold flex items-center gap-1"><Download size={12}/> Export RSVP</button>
+                </div>
+                <div className="space-y-2">
+                    {events.map(e => (
+                        <div key={e.id} className="p-3 border rounded flex justify-between items-center">
+                            <div>
+                                <div className="font-bold text-sm">{e.title}</div>
+                                <div className="text-xs text-slate-500">{e.date} • {e.type}</div>
+                            </div>
+                            <button onClick={()=>handleDelete(e.id)} className="text-red-500"><Trash2 size={16}/></button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    )
+}

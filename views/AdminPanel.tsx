@@ -526,8 +526,9 @@ const EventManager = () => {
            time: formData.time,
            location: formData.loc,
            type: formData.type,
-           image_url: formData.image,
-           video_url: formData.video
+           // Removed image_url and video_url because columns missing in DB
+           // image_url: formData.image,
+           // video_url: formData.video
      };
 
      if (isEditing) {

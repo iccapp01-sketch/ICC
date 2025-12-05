@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus
 } from 'lucide-react';
 import { BlogPost, User, Sermon, UserRole, Event, CommunityGroup, MusicTrack, Playlist } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -98,6 +98,7 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
         { table: 'music_tracks', name: 'Music' },
         { table: 'playlists', name: 'Playlists' },
         { table: 'community_groups', name: 'Groups' },
+        { table: 'community_group_members', name: 'Group Members' },
         { table: 'notifications', name: 'Notifications' },
         { table: 'reading_plans', name: 'Bible Plans' }
       ];
@@ -182,6 +183,15 @@ create table if not exists public.community_groups (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- 5b. Group Members (Approvals)
+create table if not exists public.community_group_members (
+  id uuid default gen_random_uuid() primary key,
+  group_id uuid references public.community_groups(id) on delete cascade,
+  user_id uuid references public.profiles(id) on delete cascade,
+  status text default 'PENDING', -- PENDING, APPROVED, REJECTED
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
 -- 6. Notifications
 create table if not exists public.notifications (
   id uuid default gen_random_uuid() primary key,
@@ -244,6 +254,14 @@ drop policy if exists "Admin delete groups" on public.community_groups;
 create policy "Admin delete groups" on public.community_groups for delete using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 drop policy if exists "Admin update groups" on public.community_groups;
 create policy "Admin update groups" on public.community_groups for update using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+
+alter table public.community_group_members enable row level security;
+drop policy if exists "Public read group members" on public.community_group_members;
+create policy "Public read group members" on public.community_group_members for select using (true);
+drop policy if exists "Authenticated insert group members" on public.community_group_members;
+create policy "Authenticated insert group members" on public.community_group_members for insert with check (auth.uid() = user_id);
+drop policy if exists "Admin update group members" on public.community_group_members;
+create policy "Admin update group members" on public.community_group_members for update using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 
 alter table public.notifications enable row level security;
 drop policy if exists "Public read notifs" on public.notifications;
@@ -345,24 +363,50 @@ const MembersManager = () => {
         if(data) {
         setMembers(data.map((p: any) => ({
             id: p.id,
-            firstName: p.first_name || 'No Name',
+            firstName: p.first_name || '',
             lastName: p.last_name || '',
             email: p.email,
             phone: p.phone,
             dob: p.dob,
+            gender: p.gender,
             role: p.role,
             joinedDate: p.created_at
         })));
         }
     };
 
-    const handleUpdateRole = async (id: string, newRole: string) => {
-        const { error } = await supabase.from('profiles').update({ role: newRole }).eq('id', id);
+    const handleUpdateMember = async () => {
+        if(!editingMember) return;
+        const { error } = await supabase.from('profiles').update({ 
+            first_name: editingMember.firstName,
+            last_name: editingMember.lastName,
+            email: editingMember.email,
+            phone: editingMember.phone,
+            dob: editingMember.dob,
+            gender: editingMember.gender,
+            role: editingMember.role
+        }).eq('id', editingMember.id);
+
         if(!error) {
+            alert("Member details updated successfully.");
             fetchMembers();
             setEditingMember(null);
         } else {
-            handleSupabaseError(error, 'Update Role');
+            handleSupabaseError(error, 'Update Member');
+        }
+    };
+
+    const handleDeleteMember = async (id: string) => {
+        if(!confirm("Are you sure you want to delete this member? This action cannot be undone.")) return;
+        
+        const { error } = await supabase.from('profiles').delete().eq('id', id);
+        
+        if (!error) {
+            alert("Member deleted.");
+            fetchMembers();
+            setEditingMember(null);
+        } else {
+            handleSupabaseError(error, 'Delete Member');
         }
     };
     
@@ -400,7 +444,7 @@ const MembersManager = () => {
                         {filteredMembers.map(m => (
                             <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
                                 <td className="p-4">
-                                    <div className="font-bold text-slate-800">{m.firstName} {m.lastName}</div>
+                                    <div className="font-bold text-slate-800">{m.firstName || 'No Name'} {m.lastName}</div>
                                     <div className="text-xs text-slate-500">Joined: {new Date(m.joinedDate).toLocaleDateString()}</div>
                                 </td>
                                 <td className="p-4">
@@ -426,13 +470,48 @@ const MembersManager = () => {
              {/* Edit Modal */}
              {editingMember && (
                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-                     <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
-                         <h3 className="font-bold text-lg mb-4">Edit Member</h3>
+                     <div className="bg-white rounded-2xl p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
+                         <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg">Edit Member</h3>
+                            <button onClick={() => setEditingMember(null)}><X size={20} className="text-slate-400"/></button>
+                         </div>
+                         
                          <div className="space-y-3 mb-6">
-                             <p className="text-sm">User: <strong>{editingMember.firstName} {editingMember.lastName}</strong></p>
-                             <label className="block text-xs font-bold text-slate-500">Role</label>
+                             <div className="grid grid-cols-2 gap-3">
+                                 <div>
+                                     <label className="block text-xs font-bold text-slate-500 mb-1">First Name</label>
+                                     <input className="w-full border p-2 rounded-lg" value={editingMember.firstName} onChange={(e) => setEditingMember({...editingMember, firstName: e.target.value})} />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-bold text-slate-500 mb-1">Last Name</label>
+                                     <input className="w-full border p-2 rounded-lg" value={editingMember.lastName} onChange={(e) => setEditingMember({...editingMember, lastName: e.target.value})} />
+                                 </div>
+                             </div>
+                             <div>
+                                 <label className="block text-xs font-bold text-slate-500 mb-1">Email</label>
+                                 <input className="w-full border p-2 rounded-lg" value={editingMember.email} onChange={(e) => setEditingMember({...editingMember, email: e.target.value})} />
+                             </div>
+                             <div>
+                                 <label className="block text-xs font-bold text-slate-500 mb-1">Phone</label>
+                                 <input className="w-full border p-2 rounded-lg" value={editingMember.phone} onChange={(e) => setEditingMember({...editingMember, phone: e.target.value})} />
+                             </div>
+                             <div className="grid grid-cols-2 gap-3">
+                                 <div>
+                                     <label className="block text-xs font-bold text-slate-500 mb-1">Date of Birth</label>
+                                     <input type="date" className="w-full border p-2 rounded-lg" value={editingMember.dob} onChange={(e) => setEditingMember({...editingMember, dob: e.target.value})} />
+                                 </div>
+                                 <div>
+                                     <label className="block text-xs font-bold text-slate-500 mb-1">Gender</label>
+                                     <select className="w-full border p-2 rounded-lg" value={editingMember.gender} onChange={(e) => setEditingMember({...editingMember, gender: e.target.value})}>
+                                         <option>Female</option>
+                                         <option>Male</option>
+                                     </select>
+                                 </div>
+                             </div>
+
+                             <label className="block text-xs font-bold text-slate-500 mt-2">Role</label>
                              <select 
-                                className="w-full border p-2 rounded-lg"
+                                className="w-full border p-2 rounded-lg bg-blue-50 border-blue-200 text-blue-800 font-medium"
                                 value={editingMember.role}
                                 onChange={(e) => setEditingMember({...editingMember, role: e.target.value as any})}
                              >
@@ -443,8 +522,8 @@ const MembersManager = () => {
                              </select>
                          </div>
                          <div className="flex gap-2">
-                             <button onClick={() => handleUpdateRole(editingMember.id, editingMember.role)} className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold">Save</button>
-                             <button onClick={() => setEditingMember(null)} className="flex-1 bg-slate-100 text-slate-600 py-2 rounded-lg font-bold">Cancel</button>
+                             <button onClick={handleDeleteMember.bind(null, editingMember.id)} className="px-4 bg-red-50 text-red-600 py-2 rounded-lg font-bold hover:bg-red-100"><Trash2 size={18}/></button>
+                             <button onClick={handleUpdateMember} className="flex-1 bg-blue-600 text-white py-2 rounded-lg font-bold hover:bg-blue-700">Save Changes</button>
                          </div>
                      </div>
                  </div>
@@ -479,7 +558,11 @@ const MusicManager = () => {
 
     const fetchPlaylists = async () => {
         const { data } = await supabase.from('playlists').select('*').order('created_at', { ascending: false });
-        if (data) setPlaylists(data.map((p: any) => ({ ...p, tracks: [] }))); 
+        if (data) setPlaylists(data.map((p: any) => ({ 
+            ...p, 
+            name: p.title, // Map title to name for UI consistency
+            tracks: p.tracks || [] 
+        }))); 
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -543,13 +626,17 @@ const MusicManager = () => {
         
         if (!error) {
             fetchTracks();
+            // Refresh playlists as well in case they contained this track
+            fetchPlaylists();
         } else {
             handleSupabaseError(error, 'Delete Track');
         }
     };
 
     const handleSavePlaylist = async () => {
+        // Important: DB column is 'title', UI uses 'name'
         const payload = { title: playlistForm.name, tracks: playlistForm.tracks };
+        
         let error;
         if (isEditingPlaylist) {
             const res = await supabase.from('playlists').update(payload).eq('id', playlistForm.id);
@@ -572,8 +659,11 @@ const MusicManager = () => {
     const handleDeletePlaylist = async (id: string) => {
         if(!confirm("Delete this playlist?")) return;
         const { error } = await supabase.from('playlists').delete().eq('id', id);
-        if(!error) fetchPlaylists();
-        else handleSupabaseError(error, 'Delete Playlist');
+        if(!error) {
+            fetchPlaylists();
+        } else {
+            handleSupabaseError(error, 'Delete Playlist');
+        }
     }
 
     return (
@@ -867,6 +957,8 @@ const GroupManager = () => {
     const [groups, setGroups] = useState<CommunityGroup[]>([]);
     const [formData, setFormData] = useState({ id: '', name: '', description: '', image_url: '' });
     const [isEditing, setIsEditing] = useState(false);
+    const [members, setMembers] = useState<any[]>([]);
+    const [managingGroupId, setManagingGroupId] = useState<string | null>(null);
 
     useEffect(() => { fetchGroups(); }, []);
 
@@ -874,6 +966,14 @@ const GroupManager = () => {
         const { data } = await supabase.from('community_groups').select('*');
         if(data) setGroups(data as any);
     }
+
+    const fetchGroupMembers = async (groupId: string) => {
+        const { data } = await supabase
+            .from('community_group_members')
+            .select('*, profiles(first_name, last_name, email)')
+            .eq('group_id', groupId);
+        if(data) setMembers(data);
+    };
 
     const handleSave = async () => {
         const payload = { name: formData.name, description: formData.description, image_url: formData.image_url || null };
@@ -897,10 +997,48 @@ const GroupManager = () => {
     }
 
     const handleDelete = async (id: string) => {
-        if(!confirm("Delete group?")) return;
+        if(!confirm("Delete group? This will also remove all messages and member links.")) return;
         const { error } = await supabase.from('community_groups').delete().eq('id', id);
         if(!error) fetchGroups();
         else handleSupabaseError(error, 'Delete Group');
+    }
+
+    const handleApproval = async (membershipId: string, status: string) => {
+        const { error } = await supabase.from('community_group_members').update({ status }).eq('id', membershipId);
+        if(!error && managingGroupId) {
+            fetchGroupMembers(managingGroupId);
+        } else {
+            handleSupabaseError(error, 'Member Approval');
+        }
+    }
+
+    if (managingGroupId) {
+        return (
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <button onClick={() => setManagingGroupId(null)} className="mb-4 text-blue-500 font-bold text-sm hover:underline">← Back to Groups</button>
+                <h3 className="font-bold text-lg text-[#0c2d58] mb-6">Manage Group Members</h3>
+                <div className="space-y-2">
+                    {members.length === 0 && <p className="text-slate-500">No members in this group.</p>}
+                    {members.map((m: any) => (
+                        <div key={m.id} className="flex items-center justify-between p-3 border rounded-xl">
+                            <div>
+                                <p className="font-bold">{m.profiles?.first_name} {m.profiles?.last_name}</p>
+                                <p className="text-xs text-slate-500">{m.profiles?.email}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <span className={`text-xs font-bold px-2 py-1 rounded uppercase ${m.status === 'APPROVED' ? 'bg-green-100 text-green-700' : m.status === 'REJECTED' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700'}`}>{m.status}</span>
+                                {m.status === 'PENDING' && (
+                                    <>
+                                        <button onClick={() => handleApproval(m.id, 'APPROVED')} className="p-1 bg-green-500 text-white rounded"><Check size={16}/></button>
+                                        <button onClick={() => handleApproval(m.id, 'REJECTED')} className="p-1 bg-red-500 text-white rounded"><X size={16}/></button>
+                                    </>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        )
     }
 
     return (
@@ -927,6 +1065,7 @@ const GroupManager = () => {
                                 <p className="text-xs text-slate-500 line-clamp-1">{g.description}</p>
                             </div>
                             <div className="flex gap-2">
+                                <button onClick={() => { setManagingGroupId(g.id); fetchGroupMembers(g.id); }} className="p-2 text-green-600 hover:bg-green-50 rounded" title="Manage Members"><Users size={16}/></button>
                                 <button onClick={() => { setIsEditing(true); setFormData({ id: g.id, name: g.name, description: g.description, image_url: g.image || '' }) }} className="p-2 text-blue-500 hover:bg-blue-50 rounded"><Edit size={16}/></button>
                                 <button onClick={() => handleDelete(g.id)} className="p-2 text-red-500 hover:bg-red-50 rounded"><Trash2 size={16}/></button>
                             </div>

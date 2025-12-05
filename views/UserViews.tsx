@@ -5,12 +5,18 @@ import {
   Play, Download, Search, CheckCircle, ArrowLeft, Bookmark,
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
-  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video
+  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus
 } from 'lucide-react';
 import { BlogPost, Sermon, CommunityGroup, GroupPost, GroupComment, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
-const getYouTubeID = (url: string) => { if (!url) return null; const m = url.match(/^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/); return (m && m[2].length === 11) ? m[2] : null; };
+const getYouTubeID = (url: string) => { 
+    if (!url) return null; 
+    // Handles: youtube.com/watch?v=ID, youtu.be/ID, youtube.com/embed/ID, youtube.com/v/ID, youtube.com/shorts/ID
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null; 
+};
 
 // --- HOME VIEW ---
 export const HomeView = ({ onNavigate }: any) => {
@@ -189,11 +195,13 @@ export const EventsView = ({ onBack }: any) => {
 // --- COMMUNITY VIEW (SOCIAL FEED) ---
 export const CommunityView = () => {
     const [posts, setPosts] = useState<GroupPost[]>([]);
+    const [groups, setGroups] = useState<CommunityGroup[]>([]);
     const [content, setContent] = useState('');
+    const [membershipStatus, setMembershipStatus] = useState<{[key:string]: string}>({});
 
-    // Mock initial data or fetch from Supabase if table exists
     useEffect(() => {
-        // Since we might not have a full 'group_posts' table, we'll mock interactions locally for demo
+        fetchGroups();
+        // Mock posts as before, real implementation would fetch from DB
         setPosts([
             {
                 id: '1', groupId: '1', userId: 'user1', userName: 'Sarah Smith', content: 'Excited for the upcoming youth retreat! Who else is going?', likes: 12, createdAt: '2 hours ago', comments: []
@@ -204,31 +212,70 @@ export const CommunityView = () => {
         ]);
     }, []);
 
-    const handlePost = () => {
-        if(!content) return;
-        const newPost: GroupPost = {
-            id: Date.now().toString(),
-            groupId: '1',
-            userId: 'me',
-            userName: 'Me',
-            content,
-            likes: 0,
-            comments: [],
-            createdAt: 'Just now'
-        };
-        setPosts([newPost, ...posts]);
-        setContent('');
+    const fetchGroups = async () => {
+        const { data } = await supabase.from('community_groups').select('*');
+        if(data) setGroups(data as any);
+        
+        // Check memberships
+        const { data: { user } } = await supabase.auth.getUser();
+        if(user) {
+            const { data: members } = await supabase.from('community_group_members').select('group_id, status').eq('user_id', user.id);
+            if(members) {
+                const statusMap: any = {};
+                members.forEach((m: any) => statusMap[m.group_id] = m.status);
+                setMembershipStatus(statusMap);
+            }
+        }
     };
 
-    const handleLike = (id: string) => {
-        setPosts(posts.map(p => p.id === id ? { ...p, likes: p.likes + 1, likedByMe: true } : p));
+    const handleJoinGroup = async (groupId: string) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+
+        const { error } = await supabase.from('community_group_members').insert({
+            group_id: groupId,
+            user_id: user.id,
+            status: 'PENDING'
+        });
+
+        if(!error) {
+            setMembershipStatus({...membershipStatus, [groupId]: 'PENDING'});
+            alert("Request sent! Waiting for Admin approval.");
+        } else {
+            console.error(error);
+            alert("Could not join group.");
+        }
     };
 
     return (
-        <div className="p-4 pb-24 space-y-4 bg-slate-50 dark:bg-slate-900 min-h-full">
+        <div className="p-4 pb-24 space-y-6 bg-slate-50 dark:bg-slate-900 min-h-full">
+            
+            {/* Groups List */}
+            <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-3">Your Groups</h2>
+                <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                    {groups.map(g => (
+                        <div key={g.id} className="min-w-[140px] bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center text-center">
+                            <div className="w-12 h-12 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mb-2 font-bold">
+                                {g.name.charAt(0)}
+                            </div>
+                            <h4 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-1">{g.name}</h4>
+                            
+                            {membershipStatus[g.id] === 'APPROVED' ? (
+                                <span className="text-[10px] text-green-500 font-bold mt-1">Member</span>
+                            ) : membershipStatus[g.id] === 'PENDING' ? (
+                                <span className="text-[10px] text-orange-500 font-bold mt-1">Pending</span>
+                            ) : (
+                                <button onClick={() => handleJoinGroup(g.id)} className="text-[10px] bg-blue-500 text-white px-2 py-1 rounded mt-2 font-bold">Join</button>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">Community Feed</h1>
             
-            {/* Create Post */}
+            {/* Create Post (Mock) */}
             <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                 <textarea 
                     className="w-full bg-slate-50 dark:bg-slate-900 rounded-xl p-3 text-sm outline-none resize-none mb-3 dark:text-white"
@@ -238,7 +285,7 @@ export const CommunityView = () => {
                     onChange={e => setContent(e.target.value)}
                 ></textarea>
                 <div className="flex justify-end">
-                    <button onClick={handlePost} disabled={!content} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2">
+                    <button className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold text-sm flex items-center gap-2">
                         <Send size={16}/> Post
                     </button>
                 </div>
@@ -259,11 +306,8 @@ export const CommunityView = () => {
                     <p className="text-sm text-slate-700 dark:text-slate-300 mb-4 leading-relaxed">{post.content}</p>
                     
                     <div className="flex items-center gap-6 border-t border-slate-100 dark:border-slate-700 pt-3">
-                        <button 
-                            onClick={() => handleLike(post.id)}
-                            className={`flex items-center gap-2 text-sm font-medium transition ${post.likedByMe ? 'text-red-500' : 'text-slate-500 hover:text-red-500'}`}
-                        >
-                            <Heart size={18} fill={post.likedByMe ? "currentColor" : "none"}/> {post.likes}
+                        <button className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-red-500">
+                            <Heart size={18}/> {post.likes}
                         </button>
                         <button className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600 transition">
                             <MessageCircle size={18}/> Comment
@@ -298,7 +342,8 @@ export const BibleView = () => {
     const fetchText = async () => {
         setLoading(true);
         try {
-            const res = await fetch(`https://bible-api.com/${book}+${chapter}?translation=${version}`);
+            const encodedBook = encodeURIComponent(book);
+            const res = await fetch(`https://bible-api.com/${encodedBook}+${chapter}?translation=${version}`);
             const data = await res.json();
             setText(data.text || "Could not load text.");
         } catch (e) {
@@ -406,13 +451,15 @@ export const SermonsView = () => {
         fetch();
     }, []);
 
+    const youtubeID = (url:string) => getYouTubeID(url);
+
     return (
         <div className="p-4 pb-24 space-y-4">
             <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-4">Watch Sermons</h1>
             
             {sermons.map(s => (
                 <div key={s.id} onClick={() => setPlaying(s)} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer group">
-                    <div className="h-48 bg-slate-200 relative bg-cover bg-center" style={{ backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(s.videoUrl)}/mqdefault.jpg)` : 'none' }}>
+                    <div className="h-48 bg-slate-200 relative bg-cover bg-center" style={{ backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${youtubeID(s.videoUrl || '')}/mqdefault.jpg)` : 'none' }}>
                         <div className="absolute inset-0 bg-black/30 flex items-center justify-center group-hover:bg-black/40 transition">
                             <div className="w-12 h-12 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center"><Play fill="white" className="text-white"/></div>
                         </div>
@@ -426,16 +473,17 @@ export const SermonsView = () => {
             ))}
 
             {playing && (
-                <div className="fixed inset-0 z-50 bg-black flex flex-col justify-center">
+                <div className="fixed inset-0 z-50 bg-black flex flex-col justify-center animate-fade-in">
                     <button onClick={() => setPlaying(null)} className="absolute top-4 right-4 text-white p-4 z-50"><X size={32}/></button>
                     <div className="w-full aspect-video bg-black">
                          {playing.videoUrl && (
                              <iframe 
                                  width="100%" 
                                  height="100%" 
-                                 src={`https://www.youtube.com/embed/${getYouTubeID(playing.videoUrl)}?autoplay=1`} 
+                                 src={`https://www.youtube.com/embed/${youtubeID(playing.videoUrl)}?autoplay=1`} 
                                  allow="autoplay; encrypted-media" 
                                  allowFullScreen
+                                 title="Sermon Player"
                              ></iframe>
                          )}
                     </div>
@@ -663,6 +711,8 @@ export const MusicView = () => {
       else setCurrentTrack(tracks[tracks.length - 1]);
   };
 
+  const youtubeID = (url:string) => getYouTubeID(url);
+
   return (
     <div className="h-full bg-slate-50 dark:bg-slate-900 flex flex-col relative overflow-hidden">
         
@@ -722,11 +772,10 @@ export const MusicView = () => {
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden relative shadow-inner">
                         {currentTrack.url.includes('youtu') ? (
-                            <img src={`https://img.youtube.com/vi/${getYouTubeID(currentTrack.url)}/default.jpg`} className="w-full h-full object-cover" />
+                            <img src={`https://img.youtube.com/vi/${youtubeID(currentTrack.url || '')}/default.jpg`} className="w-full h-full object-cover" />
                         ) : (
                             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-500"><Music size={16} className="text-white"/></div>
                         )}
-                        {/* Rotating ring logic could go here */}
                     </div>
                     <div className="min-w-0 max-w-[120px]">
                         <p className="text-sm font-bold text-slate-900 dark:text-white truncate">{currentTrack.title}</p>
@@ -765,7 +814,7 @@ export const MusicView = () => {
                         {currentTrack.url.includes('youtu') ? (
                            <iframe 
                              className="w-full h-full pointer-events-none"
-                             src={`https://www.youtube.com/embed/${getYouTubeID(currentTrack.url)}?autoplay=${isPlaying ? 1 : 0}&controls=0&showinfo=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
+                             src={`https://www.youtube.com/embed/${youtubeID(currentTrack.url)}?autoplay=${isPlaying ? 1 : 0}&controls=0&showinfo=0&modestbranding=1&rel=0&iv_load_policy=3&playsinline=1`}
                              allow="autoplay"
                            />
                         ) : (

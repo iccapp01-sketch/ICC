@@ -136,7 +136,7 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
   }, []);
 
   const SQL_CODE = `
--- Run this in Supabase SQL Editor to fix database schema
+-- Run this in Supabase SQL Editor to fix database schema and permissions
 
 -- 1. Profiles & RLS
 create table if not exists public.profiles (
@@ -146,12 +146,21 @@ create table if not exists public.profiles (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 alter table public.profiles enable row level security;
+
+-- Policies for Profiles
 drop policy if exists "Public profiles" on public.profiles;
 create policy "Public profiles" on public.profiles for select using (true);
+
 drop policy if exists "Users update own" on public.profiles;
 create policy "Users update own" on public.profiles for update using (auth.uid() = id);
+
 drop policy if exists "Users insert own" on public.profiles;
 create policy "Users insert own" on public.profiles for insert with check (auth.uid() = id);
+
+drop policy if exists "Admin manage profiles" on public.profiles;
+create policy "Admin manage profiles" on public.profiles for all using (
+  exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN')
+);
 
 -- 2. Blog Posts
 create table if not exists public.blog_posts (
@@ -263,7 +272,7 @@ create policy "Public plans" on public.reading_plans for select using (true);
 drop policy if exists "Admin plans" on public.reading_plans;
 create policy "Admin plans" on public.reading_plans for all using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 
--- Storage Buckets (Must be created manually in dashboard if this SQL fails, but policies help)
+-- Storage Buckets
 insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('blog-images', 'blog-images', true) on conflict do nothing;
 drop policy if exists "Public Access Music" on storage.objects;
@@ -405,7 +414,8 @@ const MembersManager = () => {
                 <table className="w-full text-left">
                     <thead className="bg-slate-50 border-b border-slate-200">
                         <tr>
-                            <th className="p-4 text-xs font-bold text-slate-500 uppercase">Name</th>
+                            <th className="p-4 text-xs font-bold text-slate-500 uppercase">First Name</th>
+                            <th className="p-4 text-xs font-bold text-slate-500 uppercase">Last Name</th>
                             <th className="p-4 text-xs font-bold text-slate-500 uppercase">Email</th>
                             <th className="p-4 text-xs font-bold text-slate-500 uppercase">Phone</th>
                             <th className="p-4 text-xs font-bold text-slate-500 uppercase">Role</th>
@@ -415,7 +425,8 @@ const MembersManager = () => {
                     <tbody>
                         {filtered.map(m => (
                             <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                <td className="p-4 font-bold">{m.firstName} {m.lastName}</td>
+                                <td className="p-4 font-bold">{m.firstName}</td>
+                                <td className="p-4 font-bold">{m.lastName}</td>
                                 <td className="p-4 text-sm">{m.email}</td>
                                 <td className="p-4 text-sm">{m.phone}</td>
                                 <td className="p-4"><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold">{m.role}</span></td>
@@ -438,6 +449,12 @@ const MembersManager = () => {
                             <input className="w-full border p-2 rounded" value={editingMember.lastName} onChange={e=>setEditingMember({...editingMember, lastName: e.target.value})} placeholder="Last Name" />
                             <input className="w-full border p-2 rounded" value={editingMember.email} onChange={e=>setEditingMember({...editingMember, email: e.target.value})} placeholder="Email" />
                             <input className="w-full border p-2 rounded" value={editingMember.phone} onChange={e=>setEditingMember({...editingMember, phone: e.target.value})} placeholder="Phone" />
+                            <select className="w-full border p-2 rounded" value={editingMember.role} onChange={e=>setEditingMember({...editingMember, role: e.target.value as any})}>
+                                <option value="MEMBER">Member</option>
+                                <option value="MODERATOR">Moderator</option>
+                                <option value="AUTHOR">Author</option>
+                                <option value="ADMIN">Admin</option>
+                            </select>
                          </div>
                          <div className="flex gap-2">
                              <button onClick={handleUpdateMember} className="flex-1 bg-blue-600 text-white py-2 rounded font-bold">Save</button>

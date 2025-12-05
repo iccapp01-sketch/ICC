@@ -150,7 +150,6 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
     fetchStats();
   }, []);
 
-  // UPDATED SQL TO PREVENT 'POLICY ALREADY EXISTS' ERRORS
   const SQL_CODE = `
 -- SECURITY FUNCTION TO FIX INFINITE RECURSION
 create or replace function public.is_admin()

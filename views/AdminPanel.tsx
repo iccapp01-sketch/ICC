@@ -132,8 +132,13 @@ insert into storage.buckets (id, name, public)
 values ('music', 'music', true) 
 on conflict (id) do nothing;
 
+drop policy if exists "Public Access Music" on storage.objects;
 create policy "Public Access Music" on storage.objects for select using ( bucket_id = 'music' );
+
+drop policy if exists "Admin Upload Music" on storage.objects;
 create policy "Admin Upload Music" on storage.objects for insert with check ( bucket_id = 'music' AND exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN') );
+
+drop policy if exists "Admin Delete Music" on storage.objects;
 create policy "Admin Delete Music" on storage.objects for delete using ( bucket_id = 'music' AND exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN') );
 
 -- 2. Blog Posts
@@ -201,35 +206,55 @@ alter table public.events add column if not exists video_url text;
 
 -- 9. Enable Security
 alter table public.blog_posts enable row level security;
+drop policy if exists "Public read blogs" on public.blog_posts;
 create policy "Public read blogs" on public.blog_posts for select using (true);
+drop policy if exists "Admin write blogs" on public.blog_posts;
 create policy "Admin write blogs" on public.blog_posts for insert with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin delete blogs" on public.blog_posts;
 create policy "Admin delete blogs" on public.blog_posts for delete using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin update blogs" on public.blog_posts;
 create policy "Admin update blogs" on public.blog_posts for update using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 
 alter table public.music_tracks enable row level security;
+drop policy if exists "Public read music" on public.music_tracks;
 create policy "Public read music" on public.music_tracks for select using (true);
+drop policy if exists "Admin write music" on public.music_tracks;
 create policy "Admin write music" on public.music_tracks for insert with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin delete music" on public.music_tracks;
 create policy "Admin delete music" on public.music_tracks for delete using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin update music" on public.music_tracks;
 create policy "Admin update music" on public.music_tracks for update using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 
 alter table public.playlists enable row level security;
+drop policy if exists "Public read playlists" on public.playlists;
 create policy "Public read playlists" on public.playlists for select using (true);
+drop policy if exists "Admin write playlists" on public.playlists;
 create policy "Admin write playlists" on public.playlists for insert with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin delete playlists" on public.playlists;
 create policy "Admin delete playlists" on public.playlists for delete using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin update playlists" on public.playlists;
 create policy "Admin update playlists" on public.playlists for update using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 
 alter table public.community_groups enable row level security;
+drop policy if exists "Public read groups" on public.community_groups;
 create policy "Public read groups" on public.community_groups for select using (true);
+drop policy if exists "Admin write groups" on public.community_groups;
 create policy "Admin write groups" on public.community_groups for insert with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin delete groups" on public.community_groups;
 create policy "Admin delete groups" on public.community_groups for delete using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
+drop policy if exists "Admin update groups" on public.community_groups;
 create policy "Admin update groups" on public.community_groups for update using (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 
 alter table public.notifications enable row level security;
+drop policy if exists "Public read notifs" on public.notifications;
 create policy "Public read notifs" on public.notifications for select using (true);
+drop policy if exists "Admin write notifs" on public.notifications;
 create policy "Admin write notifs" on public.notifications for insert with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
 
 alter table public.reading_plans enable row level security;
+drop policy if exists "Public read plans" on public.reading_plans;
 create policy "Public read plans" on public.reading_plans for select using (true);
+drop policy if exists "Admin write plans" on public.reading_plans;
 create policy "Admin write plans" on public.reading_plans for insert with check (exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN'));
   `;
 

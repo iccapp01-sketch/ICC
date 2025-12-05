@@ -18,6 +18,9 @@ const DAILY_VERSE: BibleVerse = {
   version: "NKJV"
 };
 
+const BIBLE_API_KEY = 'j6HVB3_hdmcH_ue5C6QMx';
+const BIBLE_ID = 'de4e12af7f28f599-01'; // KJV
+
 const MOCK_PLAYLISTS: Playlist[] = [
   { 
     id: '1', name: 'Worship Essentials', tracks: [
@@ -29,6 +32,7 @@ const MOCK_PLAYLISTS: Playlist[] = [
 
 // --- HELPER FUNCTIONS ---
 const getYouTubeID = (url: string) => {
+  if (!url) return null;
   const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
   const match = url.match(regExp);
   return (match && match[2].length === 11) ? match[2] : null;
@@ -167,21 +171,27 @@ export const EventsView = ({ onBack }: { onBack?: () => void }) => {
 
   useEffect(() => {
     const fetchEvents = async () => {
-      const { data } = await supabase.from('events').select('*').order('date', { ascending: true });
-      if (data) {
-        setEvents(data.map((e: any) => ({
-           id: e.id,
-           title: e.title,
-           date: e.date,
-           time: e.time,
-           location: e.location,
-           description: e.description,
-           type: e.type,
-           rsvpCount: 0,
-           image: e.image_url
-        })));
+      try {
+        const { data, error } = await supabase.from('events').select('*').order('date', { ascending: true });
+        if (error) throw error;
+        if (data) {
+          setEvents(data.map((e: any) => ({
+            id: e.id,
+            title: e.title,
+            date: e.date,
+            time: e.time,
+            location: e.location,
+            description: e.description,
+            type: e.type,
+            rsvpCount: 0,
+            image: e.image_url
+          })));
+        }
+      } catch (err) {
+        console.error("Failed to fetch events:", err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     fetchEvents();
   }, []);
@@ -191,7 +201,6 @@ export const EventsView = ({ onBack }: { onBack?: () => void }) => {
         setRsvped(rsvped.filter(e => e !== id));
     } else {
         setRsvped([...rsvped, id]);
-        // Here you would typically send this to the DB
     }
   };
 
@@ -269,28 +278,32 @@ export const CommunityView = () => {
   useEffect(() => {
     const fetchGroups = async () => {
        setLoadingGroups(true);
-       const { data } = await supabase.from('community_groups').select('*');
-       if (data) {
-          setAllGroups(data.map((g: any) => ({
-             id: g.id,
-             name: g.name,
-             description: g.description,
-             image: g.image_url,
-             membersCount: 0, 
-             isMember: true, // Auto-join for demo
-             status: 'Joined'
-          })));
+       try {
+           const { data, error } = await supabase.from('community_groups').select('*');
+           if (error) throw error;
+           if (data) {
+              setAllGroups(data.map((g: any) => ({
+                 id: g.id,
+                 name: g.name,
+                 description: g.description,
+                 image: g.image_url,
+                 membersCount: 0, 
+                 isMember: true, 
+                 status: 'Joined'
+              })));
+           }
+       } catch (err) {
+           console.error("Fetch groups error:", err);
+       } finally {
+           setLoadingGroups(false);
        }
-       setLoadingGroups(false);
     };
     fetchGroups();
   }, []);
 
-  // 2. Fetch Posts (Simulated or Real)
+  // 2. Fetch Posts Mock
   useEffect(() => {
     if(activeGroup) {
-       // Ideally fetch from 'group_posts' table
-       // Simulating initial data for the requested "Facebook style" UI
        setPosts([
          {
            id: '1',
@@ -327,7 +340,7 @@ export const CommunityView = () => {
        id: Date.now().toString(),
        groupId: activeGroup!.id,
        userId: 'me',
-       userName: 'Me', // Current User Name
+       userName: 'Me', 
        content: newPostContent,
        likes: 0,
        comments: [],
@@ -527,18 +540,24 @@ export const NotificationsView = () => {
 
   useEffect(() => {
     const fetchNotifications = async () => {
-       const { data } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
-       if(data) {
-          setNotifications(data.map((n: any) => ({
-             id: n.id,
-             title: n.title,
-             message: n.message,
-             type: n.type,
-             created_at: new Date(n.created_at).toLocaleString(),
-             isRead: false // In real app, check 'read_receipts' table
-          })));
+       try {
+           const { data, error } = await supabase.from('notifications').select('*').order('created_at', { ascending: false });
+           if (error) throw error;
+           if(data) {
+              setNotifications(data.map((n: any) => ({
+                 id: n.id,
+                 title: n.title,
+                 message: n.message,
+                 type: n.type,
+                 created_at: new Date(n.created_at).toLocaleString(),
+                 isRead: false
+              })));
+           }
+       } catch (err) {
+           console.error("Fetch notifications error", err);
+       } finally {
+           setLoading(false);
        }
-       setLoading(false);
     };
     fetchNotifications();
   }, []);
@@ -574,56 +593,132 @@ export const NotificationsView = () => {
   )
 }
 
-// 5. BIBLE VIEW
+// 5. BIBLE VIEW (API Integration)
 export const BibleView = () => {
-  const [explanation, setExplanation] = useState('');
+  const [books, setBooks] = useState<any[]>([]);
+  const [chapters, setChapters] = useState<any[]>([]);
+  const [content, setContent] = useState('');
+  const [selectedBook, setSelectedBook] = useState<any>(null);
+  const [selectedChapter, setSelectedChapter] = useState('');
+  const [view, setView] = useState<'books' | 'chapters' | 'text'>('books');
   const [loading, setLoading] = useState(false);
-  
-  const handleExplain = async () => {
+  const [error, setError] = useState('');
+
+  // Fetch Books
+  useEffect(() => {
+    const fetchBooks = async () => {
+      setLoading(true);
+      setError('');
+      try {
+        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books`, {
+          headers: { 'api-key': BIBLE_API_KEY }
+        });
+        if (!res.ok) throw new Error('Failed to fetch books');
+        const data = await res.json();
+        setBooks(data.data);
+      } catch (err: any) {
+        console.error("Bible API Error:", err);
+        setError('Could not connect to Bible API. Please check your internet connection.');
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchBooks();
+  }, []);
+
+  const handleBookSelect = async (book: any) => {
+    setSelectedBook(book);
     setLoading(true);
-    const text = await explainVerse(DAILY_VERSE.text, DAILY_VERSE.reference);
-    setExplanation(text);
-    setLoading(false);
+    try {
+        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/books/${book.id}/chapters`, {
+            headers: { 'api-key': BIBLE_API_KEY }
+        });
+        if (!res.ok) throw new Error('Failed to fetch chapters');
+        const data = await res.json();
+        setChapters(data.data);
+        setView('chapters');
+    } catch (err: any) {
+        setError(err.message);
+    } finally {
+        setLoading(false);
+    }
+  };
+
+  const handleChapterSelect = async (chapterId: string) => {
+    setSelectedChapter(chapterId);
+    setLoading(true);
+    try {
+        const res = await fetch(`https://api.scripture.api.bible/v1/bibles/${BIBLE_ID}/chapters/${chapterId}?content-type=html`, {
+            headers: { 'api-key': BIBLE_API_KEY }
+        });
+        if (!res.ok) throw new Error('Failed to fetch content');
+        const data = await res.json();
+        setContent(data.data.content);
+        setView('text');
+    } catch (err: any) {
+        setError(err.message);
+    } finally {
+        setLoading(false);
+    }
   };
 
   return (
-    <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24">
-      <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-4">Bible Study</h1>
-      {/* Daily Verse Card */}
-       <div className="bg-orange-50 dark:bg-orange-900/20 p-5 rounded-2xl border border-orange-100 dark:border-orange-500/20 mb-6">
-           <div className="flex items-center gap-2 mb-2">
-              <Sparkles size={16} className="text-orange-500" />
-              <span className="text-orange-700 dark:text-orange-300 text-xs font-bold uppercase">Verse of the Day</span>
-           </div>
-           <p className="text-slate-800 dark:text-slate-200 font-serif italic text-lg leading-relaxed">"{DAILY_VERSE.text}"</p>
-           <p className="text-slate-500 dark:text-slate-400 text-sm mt-2 font-medium">- {DAILY_VERSE.reference}</p>
-           
-           <button 
-             onClick={handleExplain}
-             disabled={loading}
-             className="mt-4 bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300 px-4 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-orange-200 transition"
-           >
-              {loading ? <span className="animate-spin">⌛</span> : <Sparkles size={14}/>} 
-              Explain with AI
+    <div className="h-full bg-slate-50 dark:bg-slate-900 p-4 pb-24 flex flex-col">
+      <div className="flex items-center gap-2 mb-4">
+        {view !== 'books' && (
+           <button onClick={() => setView(view === 'text' ? 'chapters' : 'books')} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm">
+             <ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/>
            </button>
+        )}
+        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">
+            {view === 'books' ? 'Holy Bible' : view === 'chapters' ? selectedBook.name : selectedChapter}
+        </h1>
+      </div>
 
-           {explanation && (
-             <div className="mt-4 pt-4 border-t border-orange-200 dark:border-orange-800/50 animate-fade-in">
-                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{explanation}</p>
-             </div>
+      {loading && <div className="flex-1 flex items-center justify-center text-slate-500">Loading...</div>}
+      
+      {error && (
+          <div className="p-4 bg-red-50 text-red-600 rounded-xl border border-red-200 text-center">
+              <p>{error}</p>
+              <button onClick={() => window.location.reload()} className="mt-2 text-xs font-bold underline">Retry</button>
+          </div>
+      )}
+
+      {!loading && !error && (
+        <div className="flex-1 overflow-y-auto">
+           {view === 'books' && (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                 {books.map(book => (
+                    <button key={book.id} onClick={() => handleBookSelect(book)} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:border-blue-500 text-left">
+                        <span className="font-bold text-slate-700 dark:text-slate-200">{book.name}</span>
+                    </button>
+                 ))}
+              </div>
            )}
-       </div>
-       
-       <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-2 aspect-square">
-             <BookOpen size={32} className="text-blue-500" />
-             <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">Read Bible</span>
-          </div>
-          <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 flex flex-col items-center justify-center gap-2 aspect-square">
-             <Calendar size={32} className="text-purple-500" />
-             <span className="font-bold text-slate-700 dark:text-slate-300 text-sm">Reading Plan</span>
-          </div>
-       </div>
+           
+           {view === 'chapters' && (
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-3">
+                 {chapters.map(chap => (
+                    <button key={chap.id} onClick={() => handleChapterSelect(chap.id)} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 font-bold text-center text-slate-700 dark:text-slate-200">
+                        {chap.number}
+                    </button>
+                 ))}
+              </div>
+           )}
+
+           {view === 'text' && (
+              <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 prose dark:prose-invert max-w-none">
+                 <div className="bible-content" dangerouslySetInnerHTML={{ __html: content }} />
+                 <style>{`
+                    .bible-content .p { margin-bottom: 1em; line-height: 1.8; }
+                    .bible-content .v { font-size: 0.7em; color: #94a3b8; font-weight: bold; vertical-align: super; margin-right: 4px; }
+                    .bible-content .q1, .bible-content .q2 { margin-left: 20px; font-style: italic; color: #475569; }
+                    .bible-content .wj { color: #e11d48; } /* Words of Jesus in Red */
+                 `}</style>
+              </div>
+           )}
+        </div>
+      )}
     </div>
   );
 };
@@ -635,22 +730,28 @@ export const BlogView = () => {
 
   useEffect(() => {
     const fetchBlogs = async () => {
-        const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-        if(data) {
-            setBlogs(data.map((b:any) => ({
-                id: b.id,
-                title: b.title,
-                author: b.author,
-                date: new Date(b.created_at).toLocaleDateString(),
-                category: b.category,
-                excerpt: b.excerpt,
-                content: b.content,
-                image: b.image_url || 'https://picsum.photos/800/400',
-                likes: 0,
-                comments: 0
-            })));
+        try {
+            const { data, error } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
+            if (error) throw error;
+            if(data) {
+                setBlogs(data.map((b:any) => ({
+                    id: b.id,
+                    title: b.title,
+                    author: b.author,
+                    date: new Date(b.created_at).toLocaleDateString(),
+                    category: b.category,
+                    excerpt: b.excerpt,
+                    content: b.content,
+                    image: b.image_url || 'https://picsum.photos/800/400',
+                    likes: 0,
+                    comments: 0
+                })));
+            }
+        } catch (err) {
+            console.error("Fetch blogs error", err);
+        } finally {
+            setLoading(false);
         }
-        setLoading(false);
     }
     fetchBlogs();
   }, []);
@@ -686,18 +787,23 @@ export const SermonsView = () => {
     
     useEffect(() => {
         const fetchSermons = async () => {
-            const { data } = await supabase.from('sermons').select('*').order('date_preached', { ascending: false });
-            if (data) {
-                setSermons(data.map((s:any) => ({
-                    id: s.id,
-                    title: s.title,
-                    preacher: s.preacher,
-                    date: s.date_preached,
-                    duration: s.duration,
-                    videoUrl: s.video_url,
-                    thumbnail: s.thumbnail_url || 'https://picsum.photos/800/450',
-                    views: 0
-                })));
+            try {
+                const { data, error } = await supabase.from('sermons').select('*').order('date_preached', { ascending: false });
+                if (error) throw error;
+                if (data) {
+                    setSermons(data.map((s:any) => ({
+                        id: s.id,
+                        title: s.title,
+                        preacher: s.preacher,
+                        date: s.date_preached,
+                        duration: s.duration,
+                        videoUrl: s.video_url,
+                        thumbnail: s.thumbnail_url || 'https://picsum.photos/800/450',
+                        views: 0
+                    })));
+                }
+            } catch (err) {
+                console.error("Fetch sermons error", err);
             }
         };
         fetchSermons();

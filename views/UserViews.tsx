@@ -451,7 +451,7 @@ export const BlogView = () => {
             content: commentText
         });
         
-        if(error) alert("Error posting comment");
+        if(error) alert("Error posting comment: " + error.message);
         else {
             setCommentText('');
             const { data } = await supabase.from('blog_comments').select('*, profiles(first_name, last_name)').eq('post_id', selectedBlog.id).order('created_at', { ascending: false });
@@ -459,12 +459,25 @@ export const BlogView = () => {
         }
     }
 
-    const handleShare = (platform?: string) => {
-        const url = window.location.href; 
+    const handleShare = async (platform?: string) => {
+        // Use window.location.href or a fallback if running in a weird context
+        const url = window.location.href || 'https://icc-app.com'; 
         const text = `Read "${selectedBlog?.title}" at ICC App`;
         
-        if (!platform && navigator.share) {
-            navigator.share({ title: selectedBlog?.title, text, url }).catch(console.error);
+        if (!platform) {
+            // Try native share first
+            if (navigator.share) {
+                try {
+                    await navigator.share({ title: selectedBlog?.title, text, url });
+                } catch (err) {
+                    console.log("Native share failed or cancelled, falling back to menu", err);
+                    // Fallback to custom menu if native share fails (e.g. invalid URL or cancelled)
+                    setShowShareMenu(true);
+                }
+            } else {
+                // No native share, toggle menu
+                setShowShareMenu(!showShareMenu);
+            }
             return;
         }
 
@@ -482,7 +495,7 @@ export const BlogView = () => {
                 navigator.clipboard.writeText(url); 
                 alert("Link copied to clipboard!"); 
                 break;
-            default: setShowShareMenu(!showShareMenu);
+            default: setShowShareMenu(false);
         }
     };
 

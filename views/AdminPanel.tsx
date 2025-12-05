@@ -138,13 +138,20 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
   const SQL_CODE = `
 -- Run this in Supabase SQL Editor to fix database schema and permissions
 
--- 1. Profiles & RLS
+-- 1. Profiles & RLS (Ensure columns exist)
 create table if not exists public.profiles (
   id uuid references auth.users on delete cascade not null primary key,
   first_name text, last_name text, email text, phone text, dob text, gender text,
   role text default 'MEMBER',
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
+-- Add columns if they are missing from old tables
+alter table public.profiles add column if not exists first_name text;
+alter table public.profiles add column if not exists last_name text;
+alter table public.profiles add column if not exists phone text;
+alter table public.profiles add column if not exists dob text;
+alter table public.profiles add column if not exists role text default 'MEMBER';
+
 alter table public.profiles enable row level security;
 
 -- Policies for Profiles
@@ -244,6 +251,10 @@ create table if not exists public.events (
   title text, date text, time text, location text, description text, type text, image_url text, video_url text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
+-- Ensure columns exist for Events
+alter table public.events add column if not exists image_url text;
+alter table public.events add column if not exists video_url text;
+
 create table if not exists public.notifications (
   id uuid default gen_random_uuid() primary key,
   title text, message text, type text,
@@ -340,7 +351,7 @@ const MembersManager = () => {
         if(data) {
             setMembers(data.map((p: any) => ({
                 id: p.id,
-                firstName: p.first_name || '',
+                firstName: p.first_name || 'No Name',
                 lastName: p.last_name || '',
                 email: p.email,
                 phone: p.phone,
@@ -924,21 +935,4 @@ const EventManager = () => {
 
             <div className="bg-white p-6 border rounded-2xl">
                 <div className="flex justify-between mb-4">
-                    <h3 className="font-bold text-lg">Manage Events</h3>
-                    <button onClick={handleExport} className="bg-green-600 text-white px-3 py-1 rounded text-xs font-bold flex items-center gap-1"><Download size={14}/> RSVPs</button>
-                </div>
-                <div className="space-y-2 max-h-[500px] overflow-y-auto">
-                    {events.map(e => (
-                        <div key={e.id} className="p-3 border rounded flex justify-between items-center">
-                            <div>
-                                <div className="font-bold text-sm">{e.title}</div>
-                                <div className="text-xs text-slate-500">{e.date} • {e.type}</div>
-                            </div>
-                            <button onClick={()=>handleDelete(e.id)} className="text-red-500"><Trash2 size={16}/></button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        </div>
-    )
-}
+                    <h3 className="font-

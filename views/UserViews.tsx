@@ -12,15 +12,7 @@ import { explainVerse } from '../services/geminiService';
 import { supabase } from '../lib/supabaseClient';
 
 // --- CONSTANTS ---
-const BIBLE_BOOKS = [
-  "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel",
-  "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Proverbs",
-  "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel",
-  "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
-  "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians", "Galatians", "Ephesians",
-  "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians", "1 Timothy", "2 Timothy", "Titus", "Philemon",
-  "Hebrews", "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"
-];
+// Bible constants moved inside component or fetched dynamically
 
 // --- MOCK DATA (Kept for parts not fully DB integrated yet) ---
 const MOCK_PLAYLISTS: Playlist[] = [
@@ -524,7 +516,7 @@ export const SermonsView = () => {
   )
 }
 
-// 5. BIBLE VIEW (CONNECTED API)
+// 5. BIBLE VIEW (CONNECTED API - API.BIBLE)
 export const BibleView = () => {
   const [activeTab, setActiveTab] = useState<'read' | 'plan' | 'bookmarks'>('read');
   const [aiExplanation, setAiExplanation] = useState<string | null>(null);
@@ -535,28 +527,82 @@ export const BibleView = () => {
   const [vodLiked, setVodLiked] = useState(false);
 
   // Bible Reader State
-  const [selectedBook, setSelectedBook] = useState('John');
-  const [selectedChapter, setSelectedChapter] = useState('3');
-  const [selectedVersion, setSelectedVersion] = useState('kjv'); // web, kjv
+  const [books, setBooks] = useState<{id: string, name: string}[]>([]);
+  const [selectedBookId, setSelectedBookId] = useState('GEN');
+  const [selectedBookName, setSelectedBookName] = useState('Genesis');
+  const [selectedChapter, setSelectedChapter] = useState('1');
+  const [selectedVersionId, setSelectedVersionId] = useState('de4e12af7f28f599-01'); // Default KJV
+  const [chapters, setChapters] = useState<string[]>([]);
   const [chapterContent, setChapterContent] = useState('');
   const [loadingText, setLoadingText] = useState(false);
 
-  useEffect(() => {
-    fetchChapter(selectedBook, selectedChapter, selectedVersion);
-  }, [selectedBook, selectedChapter, selectedVersion]);
+  const API_KEY = 'j6HVB3_hdmcH_ue5C6QMx';
+  const BASE_URL = 'https://api.scripture.api.bible/v1';
 
-  const fetchChapter = async (book: string, chapter: string, version: string) => {
-    setLoadingText(true);
-    try {
-        const res = await fetch(`https://bible-api.com/${book}+${chapter}?translation=${version}`);
+  // Fetch Books
+  useEffect(() => {
+    const fetchBooks = async () => {
+      try {
+        const res = await fetch(`${BASE_URL}/bibles/${selectedVersionId}/books`, {
+          headers: { 'api-key': API_KEY }
+        });
         const data = await res.json();
-        setChapterContent(data.text || "Could not load chapter text.");
-    } catch (e) {
-        setChapterContent("Error loading Bible text. Please check your connection.");
-    } finally {
-        setLoadingText(false);
-    }
-  };
+        if (data.data) {
+           setBooks(data.data.map((b: any) => ({ id: b.id, name: b.name })));
+        }
+      } catch (e) {
+        console.error("Error fetching books:", e);
+      }
+    };
+    fetchBooks();
+  }, [selectedVersionId]);
+
+  // Fetch Chapters
+  useEffect(() => {
+    const fetchChapters = async () => {
+        try {
+            const res = await fetch(`${BASE_URL}/bibles/${selectedVersionId}/books/${selectedBookId}/chapters`, {
+                headers: { 'api-key': API_KEY }
+            });
+            const data = await res.json();
+            if (data.data) {
+                // API returns chapters like 'GEN.1', 'GEN.intro'. We only want numbers.
+                const validChapters = data.data
+                    .map((c: any) => c.number)
+                    .filter((n: string) => !isNaN(parseInt(n)));
+                setChapters(validChapters);
+                if (!validChapters.includes(selectedChapter)) {
+                    setSelectedChapter('1');
+                }
+            }
+        } catch(e) { console.error("Error fetching chapters:", e); }
+    };
+    if (selectedBookId) fetchChapters();
+  }, [selectedBookId, selectedVersionId]);
+
+  // Fetch Content
+  useEffect(() => {
+    const fetchContent = async () => {
+        setLoadingText(true);
+        try {
+            const chapterId = `${selectedBookId}.${selectedChapter}`;
+            const res = await fetch(`${BASE_URL}/bibles/${selectedVersionId}/chapters/${chapterId}?content-type=html&include-notes=false&include-titles=true&include-chapter-numbers=false&include-verse-numbers=true`, {
+                headers: { 'api-key': API_KEY }
+            });
+            const data = await res.json();
+            if(data.data) {
+               setChapterContent(data.data.content);
+            } else {
+               setChapterContent('<p>Content not available.</p>');
+            }
+        } catch (e) {
+            setChapterContent('<p>Error loading content. Please check connection.</p>');
+        } finally {
+            setLoadingText(false);
+        }
+    };
+    if (selectedBookId && selectedChapter) fetchContent();
+  }, [selectedBookId, selectedChapter, selectedVersionId]);
   
   const handleAskAI = async () => {
     setLoadingAi(true);
@@ -573,8 +619,18 @@ export const BibleView = () => {
     }
   }
 
+  // Inject Custom Styles for API.Bible HTML
+  const bibleStyles = `
+    .bible-content .v { font-weight: bold; font-size: 0.75em; vertical-align: super; margin-right: 4px; color: #aaa; }
+    .bible-content p { margin-bottom: 1em; line-height: 1.8; }
+    .bible-content .q { margin-left: 20px; font-style: italic; }
+    .bible-content .wj { color: #d00; } /* Words of Jesus */
+    .bible-content .s { font-weight: bold; font-size: 1.1em; display: block; margin: 1em 0 0.5em 0; } /* Section Headers */
+  `;
+
   return (
     <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+      <style>{bibleStyles}</style>
       <div className="p-4 bg-white dark:bg-slate-800 shadow-sm border-b border-slate-200 dark:border-slate-700">
         <div className="flex justify-between items-center mb-4">
            <div className="flex items-center gap-3">
@@ -647,16 +703,34 @@ export const BibleView = () => {
               {/* Controls */}
               <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-6 space-y-4">
                  <div className="flex gap-2">
-                    <select className="flex-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 outline-none" value={selectedBook} onChange={e => setSelectedBook(e.target.value)}>
-                        {BIBLE_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
+                    <select 
+                      className="flex-1 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 outline-none text-sm" 
+                      value={selectedBookId} 
+                      onChange={e => {
+                         const book = books.find(b => b.id === e.target.value);
+                         setSelectedBookId(e.target.value);
+                         if(book) setSelectedBookName(book.name);
+                      }}
+                    >
+                        {books.length === 0 && <option>Loading Books...</option>}
+                        {books.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
                     </select>
-                    <select className="w-20 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 outline-none" value={selectedChapter} onChange={e => setSelectedChapter(e.target.value)}>
-                        {[...Array(50)].map((_, i) => <option key={i} value={i+1}>{i+1}</option>)}
+                    <select 
+                      className="w-20 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 outline-none text-sm" 
+                      value={selectedChapter} 
+                      onChange={e => setSelectedChapter(e.target.value)}
+                    >
+                        {chapters.length === 0 && <option>...</option>}
+                        {chapters.map(c => <option key={c} value={c}>{c}</option>)}
                     </select>
-                    <select className="w-24 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 outline-none" value={selectedVersion} onChange={e => setSelectedVersion(e.target.value)}>
-                       <option value="kjv">KJV</option>
-                       <option value="web">WEB</option>
-                       <option value="bbe">BBE</option>
+                    <select 
+                      className="w-24 p-2 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 outline-none text-sm" 
+                      value={selectedVersionId} 
+                      onChange={e => setSelectedVersionId(e.target.value)}
+                    >
+                       <option value="de4e12af7f28f599-01">KJV</option>
+                       <option value="9879dbb7cfe39e4d-01">WEB</option>
+                       <option value="06125adad2d5898a-01">ASV</option>
                     </select>
                  </div>
               </div>
@@ -667,10 +741,11 @@ export const BibleView = () => {
                     <div className="text-center py-10 text-slate-500">Loading scripture...</div>
                  ) : (
                     <div>
-                        <h2 className="text-2xl font-bold mb-4 text-center font-serif">{selectedBook} {selectedChapter}</h2>
-                        <p className="leading-loose text-lg font-serif text-slate-700 dark:text-slate-300 whitespace-pre-wrap">
-                            {chapterContent}
-                        </p>
+                        <h2 className="text-2xl font-bold mb-4 text-center font-serif">{selectedBookName} {selectedChapter}</h2>
+                        <div 
+                          className="bible-content font-serif text-lg leading-loose text-slate-800 dark:text-slate-300"
+                          dangerouslySetInnerHTML={{ __html: chapterContent }}
+                        />
                     </div>
                  )}
               </div>

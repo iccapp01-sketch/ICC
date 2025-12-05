@@ -453,10 +453,10 @@ const MembersManager = () => {
                         ) : (
                             filtered.map(m => (
                                 <tr key={m.id} className="border-b border-slate-100 hover:bg-slate-50">
-                                    <td className="p-4 font-bold">{m.firstName}</td>
-                                    <td className="p-4 font-bold">{m.lastName}</td>
-                                    <td className="p-4 text-sm">{m.email}</td>
-                                    <td className="p-4 text-sm">{m.phone}</td>
+                                    <td className="p-4 font-bold text-black">{m.firstName}</td>
+                                    <td className="p-4 font-bold text-black">{m.lastName}</td>
+                                    <td className="p-4 text-sm text-black">{m.email}</td>
+                                    <td className="p-4 text-sm text-black">{m.phone}</td>
                                     <td className="p-4"><span className="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded font-bold">{m.role}</span></td>
                                     <td className="p-4 flex gap-2">
                                         <button onClick={() => setEditingMember(m)} className="text-blue-500 hover:text-blue-700"><Edit size={16}/></button>

@@ -33,11 +33,9 @@ export const Layout: React.FC<LayoutProps> = ({
       {/* Top Navigation Bar */}
       <div className="fixed top-0 w-full z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm h-16 flex items-center justify-between px-4 transition-colors duration-300">
         
-        {/* Left: Welcome Text Only */}
+        {/* Left: Branding */}
         <div className="flex items-center gap-3">
-           <div className="flex flex-col">
-              <span className="text-lg font-bold text-slate-900 dark:text-white leading-none">Welcome Back, {userName || 'Guest'}</span>
-           </div>
+           <span className="text-lg font-bold text-slate-900 dark:text-white leading-none">ICC App</span>
         </div>
 
         {/* Right: Events, Notifications & Profile */}
@@ -90,7 +88,6 @@ export const Layout: React.FC<LayoutProps> = ({
                   isActive ? 'text-blue-600 dark:text-blue-400 -translate-y-1' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                 }`}
               >
-                {/* Active Indicator Glow */}
                 {isActive && (
                   <div className="absolute -top-3 w-8 h-1 bg-blue-600 dark:bg-blue-500 rounded-b-full shadow-[0_0_12px_rgba(37,99,235,0.4)] animate-pulse"></div>
                 )}

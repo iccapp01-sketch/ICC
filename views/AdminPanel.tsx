@@ -260,6 +260,14 @@ create table if not exists public.notifications (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+-- ADD MISSING COLUMNS IF TABLES EXIST
+alter table public.playlists add column if not exists user_id uuid references public.profiles on delete cascade;
+alter table public.blog_posts add column if not exists likes int default 0;
+alter table public.blog_posts add column if not exists image_url text;
+alter table public.blog_posts add column if not exists video_url text;
+alter table public.events add column if not exists image_url text;
+alter table public.events add column if not exists video_url text;
+
 -- ENABLE RLS
 alter table public.blog_posts enable row level security;
 alter table public.blog_comments enable row level security;
@@ -371,6 +379,7 @@ create policy "Admin Upload Blog" on storage.objects for insert with check ( buc
                               <span className="text-slate-500"> wants to join </span>
                               <span className="font-bold text-blue-600">{req.community_groups?.name}</span>
                           </div>
+                          <button onClick={() => onNavigate('groups')} className="text-blue-600 font-bold hover:underline">Manage</button>
                       </div>
                   ))}
               </div>
@@ -793,35 +802,71 @@ const MusicManager = () => {
 
 const GroupManager = () => {
     const [groups, setGroups] = useState<CommunityGroup[]>([]);
+    const [requests, setRequests] = useState<any[]>([]);
     const [form, setForm] = useState({ name: '', description: '', image_url: '' });
 
-    useEffect(() => { fetchGroups(); }, []);
+    useEffect(() => { fetchGroups(); fetchRequests(); }, []);
     const fetchGroups = async () => { const { data } = await supabase.from('community_groups').select('*'); if(data) setGroups(data as any); }
+    const fetchRequests = async () => {
+        try {
+            const { data } = await supabase.from('community_group_members')
+                .select('*, profiles(first_name, last_name, email), community_groups(name)')
+                .eq('status', 'pending');
+            if(data) setRequests(data);
+        } catch(e) {}
+    }
+    
     const deleteGroup = async (id: string) => { if(confirm("Delete?")) { await supabase.from('community_groups').delete().eq('id', id); fetchGroups(); } }
     const saveGroup = async () => {
         const { error } = await supabase.from('community_groups').insert([form]);
         if(error) handleSupabaseError(error, 'Save Group'); else { fetchGroups(); setForm({ name: '', description: '', image_url: '' }); }
     }
+    const handleApproval = async (id: string, status: string) => {
+        const { error } = await supabase.from('community_group_members').update({ status }).eq('id', id);
+        if(error) handleSupabaseError(error, 'Update Request'); else fetchRequests();
+    }
 
     return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Add Group</h3>
-                <div className="space-y-3">
-                    <input className="w-full border p-2 rounded text-slate-900" placeholder="Name" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} />
-                    <textarea className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
-                    <input className="w-full border p-2 rounded text-slate-900" placeholder="Image URL" value={form.image_url} onChange={e=>setForm({...form, image_url: e.target.value})} />
-                    <button onClick={saveGroup} className="w-full bg-blue-600 text-white py-2 rounded font-bold">Create Group</button>
+        <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                    <h3 className="font-bold mb-4">Add Group</h3>
+                    <div className="space-y-3">
+                        <input className="w-full border p-2 rounded text-slate-900" placeholder="Name" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} />
+                        <textarea className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
+                        <input className="w-full border p-2 rounded text-slate-900" placeholder="Image URL" value={form.image_url} onChange={e=>setForm({...form, image_url: e.target.value})} />
+                        <button onClick={saveGroup} className="w-full bg-blue-600 text-white py-2 rounded font-bold">Create Group</button>
+                    </div>
+                </div>
+                <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                    <h3 className="font-bold mb-4">Existing Groups</h3>
+                    {groups.map(g => (
+                        <div key={g.id} className="flex justify-between p-2 border-b">
+                            <span className="font-bold text-slate-900">{g.name}</span>
+                            <button onClick={()=>deleteGroup(g.id)} className="text-red-500"><Trash2 size={16}/></button>
+                        </div>
+                    ))}
                 </div>
             </div>
+            
             <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Existing Groups</h3>
-                {groups.map(g => (
-                    <div key={g.id} className="flex justify-between p-2 border-b">
-                        <span className="font-bold text-slate-900">{g.name}</span>
-                        <button onClick={()=>deleteGroup(g.id)} className="text-red-500"><Trash2 size={16}/></button>
+                <h3 className="font-bold mb-4">Pending Requests</h3>
+                {requests.length === 0 ? <p className="text-slate-500">No pending requests</p> : (
+                    <div className="space-y-2">
+                        {requests.map(r => (
+                            <div key={r.id} className="flex justify-between items-center p-3 border rounded-lg">
+                                <div>
+                                    <p className="font-bold">{r.profiles?.first_name} {r.profiles?.last_name}</p>
+                                    <p className="text-xs text-slate-500">Wants to join: {r.community_groups?.name}</p>
+                                </div>
+                                <div className="flex gap-2">
+                                    <button onClick={()=>handleApproval(r.id, 'joined')} className="bg-green-100 text-green-700 px-3 py-1 rounded text-xs font-bold">Approve</button>
+                                    <button onClick={()=>handleApproval(r.id, 'rejected')} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs font-bold">Reject</button>
+                                </div>
+                            </div>
+                        ))}
                     </div>
-                ))}
+                )}
             </div>
         </div>
     );

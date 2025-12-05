@@ -21,6 +21,7 @@ const getYouTubeID = (url: string) => {
 export const HomeView = ({ onNavigate }: any) => {
   const [verse, setVerse] = useState<BibleVerse | null>(null);
   const [latestSermon, setLatestSermon] = useState<Sermon | null>(null);
+  const [latestBlogs, setLatestBlogs] = useState<BlogPost[]>([]);
 
   useEffect(() => {
      // Fetch Verse of Day
@@ -34,7 +35,22 @@ export const HomeView = ({ onNavigate }: any) => {
          const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false }).limit(1).single();
          if(data) setLatestSermon(data as any);
      };
+
+     // Fetch Latest Blogs
+     const fetchBlogs = async () => {
+         const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false }).limit(3);
+         if(data) {
+             // Map image_url to image property
+             const mapped = data.map((b: any) => ({
+                 ...b,
+                 image: b.image_url 
+             }));
+             setLatestBlogs(mapped);
+         }
+     };
+
      fetchSermon();
+     fetchBlogs();
   }, []);
 
   return (
@@ -63,6 +79,25 @@ export const HomeView = ({ onNavigate }: any) => {
                           <h4 className="font-bold text-slate-900 dark:text-white line-clamp-2 mb-1">{latestSermon.title}</h4>
                           <p className="text-xs text-slate-500 mb-2">{latestSermon.preacher}</p>
                       </div>
+                  </div>
+              </div>
+          )}
+
+          {/* Latest Articles */}
+          {latestBlogs.length > 0 && (
+              <div>
+                  <div className="flex justify-between items-center mb-4">
+                      <h3 className="font-bold text-lg dark:text-white">Latest Articles</h3>
+                      <button onClick={() => onNavigate('blogs')} className="text-xs font-bold text-blue-500">View All</button>
+                  </div>
+                  <div className="space-y-4">
+                      {latestBlogs.map(blog => (
+                          <div key={blog.id} onClick={() => onNavigate('blogs')} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer">
+                              {blog.image && <div className="h-32 w-full bg-cover bg-center rounded-xl mb-3" style={{backgroundImage: `url(${blog.image})`}}></div>}
+                              <h4 className="font-bold text-slate-900 dark:text-white line-clamp-1">{blog.title}</h4>
+                              <p className="text-xs text-slate-500 line-clamp-2">{blog.excerpt}</p>
+                          </div>
+                      ))}
                   </div>
               </div>
           )}
@@ -308,7 +343,13 @@ export const BlogView = () => {
     useEffect(() => {
         const fetch = async () => {
             const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-            if(data) setBlogs(data as any);
+            if(data) {
+                // Map image_url to image to fix visibility
+                setBlogs(data.map((b: any) => ({
+                    ...b,
+                    image: b.image_url
+                })));
+            }
         };
         fetch();
     }, []);
@@ -330,26 +371,29 @@ export const BlogView = () => {
             <div className="p-4 pb-24 bg-white dark:bg-slate-900 min-h-full">
                 <button onClick={() => setSelectedBlog(null)} className="mb-4 flex items-center gap-2 text-sm font-bold text-blue-600"><ArrowLeft size={16}/> Back</button>
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-56 object-cover rounded-2xl mb-6" />}
-                <h1 className="text-3xl font-black mb-4">{selectedBlog.title}</h1>
+                <h1 className="text-3xl font-black mb-4 dark:text-white">{selectedBlog.title}</h1>
                 <div className="flex items-center gap-4 mb-6">
-                    <button className="flex items-center gap-1 text-slate-500"><Heart size={20}/> Like</button>
-                    <button className="flex items-center gap-1 text-slate-500"><MessageCircle size={20}/> Comment</button>
-                    <button onClick={() => handleShare(selectedBlog)} className="flex items-center gap-1 text-slate-500"><Share2 size={20}/> Share</button>
+                    <button className="flex items-center gap-1 text-slate-500 hover:text-red-500"><Heart size={20}/> Like</button>
+                    <button className="flex items-center gap-1 text-slate-500 hover:text-blue-500"><MessageCircle size={20}/> Comment</button>
+                    <button onClick={() => handleShare(selectedBlog)} className="flex items-center gap-1 text-slate-500 hover:text-green-500"><Share2 size={20}/> Share</button>
                 </div>
-                <div className="prose dark:prose-invert"><p>{selectedBlog.content}</p></div>
+                {/* Added whitespace-pre-wrap to fix cramped text */}
+                <div className="prose dark:prose-invert max-w-none whitespace-pre-wrap leading-relaxed text-slate-800 dark:text-slate-300">
+                    {selectedBlog.content}
+                </div>
             </div>
         )
     }
 
     return (
         <div className="p-4 pb-24 space-y-4">
-            <h1 className="text-2xl font-black mb-4">Latest Articles</h1>
+            <h1 className="text-2xl font-black mb-4 dark:text-white">Latest Articles</h1>
             {blogs.map(blog => (
-                <div key={blog.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border mb-4">
+                <div key={blog.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border dark:border-slate-700 mb-4">
                     {blog.image && <div className="h-32 bg-cover bg-center rounded-xl mb-3" style={{backgroundImage: `url(${blog.image})`}}></div>}
-                    <h3 className="font-bold mb-2">{blog.title}</h3>
-                    <p className="text-xs text-slate-500 mb-3">{blog.excerpt}</p>
-                    <button onClick={() => setSelectedBlog(blog)} className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-2 rounded-lg w-full">Read More</button>
+                    <h3 className="font-bold mb-2 dark:text-white">{blog.title}</h3>
+                    <p className="text-xs text-slate-500 mb-3 line-clamp-2">{blog.excerpt}</p>
+                    <button onClick={() => setSelectedBlog(blog)} className="text-sm font-bold text-blue-600 bg-blue-50 dark:bg-slate-700 px-3 py-2 rounded-lg w-full">Read More</button>
                 </div>
             ))}
         </div>
@@ -365,11 +409,11 @@ export const CommunityView = () => {
     }, []);
     return (
         <div className="p-4 pb-24 space-y-4">
-            <h1 className="text-2xl font-black mb-4">Community Groups</h1>
+            <h1 className="text-2xl font-black mb-4 dark:text-white">Community Groups</h1>
             {groups.map(g => (
-                <div key={g.id} className="p-4 bg-white border rounded-2xl flex justify-between items-center">
+                <div key={g.id} className="p-4 bg-white dark:bg-slate-800 border dark:border-slate-700 rounded-2xl flex justify-between items-center">
                     <div>
-                        <h3 className="font-bold">{g.name}</h3>
+                        <h3 className="font-bold dark:text-white">{g.name}</h3>
                         <p className="text-xs text-slate-500">{g.description}</p>
                     </div>
                     <button className="bg-blue-600 text-white text-xs px-3 py-1 rounded-full font-bold">Join</button>
@@ -388,11 +432,11 @@ export const SermonsView = () => {
     }, []);
     return (
         <div className="p-4 pb-24 space-y-4">
-            <h1 className="text-2xl font-black mb-4">Sermons</h1>
+            <h1 className="text-2xl font-black mb-4 dark:text-white">Sermons</h1>
             {sermons.map(s => (
-                <div key={s.id} onClick={()=>setPlaying(s)} className="cursor-pointer bg-white p-4 rounded-2xl border mb-4">
-                    <h3 className="font-bold">{s.title}</h3>
-                    <p className="text-xs">{s.preacher}</p>
+                <div key={s.id} onClick={()=>setPlaying(s)} className="cursor-pointer bg-white dark:bg-slate-800 p-4 rounded-2xl border dark:border-slate-700 mb-4">
+                    <h3 className="font-bold dark:text-white">{s.title}</h3>
+                    <p className="text-xs text-slate-500">{s.preacher}</p>
                 </div>
             ))}
             {playing && <div className="fixed inset-0 bg-black z-50 flex items-center justify-center"><button className="absolute top-4 right-4 text-white" onClick={()=>setPlaying(null)}><X/></button><iframe className="w-full aspect-video" src={`https://www.youtube.com/embed/${getYouTubeID(playing.videoUrl || '')}?autoplay=1`}></iframe></div>}
@@ -400,6 +444,6 @@ export const SermonsView = () => {
     )
 };
 
-export const ProfileView = ({ user, onLogout }: any) => { return <div className="p-4"><h1 className="text-2xl font-bold">Profile</h1><p>{user?.firstName} {user?.lastName}</p><p>{user?.email}</p><button onClick={onLogout} className="mt-4 text-red-500 font-bold">Logout</button></div> };
+export const ProfileView = ({ user, onLogout }: any) => { return <div className="p-4"><h1 className="text-2xl font-bold dark:text-white">Profile</h1><p className="dark:text-slate-300">{user?.firstName} {user?.lastName}</p><p className="dark:text-slate-300">{user?.email}</p><button onClick={onLogout} className="mt-4 text-red-500 font-bold">Logout</button></div> };
 export const NotificationsView = () => <div>Notifications</div>;
 export const ContactView = ({ onBack }: any) => <div>Contact Form</div>;

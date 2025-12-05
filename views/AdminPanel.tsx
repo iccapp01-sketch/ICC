@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2
 } from 'lucide-react';
 import { BlogPost, User, Sermon, UserRole, Event, CommunityGroup, MusicTrack } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -626,6 +626,7 @@ const SermonManager = () => {
 const MusicManager = () => {
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
     const [formData, setFormData] = useState({ title: '', artist: '', url: '', type: 'MUSIC' });
+    const [uploading, setUploading] = useState(false);
 
     useEffect(() => {
         fetchTracks();
@@ -647,6 +648,40 @@ const MusicManager = () => {
                 duration: '',
                 isOffline: false
             })));
+        }
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        
+        const file = e.target.files[0];
+        setUploading(true);
+        
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${Date.now()}.${fileExt}`;
+            const filePath = `${fileName}`;
+
+            // Upload to Supabase Storage 'music' bucket
+            const { error: uploadError } = await supabase.storage
+                .from('music')
+                .upload(filePath, file);
+
+            if (uploadError) throw uploadError;
+
+            // Get Public URL
+            const { data } = supabase.storage
+                .from('music')
+                .getPublicUrl(filePath);
+
+            setFormData({ ...formData, url: data.publicUrl });
+            alert("File uploaded successfully!");
+
+        } catch (error: any) {
+            console.error("Upload Error:", error);
+            alert("Upload Failed. Please ensure you have created a public Storage Bucket named 'music' in your Supabase project settings.");
+        } finally {
+            setUploading(false);
         }
     };
 
@@ -684,12 +719,34 @@ const MusicManager = () => {
                 <div className="space-y-4">
                     <input className="w-full border p-3 rounded-xl" placeholder="Track Title" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} />
                     <input className="w-full border p-3 rounded-xl" placeholder="Artist" value={formData.artist} onChange={e => setFormData({...formData, artist: e.target.value})} />
-                    <input className="w-full border p-3 rounded-xl" placeholder="Audio URL (MP3)" value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} />
+                    
+                    <div className="p-4 bg-slate-50 rounded-xl border border-slate-200">
+                        <label className="block text-xs font-bold text-slate-500 mb-2 uppercase">Audio Source</label>
+                        
+                        {/* File Upload */}
+                        <div className="mb-3">
+                            <label className="flex items-center gap-2 cursor-pointer bg-white border border-slate-300 hover:bg-slate-50 text-slate-700 px-4 py-2 rounded-lg text-sm font-medium w-fit transition">
+                                {uploading ? <Loader2 size={16} className="animate-spin" /> : <Upload size={16} />}
+                                {uploading ? 'Uploading...' : 'Upload File from PC'}
+                                <input type="file" accept="audio/*" onChange={handleFileUpload} className="hidden" />
+                            </label>
+                        </div>
+                        
+                        <div className="flex items-center gap-3 text-xs text-slate-400 font-medium my-2">
+                             <div className="h-px bg-slate-300 flex-1"></div> OR <div className="h-px bg-slate-300 flex-1"></div>
+                        </div>
+
+                        {/* URL Input */}
+                        <input className="w-full border p-3 rounded-xl bg-white" placeholder="Paste Audio/YouTube URL" value={formData.url} onChange={e => setFormData({...formData, url: e.target.value})} />
+                    </div>
+
                     <select className="w-full border p-3 rounded-xl" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})}>
                         <option value="MUSIC">Music Song</option>
                         <option value="PODCAST">Podcast Episode</option>
                     </select>
-                    <button onClick={handleSave} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Upload Track</button>
+                    <button onClick={handleSave} disabled={uploading || !formData.url} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold disabled:opacity-50">
+                        {uploading ? 'Uploading File...' : 'Save Track'}
+                    </button>
                 </div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-slate-200">

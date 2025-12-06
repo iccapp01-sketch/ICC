@@ -459,6 +459,23 @@ export const BlogView = () => {
         }
     }
 
+    const shareBlog = (blog: BlogPost) => {
+        const url = window.location.href;
+        const text = blog.content || "";
+        const title = blog.title || "Sharing this blog";
+
+        if (navigator.share) {
+            navigator.share({
+                title: title,
+                text: text,
+                url: url
+            }).catch((err) => console.log("Share canceled:", err));
+        } else {
+            navigator.clipboard.writeText(url);
+            alert("Blog link copied! You can paste it into WhatsApp, Instagram, Facebook, etc.");
+        }
+    }
+
     const handleShare = async (platform?: string) => {
         // Use window.location.href or a fallback if running in a weird context
         const url = window.location.href || 'https://icc-app.com'; 
@@ -504,7 +521,12 @@ export const BlogView = () => {
             <div className="p-4 pb-24 bg-white dark:bg-slate-900 min-h-full">
                 <button onClick={()=>setSelectedBlog(null)} className="mb-4 flex items-center gap-2 text-slate-500"><ArrowLeft size={16}/> Back to Articles</button>
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm" alt="Blog cover" />}
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{selectedBlog.title}</h1>
+                <div className="flex justify-between items-start gap-4 mb-2">
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white flex-1">{selectedBlog.title}</h1>
+                    <button onClick={() => shareBlog(selectedBlog)} className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition">
+                        <Share2 size={20} />
+                    </button>
+                </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
                     <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
                 </div>

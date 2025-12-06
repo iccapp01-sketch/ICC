@@ -35,7 +35,9 @@ export const Layout: React.FC<LayoutProps> = ({
         
         {/* Left: Branding */}
         <div className="flex items-center gap-3">
-           <span className="text-lg font-bold text-slate-900 dark:text-white leading-none">ICC App</span>
+           <span className="text-lg font-bold text-slate-900 dark:text-white leading-none">
+             Welcome back{userName ? `, ${userName}` : ''}
+           </span>
         </div>
 
         {/* Right: Events, Notifications & Profile */}

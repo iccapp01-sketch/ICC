@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film
 } from 'lucide-react';
 import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -21,6 +21,13 @@ const SIDEBAR_ITEMS = [
   { id: 'bible', icon: BookOpen, label: 'Bible' },
   { id: 'events', icon: Calendar, label: 'Events' },
 ];
+
+const getYouTubeID = (url: string) => { 
+    if (!url) return null; 
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null; 
+};
 
 const exportToCSV = (data: any[], filename: string) => {
     if (!data || !data.length) {
@@ -367,6 +374,7 @@ create policy "Admin manage notifs" on public.notifications for all using ( publ
 -- STORAGE POLICIES
 insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('blog-images', 'blog-images', true) on conflict do nothing;
+insert into storage.buckets (id, name, public) values ('blog-videos', 'blog-videos', true) on conflict do nothing;
 
 drop policy if exists "Public Access Music" on storage.objects;
 create policy "Public Access Music" on storage.objects for select using ( bucket_id = 'music' );
@@ -382,6 +390,12 @@ create policy "Public Access Blog" on storage.objects for select using ( bucket_
 
 drop policy if exists "Admin Upload Blog" on storage.objects;
 create policy "Admin Upload Blog" on storage.objects for insert with check ( bucket_id = 'blog-images' and public.is_admin() );
+
+drop policy if exists "Public Access Blog Video" on storage.objects;
+create policy "Public Access Blog Video" on storage.objects for select using ( bucket_id = 'blog-videos' );
+
+drop policy if exists "Admin Upload Blog Video" on storage.objects;
+create policy "Admin Upload Blog Video" on storage.objects for insert with check ( bucket_id = 'blog-videos' and public.is_admin() );
   `;
 
   return (
@@ -556,8 +570,10 @@ const ContentManager = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [categories, setCategories] = useState(['Faith', 'Testimony', 'Teaching', 'Devotional']);
   const [newCategory, setNewCategory] = useState('');
-  const [formData, setFormData] = useState({ id: '', title: '', author: '', category: 'Faith', excerpt: '', content: '', image_url: '', video_url: '' });
-  const [uploading, setUploading] = useState(false);
+  const [formData, setFormData] = useState({ id: '', title: '', author: 'Admin', category: 'Faith', excerpt: '', content: '', image_url: '', video_url: '' });
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   useEffect(() => { fetchBlogs(); }, []);
 
@@ -573,10 +589,29 @@ const ContentManager = () => {
       else handleSupabaseError(error, 'Delete Blog');
   }
 
+  const handleEdit = (blog: BlogPost) => {
+      setFormData({
+          id: blog.id,
+          title: blog.title,
+          author: blog.author,
+          category: blog.category,
+          excerpt: blog.excerpt,
+          content: blog.content,
+          image_url: (blog as any).image_url || '',
+          video_url: blog.videoUrl || ''
+      });
+      setEditingId(blog.id);
+  };
+
+  const cancelEdit = () => {
+      setFormData({ id: '', title: '', author: 'Admin', category: categories[0] || 'Faith', excerpt: '', content: '', image_url: '', video_url: '' });
+      setEditingId(null);
+  };
+
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files || e.target.files.length === 0) return;
     const file = e.target.files[0];
-    setUploading(true);
+    setUploadingImage(true);
     try {
         const fileExt = file.name.split('.').pop();
         const fileName = `${Math.random()}.${fileExt}`;
@@ -585,57 +620,179 @@ const ContentManager = () => {
         const { data } = supabase.storage.from('blog-images').getPublicUrl(fileName);
         setFormData({ ...formData, image_url: data.publicUrl });
     } catch (error) {
-        handleSupabaseError(error, 'File Upload');
+        handleSupabaseError(error, 'Image Upload');
     } finally {
-        setUploading(false);
+        setUploadingImage(false);
     }
   };
 
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const file = e.target.files[0];
+    setUploadingVideo(true);
+    try {
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${Date.now()}_vid.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('blog-videos').upload(fileName, file);
+        if (uploadError) throw uploadError;
+        const { data } = supabase.storage.from('blog-videos').getPublicUrl(fileName);
+        setFormData({ ...formData, video_url: data.publicUrl });
+    } catch (error) {
+        handleSupabaseError(error, 'Video Upload');
+    } finally {
+        setUploadingVideo(false);
+    }
+  };
+
+  const handleCategoryRename = (oldName: string) => {
+      const newName = prompt("Rename category:", oldName);
+      if(newName && newName !== oldName) {
+          setCategories(categories.map(c => c === oldName ? newName : c));
+          if(formData.category === oldName) setFormData({...formData, category: newName});
+      }
+  }
+
   const handleSubmit = async () => {
       const payload = { ...formData, image_url: formData.image_url || null, video_url: formData.video_url || null };
-      delete (payload as any).id;
-      const { error } = await supabase.from('blog_posts').insert([payload]);
-      if(error) handleSupabaseError(error, 'Blog Publish');
-      else { alert('Published!'); fetchBlogs(); setFormData({ id: '', title: '', author: '', category: 'Faith', excerpt: '', content: '', image_url: '', video_url: '' }); }
+      delete (payload as any).id; // Remove ID for insert, but used for update logic below if needed differently
+
+      let error;
+      if (editingId) {
+          // Update
+          const { error: updateError } = await supabase.from('blog_posts').update(payload).eq('id', editingId);
+          error = updateError;
+      } else {
+          // Create
+          const { error: insertError } = await supabase.from('blog_posts').insert([payload]);
+          error = insertError;
+      }
+
+      if(error) handleSupabaseError(error, editingId ? 'Blog Update' : 'Blog Publish');
+      else { 
+          alert(editingId ? 'Updated successfully!' : 'Published successfully!'); 
+          fetchBlogs(); 
+          cancelEdit(); 
+      }
   };
 
   return (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           <div className="bg-white p-6 rounded-2xl border border-slate-200">
-              <h3 className="font-bold text-lg text-[#0c2d58] mb-4">Blog Manager</h3>
-              <div className="mb-4">
+              <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-bold text-lg text-[#0c2d58]">{editingId ? 'Edit Blog Post' : 'Create Blog Post'}</h3>
+                  {editingId && <button onClick={cancelEdit} className="text-xs text-red-500 underline">Cancel Edit</button>}
+              </div>
+              
+              {/* Category Manager */}
+              <div className="mb-6 p-3 bg-slate-50 rounded-xl border border-slate-100">
+                  <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Manage Categories</p>
                   <div className="flex gap-2 mb-2">
                       <input className="border p-2 rounded text-xs flex-1 text-slate-900" placeholder="New Category" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
                       <button onClick={() => {if(newCategory){setCategories([...categories, newCategory]); setNewCategory('');}}} className="bg-blue-600 text-white px-3 rounded text-xs"><Plus size={14}/></button>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                      {categories.map(c => <span key={c} className="bg-slate-100 px-2 py-1 rounded text-xs text-slate-800 flex gap-1">{c} <button onClick={()=>setCategories(categories.filter(cat=>cat!==c))} className="text-red-500"><X size={10}/></button></span>)}
+                      {categories.map(c => (
+                          <span key={c} className="bg-white border px-2 py-1 rounded text-xs text-slate-800 flex gap-2 items-center">
+                              {c} 
+                              <div className="flex gap-1">
+                                  <button onClick={()=>handleCategoryRename(c)} className="text-blue-500 hover:text-blue-700"><Edit size={10}/></button>
+                                  <button onClick={()=>setCategories(categories.filter(cat=>cat!==c))} className="text-red-500 hover:text-red-700"><X size={10}/></button>
+                              </div>
+                          </span>
+                      ))}
                   </div>
               </div>
+
+              {/* Main Form */}
               <div className="space-y-3">
-                  <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Title" value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} />
-                  <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Author" value={formData.author} onChange={e=>setFormData({...formData, author: e.target.value})} />
-                  <select className="w-full border p-3 rounded-xl text-slate-900" value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})}>{categories.map(c=><option key={c}>{c}</option>)}</select>
-                  <textarea className="w-full border p-3 rounded-xl text-slate-900 h-24" placeholder="Excerpt" value={formData.excerpt} onChange={e=>setFormData({...formData, excerpt: e.target.value})} />
-                  <textarea className="w-full border p-3 rounded-xl text-slate-900 h-40" placeholder="Content" value={formData.content} onChange={e=>setFormData({...formData, content: e.target.value})} />
-                  <div className="flex gap-2 items-center">
-                     <label className="flex items-center gap-2 bg-slate-100 px-3 py-2 rounded cursor-pointer text-sm text-slate-700 hover:bg-slate-200">
-                         <Upload size={16}/> Upload Image
-                         <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
-                     </label>
-                     <span className="text-xs text-slate-400">{uploading ? 'Uploading...' : formData.image_url ? 'Image Attached' : 'No Image'}</span>
+                  <div>
+                      <label className="text-xs font-bold text-slate-500">Title</label>
+                      <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Enter title..." value={formData.title} onChange={e=>setFormData({...formData, title: e.target.value})} />
                   </div>
-                  <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Or Paste Image URL" value={formData.image_url} onChange={e=>setFormData({...formData, image_url: e.target.value})} />
-                  <button onClick={handleSubmit} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Publish Post</button>
+                  
+                  <div className="flex gap-4">
+                      <div className="flex-1">
+                          <label className="text-xs font-bold text-slate-500">Author</label>
+                          <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Author Name" value={formData.author} onChange={e=>setFormData({...formData, author: e.target.value})} />
+                      </div>
+                      <div className="flex-1">
+                          <label className="text-xs font-bold text-slate-500">Category</label>
+                          <select className="w-full border p-3 rounded-xl text-slate-900" value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})}>
+                              {categories.map(c=><option key={c}>{c}</option>)}
+                          </select>
+                      </div>
+                  </div>
+
+                  <div>
+                      <label className="text-xs font-bold text-slate-500">Excerpt (Short Description)</label>
+                      <textarea className="w-full border p-3 rounded-xl text-slate-900 h-20" placeholder="Brief summary..." value={formData.excerpt} onChange={e=>setFormData({...formData, excerpt: e.target.value})} />
+                  </div>
+
+                  <div>
+                      <label className="text-xs font-bold text-slate-500">Full Content</label>
+                      <textarea className="w-full border p-3 rounded-xl text-slate-900 h-40" placeholder="Main blog content..." value={formData.content} onChange={e=>setFormData({...formData, content: e.target.value})} />
+                  </div>
+
+                  {/* Media Section */}
+                  <div className="grid grid-cols-2 gap-4">
+                      {/* Image Upload */}
+                      <div className="border border-slate-200 rounded-xl p-3">
+                          <label className="text-xs font-bold text-slate-500 mb-2 block flex items-center gap-1"><ImageIcon size={12}/> Featured Image</label>
+                          <div className="flex flex-col gap-2">
+                             <label className="flex items-center justify-center gap-2 bg-slate-100 px-3 py-2 rounded cursor-pointer text-xs text-slate-700 hover:bg-slate-200">
+                                 <Upload size={12}/> {uploadingImage ? 'Uploading...' : 'Upload File'}
+                                 <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} />
+                             </label>
+                             <input className="w-full border p-2 rounded text-xs text-slate-900" placeholder="Or Image URL" value={formData.image_url} onChange={e=>setFormData({...formData, image_url: e.target.value})} />
+                             {formData.image_url && (
+                                 <div className="w-full h-24 bg-slate-100 rounded bg-cover bg-center mt-2" style={{backgroundImage: `url(${formData.image_url})`}}></div>
+                             )}
+                          </div>
+                      </div>
+
+                      {/* Video Upload */}
+                      <div className="border border-slate-200 rounded-xl p-3">
+                          <label className="text-xs font-bold text-slate-500 mb-2 block flex items-center gap-1"><Film size={12}/> Featured Video</label>
+                          <div className="flex flex-col gap-2">
+                             <label className="flex items-center justify-center gap-2 bg-slate-100 px-3 py-2 rounded cursor-pointer text-xs text-slate-700 hover:bg-slate-200">
+                                 <Upload size={12}/> {uploadingVideo ? 'Uploading...' : 'Upload Video'}
+                                 <input type="file" className="hidden" accept="video/*" onChange={handleVideoUpload} />
+                             </label>
+                             <input className="w-full border p-2 rounded text-xs text-slate-900" placeholder="Or YouTube URL" value={formData.video_url} onChange={e=>setFormData({...formData, video_url: e.target.value})} />
+                             {formData.video_url && (
+                                 <div className="w-full h-24 bg-black rounded mt-2 flex items-center justify-center overflow-hidden">
+                                     {getYouTubeID(formData.video_url) ? (
+                                         <img src={`https://img.youtube.com/vi/${getYouTubeID(formData.video_url)}/default.jpg`} className="w-full h-full object-cover opacity-70"/>
+                                     ) : (
+                                         <Film className="text-white"/>
+                                     )}
+                                 </div>
+                             )}
+                          </div>
+                      </div>
+                  </div>
+
+                  <button onClick={handleSubmit} className={`w-full text-white py-3 rounded-xl font-bold transition ${editingId ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'}`}>
+                      {editingId ? 'Update Post' : 'Publish Post'}
+                  </button>
               </div>
           </div>
+
           <div className="bg-white p-6 rounded-2xl border border-slate-200">
               <h3 className="font-bold text-lg mb-4 text-[#0c2d58]">Published Content</h3>
-              <div className="space-y-4 h-[600px] overflow-y-auto">
+              <div className="space-y-4 h-[700px] overflow-y-auto">
+                  {blogs.length === 0 && <p className="text-slate-400 text-sm text-center">No blogs published yet.</p>}
                   {blogs.map(b => (
-                      <div key={b.id} className="p-4 border rounded-xl hover:bg-slate-50 transition flex justify-between">
-                          <div><h4 className="font-bold text-slate-900">{b.title}</h4></div>
-                          <button onClick={() => handleDelete(b.id)} className="text-red-500"><Trash2 size={16}/></button>
+                      <div key={b.id} className="p-4 border rounded-xl hover:bg-slate-50 transition flex justify-between items-start gap-3">
+                          <div className="flex-1">
+                              <h4 className="font-bold text-slate-900 line-clamp-1">{b.title}</h4>
+                              <p className="text-xs text-slate-500 mb-1">{b.author} • {b.category} • {new Date(b.date).toLocaleDateString()}</p>
+                              <p className="text-xs text-slate-400 line-clamp-2">{b.excerpt}</p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                              <button onClick={() => handleEdit(b)} className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded"><Edit size={16}/></button>
+                              <button onClick={() => handleDelete(b.id)} className="text-red-500 hover:text-red-700 bg-red-50 p-2 rounded"><Trash2 size={16}/></button>
+                          </div>
                       </div>
                   ))}
               </div>
@@ -661,14 +818,6 @@ const SermonManager = () => {
         if(!error) fetchSermons();
         else handleSupabaseError(error, 'Delete Sermon');
     }
-
-    const getYouTubeID = (url: string) => { 
-        if (!url) return null; 
-        // Handles: youtube.com/watch?v=, youtu.be/, youtube.com/embed/, youtube.com/v/
-        const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-        const match = url.match(regExp);
-        return (match && match[2].length === 11) ? match[2] : null; 
-    };
 
     const handleSubmit = async () => {
         // Automatically extract thumbnail from YouTube ID

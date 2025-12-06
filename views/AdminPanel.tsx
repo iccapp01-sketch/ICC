@@ -252,14 +252,13 @@ create table if not exists public.group_posts (
   group_id uuid references public.community_groups on delete cascade,
   user_id uuid references public.profiles on delete cascade,
   content text,
-  likes int default 0,
+  parent_id uuid references public.group_posts on delete cascade,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
-create table if not exists public.group_comments (
+create table if not exists public.group_post_likes (
   id uuid default gen_random_uuid() primary key,
   post_id uuid references public.group_posts on delete cascade,
   user_id uuid references public.profiles on delete cascade,
-  content text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -294,7 +293,7 @@ alter table public.playlists enable row level security;
 alter table public.community_groups enable row level security;
 alter table public.community_group_members enable row level security;
 alter table public.group_posts enable row level security;
-alter table public.group_comments enable row level security;
+alter table public.group_post_likes enable row level security;
 alter table public.reading_plans enable row level security;
 alter table public.notifications enable row level security;
 
@@ -350,8 +349,8 @@ create policy "Auth join groups" on public.community_group_members for all using
 drop policy if exists "Auth group posts" on public.group_posts;
 create policy "Auth group posts" on public.group_posts for all using (auth.uid() = user_id or public.is_admin() or true); -- allow read
 
-drop policy if exists "Auth group comments" on public.group_comments;
-create policy "Auth group comments" on public.group_comments for all using (auth.uid() = user_id or public.is_admin() or true); -- allow read
+drop policy if exists "Auth group likes" on public.group_post_likes;
+create policy "Auth group likes" on public.group_post_likes for all using (auth.uid() = user_id or public.is_admin() or true); -- allow read
 
 drop policy if exists "Public read plans" on public.reading_plans;
 create policy "Public read plans" on public.reading_plans for select using (true);
@@ -924,39 +923,55 @@ const EventManager = () => {
         const { error } = await supabase.from('events').insert([form]);
         if(error) handleSupabaseError(error, 'Save Event'); else { fetchEvents(); setForm({ title: '', date: '', time: '', location: '', description: '', type: 'EVENT' }); }
     }
-    const handleExport = async (eventId: string) => {
+    const handleExport = async (eventId: string, title: string) => {
         const { data } = await supabase.from('event_rsvps').select('*, profiles(first_name, last_name, email)').eq('event_id', eventId);
         if(data) {
-            const cleanData = data.map((r:any) => ({ Name: `${r.profiles?.first_name} ${r.profiles?.last_name}`, Email: r.profiles?.email, Status: r.status }));
-            exportToCSV(cleanData, 'event_rsvp');
+            const cleanData = data.map((r:any) => ({ 
+                Name: `${r.profiles?.first_name} ${r.profiles?.last_name}`, 
+                Email: r.profiles?.email, 
+                Status: r.status,
+                Timestamp: new Date(r.created_at).toLocaleString()
+            }));
+            exportToCSV(cleanData, `rsvp_${title.replace(/\s+/g, '_')}`);
+        } else {
+            alert("No RSVPs found for this event.");
         }
     }
 
     return (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Create Event</h3>
+                <h3 className="font-bold mb-4">Create Event or Announcement</h3>
                 <div className="space-y-3">
+                    <select className="w-full border p-2 rounded text-slate-900" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                        <option value="EVENT">Event (Allows RSVP)</option>
+                        <option value="ANNOUNCEMENT">Announcement (Read Only)</option>
+                    </select>
                     <input className="w-full border p-2 rounded text-slate-900" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
                     <input className="w-full border p-2 rounded text-slate-900" type="date" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
                     <input className="w-full border p-2 rounded text-slate-900" type="time" value={form.time} onChange={e=>setForm({...form, time: e.target.value})} />
                     <input className="w-full border p-2 rounded text-slate-900" placeholder="Location" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
                     <textarea className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
-                    <button onClick={saveEvent} className="w-full bg-blue-600 text-white py-2 rounded font-bold">Publish Event</button>
+                    <button onClick={saveEvent} className="w-full bg-blue-600 text-white py-2 rounded font-bold">Publish</button>
                 </div>
             </div>
             <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Upcoming Events</h3>
+                <h3 className="font-bold mb-4">Upcoming Items</h3>
                 {events.map(e => (
                     <div key={e.id} className="p-3 border-b mb-2">
-                        <div className="flex justify-between">
-                            <h4 className="font-bold text-slate-900">{e.title}</h4>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <h4 className="font-bold text-slate-900">{e.title}</h4>
+                                <span className={`text-[10px] px-2 py-0.5 rounded font-bold ${e.type === 'ANNOUNCEMENT' ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'}`}>{e.type}</span>
+                            </div>
                             <div className="flex gap-2">
-                                <button onClick={()=>handleExport(e.id)} className="text-green-600"><Download size={16}/></button>
-                                <button onClick={()=>deleteEvent(e.id)} className="text-red-500"><Trash2 size={16}/></button>
+                                {e.type === 'EVENT' && (
+                                    <button onClick={()=>handleExport(e.id, e.title)} className="text-green-600 hover:text-green-800" title="Export RSVPs"><Download size={16}/></button>
+                                )}
+                                <button onClick={()=>deleteEvent(e.id)} className="text-red-500 hover:text-red-700"><Trash2 size={16}/></button>
                             </div>
                         </div>
-                        <p className="text-xs text-slate-500">{e.date} @ {e.time}</p>
+                        <p className="text-xs text-slate-500 mt-1">{e.date} @ {e.time}</p>
                     </div>
                 ))}
             </div>

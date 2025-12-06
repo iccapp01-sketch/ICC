@@ -5,7 +5,7 @@ import {
   Play, Download, Search, CheckCircle, ArrowLeft, Bookmark,
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
-  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy
+  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info
 } from 'lucide-react';
 import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -24,7 +24,7 @@ export const HomeView = ({ onNavigate }: any) => {
   const [latestBlogs, setLatestBlogs] = useState<BlogPost[]>([]);
 
   useEffect(() => {
-     fetch('https://bible-api.com/philippians+4:13')
+     fetch('https://corsproxy.io/?' + encodeURIComponent('https://bible-api.com/philippians+4:13'))
        .then(res => res.json())
        .then(data => setVerse({ reference: data.reference, text: data.text, version: 'WEB' }))
        .catch(() => setVerse({ reference: "Philippians 4:13", text: "I can do all things through Christ who strengthens me.", version: "KJV" }));
@@ -147,36 +147,141 @@ export const BibleView = () => {
 // --- EVENTS VIEW ---
 export const EventsView = ({ onBack }: any) => {
     const [events, setEvents] = useState<Event[]>([]);
-    const [rsvp, setRsvp] = useState<any>({});
+    const [myRsvps, setMyRsvps] = useState<{[key: string]: string}>({});
+    const [selectedOptions, setSelectedOptions] = useState<{[key: string]: string}>({});
+    const [submitting, setSubmitting] = useState<{[key: string]: boolean}>({});
 
     useEffect(() => {
-        const fetch = async () => { const { data } = await supabase.from('events').select('*'); if(data) setEvents(data as any); };
-        fetch();
+        fetchEvents();
+        fetchMyRsvps();
     }, []);
 
-    const handleRsvp = async (eventId: string, status: string) => {
-        setRsvp({...rsvp, [eventId]: status});
+    const fetchEvents = async () => { 
+        const { data } = await supabase.from('events').select('*').order('date', { ascending: true }); 
+        if(data) setEvents(data as any); 
+    };
+
+    const fetchMyRsvps = async () => {
         const { data: { user } } = await supabase.auth.getUser();
         if(user) {
-             await supabase.from('event_rsvps').insert({ event_id: eventId, user_id: user.id, status });
+            const { data } = await supabase.from('event_rsvps').select('*').eq('user_id', user.id);
+            if(data) {
+                const rsvpMap: {[key: string]: string} = {};
+                data.forEach((r: any) => rsvpMap[r.event_id] = r.status);
+                setMyRsvps(rsvpMap);
+            }
         }
+    };
+
+    const handleSubmitRSVP = async (eventId: string) => {
+        const status = selectedOptions[eventId];
+        if(!status) return alert("Please select an option first.");
+
+        setSubmitting({...submitting, [eventId]: true});
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if(user) {
+             // Upsert ensures one entry per user per event
+             const { error } = await supabase.from('event_rsvps').upsert({ 
+                 event_id: eventId, 
+                 user_id: user.id, 
+                 status 
+             }, { onConflict: 'event_id,user_id' });
+
+             if(error) {
+                 alert("Error submitting RSVP: " + error.message);
+             } else {
+                 setMyRsvps({...myRsvps, [eventId]: status});
+                 alert("RSVP Submitted Successfully!");
+             }
+        } else {
+            alert("Please login to RSVP.");
+        }
+        setSubmitting({...submitting, [eventId]: false});
     };
 
     return (
         <div className="p-4 pb-24">
-            <h1 className="text-2xl font-black mb-4 dark:text-white">Events</h1>
-            {events.map(ev => (
-                <div key={ev.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl mb-4 border dark:border-slate-700">
-                    {ev.image && <div className="h-32 bg-cover bg-center rounded-xl mb-3" style={{backgroundImage: `url(${ev.image})`}}></div>}
-                    <h3 className="font-bold dark:text-white">{ev.title}</h3>
-                    <p className="text-xs text-slate-500 mb-4">{ev.date} at {ev.time}</p>
-                    <div className="flex gap-2">
-                        <button onClick={()=>handleRsvp(ev.id, 'Yes')} className={`flex-1 py-1 rounded text-xs font-bold border ${rsvp[ev.id]==='Yes'?'bg-green-600 text-white':'text-slate-500'}`}>Yes</button>
-                        <button onClick={()=>handleRsvp(ev.id, 'No')} className={`flex-1 py-1 rounded text-xs font-bold border ${rsvp[ev.id]==='No'?'bg-red-500 text-white':'text-slate-500'}`}>No</button>
-                        <button onClick={()=>handleRsvp(ev.id, 'Maybe')} className={`flex-1 py-1 rounded text-xs font-bold border ${rsvp[ev.id]==='Maybe'?'bg-orange-500 text-white':'text-slate-500'}`}>Maybe</button>
+            <h1 className="text-2xl font-black mb-6 dark:text-white">Events & Announcements</h1>
+            
+            {events.length === 0 && <p className="text-slate-500 text-center">No upcoming events.</p>}
+
+            {events.map(ev => {
+                const isAnnouncement = ev.type === 'ANNOUNCEMENT';
+                const myStatus = myRsvps[ev.id];
+                const currentSelection = selectedOptions[ev.id];
+
+                return (
+                    <div key={ev.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl mb-6 border dark:border-slate-700 shadow-sm">
+                        {/* Event/Announcement Label */}
+                        <div className="mb-3">
+                            <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded ${isAnnouncement ? 'bg-orange-100 text-orange-700' : 'bg-blue-100 text-blue-700'}`}>
+                                {isAnnouncement ? 'Announcement' : 'Event'}
+                            </span>
+                        </div>
+
+                        {/* Media */}
+                        {ev.image && <div className="h-40 bg-cover bg-center rounded-2xl mb-4" style={{backgroundImage: `url(${ev.image})`}}></div>}
+                        
+                        {/* Details */}
+                        <h3 className="text-lg font-bold dark:text-white mb-2">{ev.title}</h3>
+                        
+                        {!isAnnouncement && (
+                            <div className="flex flex-col gap-1 mb-4 text-sm text-slate-500">
+                                <div className="flex items-center gap-2"><Calendar size={14}/> {ev.date}</div>
+                                <div className="flex items-center gap-2"><Clock size={14}/> {ev.time}</div>
+                                {ev.location && <div className="flex items-center gap-2"><MapPin size={14}/> {ev.location}</div>}
+                            </div>
+                        )}
+                        
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 whitespace-pre-wrap">{ev.description}</p>
+
+                        {/* RSVP Section (Only for Events) */}
+                        {!isAnnouncement && (
+                            <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border dark:border-slate-700">
+                                {myStatus ? (
+                                    <div className="text-center">
+                                        <p className="text-sm text-slate-500 mb-1">You responded:</p>
+                                        <div className={`inline-block px-4 py-1 rounded-full font-bold text-sm ${
+                                            myStatus === 'Yes' ? 'bg-green-100 text-green-700' : 
+                                            myStatus === 'No' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
+                                        }`}>
+                                            {myStatus}
+                                        </div>
+                                        <button onClick={()=>setMyRsvps({...myRsvps, [ev.id]: ''})} className="block mx-auto mt-2 text-xs text-blue-500 underline">Change Response</button>
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <p className="text-xs font-bold text-slate-500 uppercase mb-3 text-center">Will you attend?</p>
+                                        <div className="flex justify-center gap-2 mb-4">
+                                            {['Yes', 'No', 'Maybe'].map(opt => (
+                                                <button 
+                                                    key={opt}
+                                                    onClick={() => setSelectedOptions({...selectedOptions, [ev.id]: opt})}
+                                                    className={`px-4 py-2 rounded-lg text-sm font-bold border transition ${
+                                                        currentSelection === opt 
+                                                        ? 'bg-blue-600 text-white border-blue-600' 
+                                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50'
+                                                    }`}
+                                                >
+                                                    {opt}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <button 
+                                            onClick={()=>handleSubmitRSVP(ev.id)} 
+                                            disabled={submitting[ev.id] || !currentSelection}
+                                            className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-3 rounded-xl disabled:opacity-50 transition"
+                                        >
+                                            {submitting[ev.id] ? 'Submitting...' : 'Submit RSVP'}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };

@@ -424,7 +424,7 @@ export const BlogView = () => {
                 const { data } = await supabase
                     .from('blog_comments')
                     .select('*, profiles(first_name, last_name)')
-                    .eq('post_id', selectedBlog.id)
+                    .eq('blog_id', selectedBlog.id) // CHANGED FROM post_id
                     .order('created_at', { ascending: false });
                 if (data) setComments(data);
             };
@@ -445,7 +445,7 @@ export const BlogView = () => {
         if(!user) return alert("Please login to comment");
         
         const { error } = await supabase.from('blog_comments').insert({
-            post_id: selectedBlog.id,
+            blog_id: selectedBlog.id, // CHANGED FROM post_id
             user_id: user.id,
             content: commentText
         });
@@ -453,13 +453,14 @@ export const BlogView = () => {
         if(error) alert("Error posting comment: " + error.message);
         else {
             setCommentText('');
-            const { data } = await supabase.from('blog_comments').select('*, profiles(first_name, last_name)').eq('post_id', selectedBlog.id).order('created_at', { ascending: false });
+            // Refetch
+            const { data } = await supabase.from('blog_comments').select('*, profiles(first_name, last_name)').eq('blog_id', selectedBlog.id).order('created_at', { ascending: false });
             if(data) setComments(data);
         }
     }
 
     // --------------------------------------------------------
-    // ROBUST SHARE FUNCTION PROVIDED
+    // ROBUST SHARE FUNCTION
     // --------------------------------------------------------
     function shareBlog(selectedBlog: any) {
         const currentURL = window.location.href;
@@ -468,8 +469,6 @@ export const BlogView = () => {
         const title = selectedBlog?.title || "Sharing this blog";
 
         if (blogURL && !blogURL.startsWith("http")) {
-            // Note: If url is explicitly invalid. If it's undefined it falls back to currentURL which is valid.
-            // But if selectedBlog.url exists and is bad:
             alert("Cannot share: invalid URL");
             console.log("Invalid share URL:", blogURL);
             return;
@@ -494,6 +493,7 @@ export const BlogView = () => {
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm" alt="Blog cover" />}
                 <div className="flex justify-between items-start gap-4 mb-2">
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white flex-1">{selectedBlog.title}</h1>
+                    {/* DUPLICATE SHARE BUTTON REMOVED FROM HERE */}
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
                     <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
@@ -508,7 +508,7 @@ export const BlogView = () => {
                             <ThumbsUp size={20} fill={likes > (selectedBlog.likes || 0) ? "currentColor" : "none"}/> {likes} Likes
                         </button>
                         
-                        {/* SHARE BUTTON CONNECTED TO NEW FUNCTION */}
+                        {/* SINGLE SHARE BUTTON */}
                         <button onClick={() => shareBlog(selectedBlog)} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
                              <Share2 size={20}/> Share
                         </button>

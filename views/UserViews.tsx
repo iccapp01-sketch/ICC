@@ -5,7 +5,8 @@ import {
   Play, Download, Search, CheckCircle, ArrowLeft, Bookmark,
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
-  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info
+  Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
+  Edit2, Save, Sun, Check
 } from 'lucide-react';
 import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -1000,33 +1001,137 @@ export const CommunityView = () => {
 };
 
 // --- PROFILE VIEW ---
-export const ProfileView = ({ user, onLogout, onNavigate }: any) => {
+export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
+    const [editingField, setEditingField] = useState<string | null>(null);
+    const [tempValue, setTempValue] = useState('');
+    const [settings, setSettings] = useState({
+        blogNotifs: true,
+        groupNotifs: true,
+        eventNotifs: true,
+        announcementNotifs: true
+    });
+
+    useEffect(() => {
+        // Load settings from local storage
+        if(user?.id) {
+            const saved = localStorage.getItem(`user_settings_${user.id}`);
+            if(saved) setSettings(JSON.parse(saved));
+        }
+    }, [user?.id]);
+
+    const handleEdit = (field: string, currentValue: string) => {
+        setEditingField(field);
+        setTempValue(currentValue);
+    };
+
+    const handleSave = (field: string) => {
+        onUpdateUser({ [field]: tempValue });
+        setEditingField(null);
+    };
+
+    const toggleSetting = (key: keyof typeof settings) => {
+        const newSettings = { ...settings, [key]: !settings[key] };
+        setSettings(newSettings);
+        if(user?.id) localStorage.setItem(`user_settings_${user.id}`, JSON.stringify(newSettings));
+    };
+
+    const FieldRow = ({ label, field, value, type="text" }: any) => (
+        <div className="flex justify-between items-center py-4 border-b border-slate-100 dark:border-slate-700 last:border-0">
+            <div className="flex-1">
+                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</p>
+                {editingField === field ? (
+                    <input 
+                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 text-slate-900 dark:text-white text-sm"
+                        value={tempValue}
+                        onChange={(e) => setTempValue(e.target.value)}
+                        type={type}
+                    />
+                ) : (
+                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{value || 'Not set'}</p>
+                )}
+            </div>
+            <button 
+                onClick={() => editingField === field ? handleSave(field) : handleEdit(field, value || '')}
+                className={`p-2 rounded-full ml-4 transition ${editingField === field ? 'bg-green-100 text-green-600' : 'bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-blue-600'}`}
+            >
+                {editingField === field ? <Check size={16} /> : <Edit2 size={16} />}
+            </button>
+        </div>
+    );
+
+    const SettingRow = ({ label, isOn, onToggle }: any) => (
+        <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
+            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+            <button 
+                onClick={onToggle}
+                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out relative ${isOn ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-600'}`}
+            >
+                <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${isOn ? 'translate-x-6' : 'translate-x-0'}`}></div>
+            </button>
+        </div>
+    );
+
     return (
         <div className="p-4 pb-24">
-            <div className="flex items-center justify-between mb-8">
+            <div className="flex items-center justify-between mb-6">
                 <h1 className="text-2xl font-black dark:text-white">Profile</h1>
-                <button onClick={onLogout} className="text-red-500 font-bold text-sm bg-red-50 px-3 py-1.5 rounded-lg">Logout</button>
+                <button onClick={onLogout} className="text-red-500 font-bold text-xs bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg flex items-center gap-1 transition">
+                    <LogOut size={14}/> Logout
+                </button>
             </div>
             
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 text-center">
-                 <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                     {user?.firstName?.[0]}{user?.lastName?.[0]}
+            {/* User Info Card */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
+                 <div className="flex items-center gap-4 mb-6">
+                     <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                         {user?.firstName?.[0]}{user?.lastName?.[0]}
+                     </div>
+                     <div>
+                         <h2 className="text-lg font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
+                         <span className="inline-block bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{user?.role}</span>
+                     </div>
                  </div>
-                 <h2 className="text-xl font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
-                 <p className="text-slate-500 text-sm">{user?.email}</p>
-                 <span className="inline-block bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded mt-2 uppercase tracking-wide">{user?.role}</span>
+
+                 <div className="space-y-1">
+                     <FieldRow label="First Name" field="firstName" value={user?.firstName} />
+                     <FieldRow label="Last Name" field="lastName" value={user?.lastName} />
+                     <FieldRow label="Date of Birth" field="dob" value={user?.dob} type="date" />
+                     <FieldRow label="Phone" field="phone" value={user?.phone} type="tel" />
+                     <FieldRow label="Email" field="email" value={user?.email} type="email" />
+                 </div>
             </div>
 
-            <div className="space-y-2">
-                <button onClick={()=>onNavigate('notifications')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between">
-                    <span className="font-bold flex items-center gap-3"><Bell size={18} className="text-slate-400"/> Notifications</span>
-                    <ChevronRight size={16} className="text-slate-400"/>
-                </button>
-                <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between">
-                    <span className="font-bold flex items-center gap-3"><Mail size={18} className="text-slate-400"/> Contact Us</span>
-                    <ChevronRight size={16} className="text-slate-400"/>
-                </button>
+            {/* Settings Card */}
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
+                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Settings</h3>
+                
+                <div className="mb-6">
+                    <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Appearance</p>
+                    <div className="flex justify-between items-center py-2">
+                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><Moon size={16}/> Dark Mode</span>
+                        <button 
+                            onClick={toggleTheme}
+                            className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 relative ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}
+                        >
+                            <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                        </button>
+                    </div>
+                </div>
+
+                <div>
+                    <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Notifications</p>
+                    <SettingRow label="Blog Posts" isOn={settings.blogNotifs} onToggle={() => toggleSetting('blogNotifs')} />
+                    <SettingRow label="Group Activity" isOn={settings.groupNotifs} onToggle={() => toggleSetting('groupNotifs')} />
+                    <SettingRow label="Events" isOn={settings.eventNotifs} onToggle={() => toggleSetting('eventNotifs')} />
+                    <SettingRow label="Announcements" isOn={settings.announcementNotifs} onToggle={() => toggleSetting('announcementNotifs')} />
+                </div>
             </div>
+
+            {/* Contact Us */}
+            <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between border border-slate-100 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition">
+                <span className="font-bold flex items-center gap-3 text-slate-700 dark:text-slate-200"><Mail size={18} className="text-blue-500"/> Contact Us</span>
+                <ChevronRight size={16} className="text-slate-400"/>
+            </button>
         </div>
     );
 };

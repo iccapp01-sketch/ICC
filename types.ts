@@ -54,30 +54,22 @@ export interface CommunityGroup {
   image?: string;
   membersCount: number;
   isMember: boolean;
-  status?: 'Joined' | 'Pending' | 'None';
+  status?: 'Joined' | 'Pending' | 'None' | 'Approved';
 }
 
 export interface GroupPost {
   id: string;
-  groupId: string;
-  userId: string;
-  userName: string;
-  userAvatar?: string;
+  group_id: string;
+  user_id: string;
+  parent_id?: string | null;
   content: string;
-  imageUrl?: string;
-  likes: number;
-  comments: GroupComment[];
-  createdAt: string;
-  likedByMe?: boolean;
-}
-
-export interface GroupComment {
-  id: string;
-  postId: string;
-  userId: string;
-  userName: string;
-  content: string;
-  createdAt: string;
+  created_at: string;
+  profiles?: {
+    first_name: string;
+    last_name: string;
+    avatar_url?: string;
+  };
+  group_post_likes?: { user_id: string }[];
 }
 
 export interface BibleVerse {
@@ -121,7 +113,9 @@ export interface MusicTrack {
 
 export interface Playlist {
   id: string;
-  name: string;
+  title: string; // Database field is title
+  name?: string; // Mapped for UI
+  user_id?: string;
   tracks: MusicTrack[];
 }
 

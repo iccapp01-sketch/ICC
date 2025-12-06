@@ -7,7 +7,7 @@ import {
   BookOpen, Users, MapPin, Music, ChevronDown, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy
 } from 'lucide-react';
-import { BlogPost, Sermon, CommunityGroup, GroupPost, GroupComment, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
+import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 const getYouTubeID = (url: string) => { 
@@ -616,13 +616,18 @@ export const CommunityView = () => {
     const [myMemberships, setMyMemberships] = useState<any[]>([]);
     const [feedPosts, setFeedPosts] = useState<any[]>([]);
     const [postText, setPostText] = useState('');
-    const [openComments, setOpenComments] = useState<string | null>(null); // Post ID
-    const [replyText, setReplyText] = useState('');
-    const [replies, setReplies] = useState<any[]>([]);
+    const [replyText, setReplyText] = useState<{[key:string]: string}>({});
+    const [showReplyInput, setShowReplyInput] = useState<{[key:string]: boolean}>({});
+    const [user, setUser] = useState<any>(null);
 
     useEffect(() => {
         fetchGroups();
         fetchMyMemberships();
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUser(user);
+        };
+        getUser();
     }, []);
 
     useEffect(() => {
@@ -630,12 +635,6 @@ export const CommunityView = () => {
             fetchPosts();
         }
     }, [activeGroup]);
-
-    useEffect(() => {
-        if(openComments) {
-            fetchReplies(openComments);
-        }
-    }, [openComments]);
 
     const fetchGroups = async () => { 
         const { data } = await supabase.from('community_groups').select('*'); 
@@ -653,31 +652,25 @@ export const CommunityView = () => {
     const fetchPosts = async () => {
         if(!activeGroup) return;
         
-        // Ensure we are fetching with profiles
+        // Fetch posts and likes join
         const { data, error } = await supabase
             .from('group_posts')
-            .select('*, profiles(first_name, last_name, avatar_url)')
+            .select(`
+                *, 
+                profiles(first_name, last_name, avatar_url),
+                group_post_likes(user_id)
+            `)
             .eq('group_id', activeGroup.id)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: true }); // Newest last for chat style
         
         if (data) setFeedPosts(data);
         if (error) console.log("Feed fetch error:", error.message);
-    };
-
-    const fetchReplies = async (postId: string) => {
-        const { data } = await supabase
-            .from('group_comments')
-            .select('*, profiles(first_name, last_name)')
-            .eq('post_id', postId)
-            .order('created_at', { ascending: true });
-        if(data) setReplies(data);
     };
 
     const handleJoinRequest = async (groupId: string) => {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return alert("Please login to join.");
         
-        // Check if row exists first to avoid duplicate key error
         const { data: existing } = await supabase.from('community_group_members').select('*').eq('group_id', groupId).eq('user_id', user.id).single();
         
         if (existing) {
@@ -688,7 +681,7 @@ export const CommunityView = () => {
         const { error } = await supabase.from('community_group_members').insert({ 
             group_id: groupId, 
             user_id: user.id, 
-            status: 'Pending' // Explicitly set pending status
+            status: 'Pending' 
         });
         
         if (error) alert("Error requesting to join: " + error.message);
@@ -697,134 +690,153 @@ export const CommunityView = () => {
         }
     };
 
-    const handleCreatePost = async () => {
-        if(!postText.trim() || !activeGroup) return;
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user) return;
+    const handleCreatePost = async (parentId: string | null = null, content: string) => {
+        if(!content.trim() || !activeGroup || !user) return;
 
         const { error } = await supabase.from('group_posts').insert({
             group_id: activeGroup.id,
             user_id: user.id,
-            content: postText
+            content: content,
+            parent_id: parentId
         });
 
         if(error) alert("Could not post: " + error.message);
         else {
-            setPostText('');
+            if(parentId) {
+                setReplyText({...replyText, [parentId]: ''});
+                setShowReplyInput({...showReplyInput, [parentId]: false});
+            } else {
+                setPostText('');
+            }
             fetchPosts();
         }
     };
 
-    const handleLikePost = async (postId: string, currentLikes: number) => {
-        const { error } = await supabase.from('group_posts').update({ likes: currentLikes + 1 }).eq('id', postId);
-        if(!error) fetchPosts(); // refresh to see new count
+    const handleLike = async (postId: string, likedByMe: boolean) => {
+        if(!user) return;
+        
+        if (likedByMe) {
+            // Unlike
+            await supabase.from('group_post_likes').delete().eq('post_id', postId).eq('user_id', user.id);
+        } else {
+            // Like
+            await supabase.from('group_post_likes').insert({ post_id: postId, user_id: user.id });
+        }
+        fetchPosts();
     };
 
-    const handleReply = async (postId: string) => {
-        if(!replyText.trim()) return;
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user) return;
+    const PostItem: React.FC<{ post: any, isReply?: boolean }> = ({ post, isReply = false }) => {
+        const likedByMe = post.group_post_likes?.some((l:any) => l.user_id === user?.id);
+        const likeCount = post.group_post_likes?.length || 0;
 
-        const { error } = await supabase.from('group_comments').insert({
-            post_id: postId,
-            user_id: user.id,
-            content: replyText
-        });
+        return (
+            <div className={`mb-3 ${isReply ? 'ml-8 mt-2 border-l-2 border-slate-200 pl-3' : 'bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700'}`}>
+                {/* Header */}
+                <div className="flex items-center gap-3 mb-2">
+                    <div className={`rounded-full flex items-center justify-center text-white font-bold ${isReply ? 'w-6 h-6 text-xs bg-slate-400' : 'w-10 h-10 text-sm bg-gradient-to-br from-blue-400 to-indigo-500'}`}>
+                        {post.profiles?.first_name?.[0] || 'U'}
+                    </div>
+                    <div>
+                        <h4 className={`font-bold text-slate-900 dark:text-white ${isReply ? 'text-xs' : 'text-sm'}`}>{post.profiles?.first_name} {post.profiles?.last_name}</h4>
+                        <span className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString()}</span>
+                    </div>
+                </div>
+                
+                {/* Content */}
+                <p className={`text-slate-700 dark:text-slate-300 whitespace-pre-wrap ${isReply ? 'text-xs' : 'text-sm mb-3'}`}>{post.content}</p>
 
-        if(error) alert("Reply error: " + error.message);
-        else {
-            setReplyText('');
-            fetchReplies(postId);
-        }
+                {/* Actions */}
+                <div className="flex gap-4 mt-2">
+                    <button 
+                        onClick={()=>handleLike(post.id, likedByMe)} 
+                        className={`flex items-center gap-1 text-xs font-bold transition ${likedByMe ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
+                    >
+                        <ThumbsUp size={isReply ? 14 : 16} fill={likedByMe ? 'currentColor' : 'none'}/> {likeCount > 0 ? likeCount : ''}
+                    </button>
+                    {!isReply && (
+                        <button 
+                            onClick={()=>setShowReplyInput({...showReplyInput, [post.id]: !showReplyInput[post.id]})} 
+                            className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-xs font-bold transition"
+                        >
+                            Reply
+                        </button>
+                    )}
+                </div>
+
+                {/* Nested Replies */}
+                {!isReply && (
+                    <>
+                        {/* Render Children */}
+                        {feedPosts.filter(p => p.parent_id === post.id).map(reply => (
+                            <PostItem key={reply.id} post={reply} isReply={true} />
+                        ))}
+
+                        {/* Reply Input */}
+                        {showReplyInput[post.id] && (
+                            <div className="flex gap-2 mt-3 ml-8">
+                                <input 
+                                    className="flex-1 bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-2 text-xs dark:text-white" 
+                                    placeholder="Write a reply..."
+                                    value={replyText[post.id] || ''}
+                                    onChange={e=>setReplyText({...replyText, [post.id]: e.target.value})}
+                                />
+                                <button onClick={()=>handleCreatePost(post.id, replyText[post.id])} className="text-blue-600 p-2"><Send size={16}/></button>
+                            </div>
+                        )}
+                    </>
+                )}
+            </div>
+        );
     };
 
     // RENDER: Active Group Feed (Threaded Chat)
     if (activeGroup) {
+        const membership = myMemberships.find(m => m.group_id === activeGroup.id);
+        const canAccess = membership?.status === 'Approved';
+
+        if (!canAccess) {
+             return (
+                 <div className="p-8 text-center">
+                     <h2 className="text-xl font-bold mb-4 dark:text-white">Access Denied</h2>
+                     <p className="text-slate-500 mb-6">You must be an approved member to view this group.</p>
+                     <button onClick={()=>setActiveGroup(null)} className="bg-slate-200 px-4 py-2 rounded-lg text-sm font-bold">Go Back</button>
+                 </div>
+             )
+        }
+
         return (
             <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 pb-24">
                 <div className="p-4 bg-white dark:bg-slate-800 border-b dark:border-slate-700 flex items-center gap-3 shadow-sm sticky top-0 z-10">
                     <button onClick={()=>setActiveGroup(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><ArrowLeft size={20} className="dark:text-white"/></button>
                     <div>
                         <h2 className="font-bold text-slate-900 dark:text-white leading-none">{activeGroup.name}</h2>
-                        <span className="text-xs text-slate-500">{feedPosts.length} posts</span>
+                        <span className="text-xs text-slate-500">Group Chat</span>
                     </div>
                 </div>
 
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {/* Create Post Input */}
-                    <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                    {/* Feed */}
+                    {feedPosts.filter(p => !p.parent_id).length === 0 && <p className="text-center text-slate-400 py-8">No posts yet. Start the conversation!</p>}
+                    
+                    {feedPosts.filter(p => !p.parent_id).map(post => (
+                        <PostItem key={post.id} post={post} />
+                    ))}
+                </div>
+
+                {/* Create Main Post Input */}
+                <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-700">
+                    <div className="flex gap-2">
                         <textarea 
-                            className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 mb-3 text-slate-900 dark:text-white" 
-                            placeholder={`What's on your mind?`}
-                            rows={2}
+                            className="flex-1 bg-slate-50 dark:bg-slate-900 border-none rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none" 
+                            placeholder={`Message ${activeGroup.name}...`}
+                            rows={1}
                             value={postText}
                             onChange={e=>setPostText(e.target.value)}
                         />
-                        <div className="flex justify-end">
-                            <button onClick={handleCreatePost} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2">
-                                <Send size={16}/> Post
-                            </button>
-                        </div>
+                        <button onClick={()=>handleCreatePost(null, postText)} className="bg-blue-600 text-white p-3 rounded-xl flex items-center justify-center">
+                            <Send size={20}/>
+                        </button>
                     </div>
-
-                    {/* Feed */}
-                    {feedPosts.length === 0 && <p className="text-center text-slate-400 py-8">No posts yet. Start the conversation!</p>}
-                    
-                    {feedPosts.map(post => (
-                        <div key={post.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                            {/* Post Header */}
-                            <div className="flex items-center gap-3 mb-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-blue-400 to-indigo-500 rounded-full flex items-center justify-center text-white font-bold text-sm">
-                                    {post.profiles?.first_name?.[0] || 'U'}
-                                </div>
-                                <div>
-                                    <h4 className="font-bold text-sm text-slate-900 dark:text-white">{post.profiles?.first_name} {post.profiles?.last_name}</h4>
-                                    <span className="text-xs text-slate-400">{new Date(post.created_at).toLocaleDateString()} {new Date(post.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</span>
-                                </div>
-                            </div>
-                            
-                            {/* Content */}
-                            <p className="text-slate-700 dark:text-slate-300 text-sm mb-4 whitespace-pre-wrap">{post.content}</p>
-
-                            {/* Actions */}
-                            <div className="flex gap-4 border-t border-slate-100 dark:border-slate-700 pt-3">
-                                <button onClick={()=>handleLikePost(post.id, post.likes || 0)} className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-xs font-bold transition">
-                                    <ThumbsUp size={16}/> {post.likes || 0} Likes
-                                </button>
-                                <button onClick={()=>setOpenComments(openComments === post.id ? null : post.id)} className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-xs font-bold transition">
-                                    <MessageCircle size={16}/> Comment
-                                </button>
-                            </div>
-
-                            {/* Threaded Comments */}
-                            {openComments === post.id && (
-                                <div className="mt-4 pl-4 border-l-2 border-slate-100 dark:border-slate-700">
-                                    {/* Existing Replies */}
-                                    <div className="space-y-3 mb-4">
-                                        {replies.map(rep => (
-                                            <div key={rep.id} className="bg-slate-50 dark:bg-slate-900 p-3 rounded-xl">
-                                                <div className="flex justify-between items-baseline mb-1">
-                                                    <span className="font-bold text-xs dark:text-white">{rep.profiles?.first_name}</span>
-                                                    <span className="text-[10px] text-slate-400">{new Date(rep.created_at).toLocaleDateString()}</span>
-                                                </div>
-                                                <p className="text-xs text-slate-600 dark:text-slate-300">{rep.content}</p>
-                                            </div>
-                                        ))}
-                                    </div>
-                                    {/* Reply Input */}
-                                    <div className="flex gap-2">
-                                        <input 
-                                            className="flex-1 bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-2 text-xs" 
-                                            placeholder="Write a reply..."
-                                            value={replyText}
-                                            onChange={e=>setReplyText(e.target.value)}
-                                        />
-                                        <button onClick={()=>handleReply(post.id)} className="text-blue-600 p-2"><Send size={16}/></button>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    ))}
                 </div>
             </div>
         );
@@ -866,7 +878,7 @@ export const CommunityView = () => {
                                      </button>
                                  )}
 
-                                 {(status === 'Approved' || status === 'approved' || status === 'Joined' || status === 'joined') && (
+                                 {(status === 'Approved' || status === 'approved') && (
                                      <button 
                                         onClick={()=>setActiveGroup(g)} 
                                         className="w-full bg-green-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-green-700 transition flex items-center justify-center gap-2"

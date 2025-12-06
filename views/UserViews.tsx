@@ -717,7 +717,7 @@ export const BlogView = () => {
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white flex-1">{selectedBlog.title}</h1>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
-                    <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</p>
+                    <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
                 </div>
                 <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap mb-8">
                     {selectedBlog.content}
@@ -787,47 +787,62 @@ export const BlogView = () => {
 // --- SERMONS VIEW ---
 export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
-    const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
 
     useEffect(() => {
-        const fetch = async () => { const { data } = await supabase.from('sermons').select('*'); if(data) setSermons(data as any); }
+        const fetch = async () => { const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false }); if(data) setSermons(data as any); }
         fetch();
     }, []);
+
+    const handleShare = (s: Sermon) => {
+        if (!s.videoUrl) return;
+        if (navigator.share) {
+            navigator.share({
+                title: s.title,
+                text: `Watch this sermon: ${s.title} by ${s.preacher}`,
+                url: s.videoUrl
+            }).catch(console.error);
+        } else {
+            navigator.clipboard.writeText(s.videoUrl);
+            alert("Link copied to clipboard!");
+        }
+    };
 
     return (
         <div className="p-4 pb-24">
             <h1 className="text-2xl font-black mb-6 dark:text-white">Sermon Library</h1>
-            <div className="grid gap-4">
+            <div className="grid gap-6">
                 {sermons.map(s => (
-                    <div key={s.id} onClick={() => setSelectedVideo(s.videoUrl || null)} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm cursor-pointer group">
-                        <div className="aspect-video bg-slate-200 relative bg-cover bg-center" style={{ backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(s.videoUrl)}/mqdefault.jpg)` : 'none' }}>
-                             <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition flex items-center justify-center">
-                                 <div className="w-12 h-12 bg-white/20 backdrop-blur rounded-full flex items-center justify-center">
-                                     <Play fill="white" className="text-white ml-1"/>
-                                 </div>
-                             </div>
-                             <span className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-medium">{s.duration}</span>
+                    <div key={s.id} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
+                        {/* Inline Video Player */}
+                        <div className="aspect-video w-full bg-black">
+                            <iframe 
+                                width="100%" 
+                                height="100%" 
+                                src={`https://www.youtube.com/embed/${getYouTubeID(s.videoUrl)}`} 
+                                title={s.title}
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                                allowFullScreen
+                                className="w-full h-full"
+                            ></iframe>
                         </div>
-                        <div className="p-4">
-                            <h3 className="font-bold text-slate-900 dark:text-white mb-1 line-clamp-1">{s.title}</h3>
-                            <p className="text-xs text-slate-500">{s.preacher} • {s.date}</p>
+                        
+                        {/* Details & Share */}
+                        <div className="p-4 flex items-start justify-between gap-4">
+                            <div>
+                                <h3 className="font-bold text-lg text-slate-900 dark:text-white leading-tight mb-1">{s.title}</h3>
+                                <p className="text-sm text-slate-500">{s.preacher} • {new Date(s.date).toLocaleDateString()}</p>
+                            </div>
+                            <button 
+                                onClick={() => handleShare(s)}
+                                className="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition"
+                                title="Share Sermon"
+                            >
+                                <Share2 size={20}/>
+                            </button>
                         </div>
                     </div>
                 ))}
             </div>
-            {selectedVideo && (
-                <div className="fixed inset-0 bg-black z-50 flex items-center justify-center p-4">
-                    <button onClick={()=>setSelectedVideo(null)} className="absolute top-4 right-4 text-white"><X size={32}/></button>
-                    <div className="w-full aspect-video bg-black rounded-xl overflow-hidden">
-                        <iframe 
-                            width="100%" height="100%" 
-                            src={`https://www.youtube.com/embed/${getYouTubeID(selectedVideo)}?autoplay=1&controls=0`} 
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                            allowFullScreen
-                        ></iframe>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };

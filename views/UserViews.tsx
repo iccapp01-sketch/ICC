@@ -458,9 +458,6 @@ export const BlogView = () => {
         }
     }
 
-    // --------------------------------------------------------
-    // ROBUST SHARE FUNCTION
-    // --------------------------------------------------------
     function shareBlog(selectedBlog: any) {
         const currentURL = window.location.href;
         const blogURL = selectedBlog?.url || currentURL;
@@ -652,8 +649,8 @@ export const CommunityView = () => {
 
     const fetchPosts = async () => {
         if(!activeGroup) return;
-        // Assuming 'group_posts' table exists with group_id, content, user_id, likes, created_at
-        // joined with profiles
+        
+        // Ensure we are fetching with profiles
         const { data, error } = await supabase
             .from('group_posts')
             .select('*, profiles(first_name, last_name, avatar_url)')
@@ -661,8 +658,7 @@ export const CommunityView = () => {
             .order('created_at', { ascending: false });
         
         if (data) setFeedPosts(data);
-        // If table doesn't exist yet, we handle gracefully or mock
-        if (error) console.log("Feed fetch error (table might missing):", error.message);
+        if (error) console.log("Feed fetch error:", error.message);
     };
 
     const fetchReplies = async (postId: string) => {
@@ -696,6 +692,7 @@ export const CommunityView = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
 
+        // Map to DB: user_id, group_id, content (message_content), created_at
         const { error } = await supabase.from('group_posts').insert({
             group_id: activeGroup.id,
             user_id: user.id,
@@ -833,6 +830,11 @@ export const CommunityView = () => {
                      const membership = myMemberships.find(m => m.group_id === g.id);
                      const status = membership?.status; // 'pending' or 'joined'/'approved'
 
+                     // Logic for button display
+                     // 1. Not a member -> Request to Join
+                     // 2. Pending -> Button shows Pending (disabled)
+                     // 3. Approved/Joined -> Enter Group
+
                      return (
                          <div key={g.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
                              <div className="flex gap-4 items-center mb-3">
@@ -841,18 +843,19 @@ export const CommunityView = () => {
                                      <h3 className="font-bold text-slate-900 dark:text-white">{g.name}</h3>
                                      <p className="text-xs text-slate-500 line-clamp-1">{g.description}</p>
                                  </div>
-                             </div>
-                             
-                             <div className="mt-2">
+                                 
+                                 {/* REQUEST TO JOIN BUTTON - VISIBLE FOR NON-MEMBERS */}
                                  {!status && (
                                      <button 
                                         onClick={()=>handleJoinRequest(g.id)} 
-                                        className="w-full bg-blue-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-blue-700 transition"
+                                        className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition"
                                      >
                                         Request to Join
                                      </button>
                                  )}
-                                 
+                             </div>
+                             
+                             <div className="mt-2">
                                  {status === 'pending' && (
                                      <button disabled className="w-full bg-slate-100 dark:bg-slate-700 text-slate-400 py-2 rounded-xl text-xs font-bold cursor-not-allowed">
                                         Membership Pending Approval

@@ -494,16 +494,55 @@ export const MusicView = () => {
 
     return (
         <div className="h-full flex flex-col pb-24">
-            <div className="flex px-4 pt-2 gap-4 border-b border-slate-200 dark:border-slate-800 overflow-x-auto no-scrollbar">
-                {['MUSIC', 'PODCAST', 'MY_PLAYLISTS'].map(tab => (
-                    <button 
-                        key={tab} 
-                        onClick={() => setActiveTab(tab as any)} 
-                        className={`pb-3 text-sm font-bold tracking-wide whitespace-nowrap ${activeTab === tab ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-400'}`}
+            
+            {/* PLAYER WIDGET - Top Position */}
+            {currentTrack && (
+                <div className="px-4 pt-4 pb-2">
+                    <div 
+                        className={`bg-slate-900 text-white rounded-3xl shadow-lg p-4 flex flex-col cursor-pointer border border-white/10`}
+                        onClick={() => setIsFullScreen(true)}
                     >
-                        {tab.replace('_', ' ')}
-                    </button>
-                ))}
+                        <div className="flex items-center gap-4">
+                            <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg">
+                                <Music size={24} className="text-blue-400"/>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-bold text-base truncate leading-tight">{currentTrack.title}</h4>
+                                <p className="text-xs text-slate-400 truncate">{currentTrack.artist}</p>
+                            </div>
+                            <div className="flex items-center gap-3">
+                                <button onClick={(e)=>{e.stopPropagation(); playPrev();}} className="p-2 hover:bg-white/10 rounded-full"><SkipBack size={20}/></button>
+                                <button onClick={(e)=>{e.stopPropagation(); togglePlay();}} className="w-12 h-12 bg-white text-slate-900 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition">
+                                    {isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-1"/>}
+                                </button>
+                                <button onClick={(e)=>{e.stopPropagation(); playNext();}} className="p-2 hover:bg-white/10 rounded-full"><SkipForward size={20}/></button>
+                            </div>
+                        </div>
+                        {/* Progress Bar Visual */}
+                        <div className="mt-4 w-full h-1 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-blue-500 w-1/3"></div>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* BUTTON TABS - Below Player */}
+            <div className="px-4 py-2">
+                <div className="flex gap-2 overflow-x-auto no-scrollbar">
+                    {['MUSIC', 'PODCAST', 'MY_PLAYLISTS'].map(tab => (
+                        <button 
+                            key={tab} 
+                            onClick={() => setActiveTab(tab as any)} 
+                            className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold transition-all whitespace-nowrap shadow-sm border
+                                ${activeTab === tab 
+                                    ? 'bg-blue-600 text-white border-blue-600' 
+                                    : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700 hover:bg-slate-50'
+                                }`}
+                        >
+                            {tab.replace('_', ' ')}
+                        </button>
+                    ))}
+                </div>
             </div>
             
             <div className="flex-1 overflow-y-auto p-4 space-y-4">
@@ -547,35 +586,6 @@ export const MusicView = () => {
                     ))
                  )}
             </div>
-
-            {/* BIG PLAYER DOCK */}
-            {currentTrack && (
-                <div 
-                    className={`fixed bottom-[80px] left-2 right-2 bg-slate-900/95 backdrop-blur-md text-white rounded-3xl shadow-[0_8px_32px_rgba(0,0,0,0.3)] p-4 flex flex-col z-40 transition-all cursor-pointer border border-white/10`}
-                    onClick={() => setIsFullScreen(true)}
-                >
-                    <div className="flex items-center gap-4">
-                        <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center shadow-lg">
-                            <Music size={24} className="text-blue-400"/>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                            <h4 className="font-bold text-base truncate leading-tight">{currentTrack.title}</h4>
-                            <p className="text-xs text-slate-400 truncate">{currentTrack.artist}</p>
-                        </div>
-                        <div className="flex items-center gap-3">
-                            <button onClick={(e)=>{e.stopPropagation(); playPrev();}} className="p-2 hover:bg-white/10 rounded-full"><SkipBack size={20}/></button>
-                            <button onClick={(e)=>{e.stopPropagation(); togglePlay();}} className="w-12 h-12 bg-white text-slate-900 rounded-full flex items-center justify-center shadow-lg hover:scale-105 transition">
-                                {isPlaying ? <Pause size={20} fill="currentColor"/> : <Play size={20} fill="currentColor" className="ml-1"/>}
-                            </button>
-                            <button onClick={(e)=>{e.stopPropagation(); playNext();}} className="p-2 hover:bg-white/10 rounded-full"><SkipForward size={20}/></button>
-                        </div>
-                    </div>
-                    {/* Progress Bar Visual */}
-                    <div className="mt-4 w-full h-1 bg-white/10 rounded-full overflow-hidden">
-                        <div className="h-full bg-blue-500 w-1/3"></div>
-                    </div>
-                </div>
-            )}
             
             {/* FULL SCREEN PLAYER MODAL */}
             {isFullScreen && currentTrack && (

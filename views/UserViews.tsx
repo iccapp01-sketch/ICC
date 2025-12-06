@@ -789,22 +789,41 @@ export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
 
     useEffect(() => {
-        const fetch = async () => { const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false }); if(data) setSermons(data as any); }
+        const fetch = async () => { 
+            const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false }); 
+            if(data) {
+                // Map database fields to frontend model
+                const mappedData = data.map((s: any) => ({
+                    ...s,
+                    date: s.date_preached, // Map date_preached from DB to date in frontend
+                    videoUrl: s.video_url // Map video_url from DB to videoUrl in frontend
+                }));
+                setSermons(mappedData); 
+            }
+        }
         fetch();
     }, []);
 
     const handleShare = (s: Sermon) => {
-        if (!s.videoUrl) return;
+        const urlToShare = s.videoUrl || '';
+        if (!urlToShare) return;
+        
         if (navigator.share) {
             navigator.share({
                 title: s.title,
                 text: `Watch this sermon: ${s.title} by ${s.preacher}`,
-                url: s.videoUrl
+                url: urlToShare
             }).catch(console.error);
         } else {
-            navigator.clipboard.writeText(s.videoUrl);
+            navigator.clipboard.writeText(urlToShare);
             alert("Link copied to clipboard!");
         }
+    };
+
+    const formatDate = (dateString: string) => {
+        if (!dateString) return '';
+        const date = new Date(dateString);
+        return isNaN(date.getTime()) ? dateString : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
     };
 
     return (
@@ -830,11 +849,11 @@ export const SermonsView = () => {
                         <div className="p-4 flex items-start justify-between gap-4">
                             <div>
                                 <h3 className="font-bold text-lg text-slate-900 dark:text-white leading-tight mb-1">{s.title}</h3>
-                                <p className="text-sm text-slate-500">{s.preacher} • {new Date(s.date).toLocaleDateString()}</p>
+                                <p className="text-sm text-slate-500">{s.preacher} • {formatDate(s.date)}</p>
                             </div>
                             <button 
                                 onClick={() => handleShare(s)}
-                                className="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition"
+                                className="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition flex-shrink-0"
                                 title="Share Sermon"
                             >
                                 <Share2 size={20}/>

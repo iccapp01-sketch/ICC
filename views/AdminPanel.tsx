@@ -649,29 +649,51 @@ const SermonManager = () => {
     const [form, setForm] = useState({ title: '', preacher: '', date: '', duration: '', videoUrl: '' });
 
     useEffect(() => { fetchSermons(); }, []);
+    
     const fetchSermons = async () => {
         const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false });
         if(data) setSermons(data as any);
     }
+    
     const handleDelete = async (id: string) => {
         if(!confirm("Delete sermon?")) return;
         const { error } = await supabase.from('sermons').delete().eq('id', id);
         if(!error) fetchSermons();
         else handleSupabaseError(error, 'Delete Sermon');
     }
-    const handleSubmit = async () => {
-        // Auto extract thumbnail
-        let thumb = '';
+
+    const getYouTubeID = (url: string) => { 
+        if (!url) return null; 
+        // Handles: youtube.com/watch?v=, youtu.be/, youtube.com/embed/, youtube.com/v/
         const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
-        const match = form.videoUrl.match(regExp);
-        if (match && match[2].length === 11) thumb = `https://img.youtube.com/vi/${match[2]}/0.jpg`;
+        const match = url.match(regExp);
+        return (match && match[2].length === 11) ? match[2] : null; 
+    };
+
+    const handleSubmit = async () => {
+        // Automatically extract thumbnail from YouTube ID
+        const videoId = getYouTubeID(form.videoUrl);
+        let thumb = '';
+        if (videoId) {
+            // Use maxresdefault for better quality, fallback happens automatically in some players but here we store the URL
+            thumb = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+        }
 
         const { error } = await supabase.from('sermons').insert([{
-            title: form.title, preacher: form.preacher, date_preached: form.date, 
-            duration: form.duration, video_url: form.videoUrl, thumbnail_url: thumb
+            title: form.title, 
+            preacher: form.preacher, 
+            date_preached: form.date, 
+            duration: form.duration, 
+            video_url: form.videoUrl, // Store full URL, logic in view handles extraction
+            thumbnail_url: thumb
         }]);
+
         if(error) handleSupabaseError(error, 'Add Sermon');
-        else { fetchSermons(); setForm({ title: '', preacher: '', date: '', duration: '', videoUrl: '' }); }
+        else { 
+            fetchSermons(); 
+            setForm({ title: '', preacher: '', date: '', duration: '', videoUrl: '' }); 
+            alert('Sermon uploaded successfully!');
+        }
     }
 
     return (
@@ -679,11 +701,27 @@ const SermonManager = () => {
              <div className="bg-white p-6 rounded-2xl border border-slate-200">
                 <h3 className="font-bold text-lg text-[#0c2d58] mb-4">Add Sermon</h3>
                 <div className="space-y-3">
-                    <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
-                    <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Preacher" value={form.preacher} onChange={e=>setForm({...form, preacher: e.target.value})} />
-                    <input className="w-full border p-3 rounded-xl text-slate-900" type="date" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
-                    <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="Duration (e.g. 45:00)" value={form.duration} onChange={e=>setForm({...form, duration: e.target.value})} />
-                    <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="YouTube URL" value={form.videoUrl} onChange={e=>setForm({...form, videoUrl: e.target.value})} />
+                    <div>
+                        <label className="text-xs text-slate-500 font-bold ml-1">Sermon Title</label>
+                        <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="e.g. The Power of Prayer" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-500 font-bold ml-1">Preacher</label>
+                        <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="e.g. Pastor David" value={form.preacher} onChange={e=>setForm({...form, preacher: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-500 font-bold ml-1">Date Preached</label>
+                        <input className="w-full border p-3 rounded-xl text-slate-900" type="date" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-500 font-bold ml-1">Duration</label>
+                        <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="e.g. 45:00" value={form.duration} onChange={e=>setForm({...form, duration: e.target.value})} />
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-500 font-bold ml-1">YouTube URL</label>
+                        <input className="w-full border p-3 rounded-xl text-slate-900" placeholder="https://youtu.be/..." value={form.videoUrl} onChange={e=>setForm({...form, videoUrl: e.target.value})} />
+                        <p className="text-[10px] text-slate-400 mt-1 ml-1">Supports standard links, shorts, and share links.</p>
+                    </div>
                     <button onClick={handleSubmit} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Upload Sermon</button>
                 </div>
              </div>
@@ -691,7 +729,10 @@ const SermonManager = () => {
                  <h3 className="font-bold text-lg text-[#0c2d58] mb-4">Library</h3>
                  {sermons.map(s => (
                      <div key={s.id} className="flex justify-between items-center p-3 border-b">
-                         <div><p className="font-bold text-sm text-slate-900">{s.title}</p><p className="text-xs text-slate-500">{s.preacher}</p></div>
+                         <div>
+                             <p className="font-bold text-sm text-slate-900">{s.title}</p>
+                             <p className="text-xs text-slate-500">{s.preacher} • {s.date}</p>
+                         </div>
                          <button onClick={()=>handleDelete(s.id)} className="text-red-500"><Trash2 size={16}/></button>
                      </div>
                  ))}

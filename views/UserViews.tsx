@@ -174,9 +174,8 @@ export const EventsView = ({ onBack }: any) => {
         }
     };
 
-    const handleSubmitRSVP = async (eventId: string) => {
-        const status = selectedOptions[eventId];
-        if(!status) return alert("Please select an option first.");
+    const handleSubmitRSVP = async (eventId: string, status: string) => {
+        if(!status) return;
 
         setSubmitting({...submitting, [eventId]: true});
         const { data: { user } } = await supabase.auth.getUser();
@@ -208,7 +207,6 @@ export const EventsView = ({ onBack }: any) => {
             {events.map(ev => {
                 const isAnnouncement = ev.type === 'ANNOUNCEMENT';
                 const myStatus = myRsvps[ev.id];
-                const currentSelection = selectedOptions[ev.id];
 
                 return (
                     <div key={ev.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl mb-6 border dark:border-slate-700 shadow-sm">
@@ -237,46 +235,23 @@ export const EventsView = ({ onBack }: any) => {
 
                         {/* Compact RSVP Section (Only for Events) */}
                         {!isAnnouncement && (
-                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
-                                {myStatus ? (
-                                    <div className="flex items-center justify-between">
-                                        <div className="flex items-center gap-2 text-sm">
-                                            <span className="text-slate-500">RSVP:</span>
-                                            <span className={`font-bold ${
-                                                myStatus === 'Yes' ? 'text-green-600' : 
-                                                myStatus === 'No' ? 'text-red-500' : 'text-orange-500'
-                                            }`}>
-                                                {myStatus}
-                                            </span>
-                                        </div>
-                                        <button onClick={()=>setMyRsvps({...myRsvps, [ev.id]: ''})} className="text-xs text-blue-600 font-bold hover:underline">Change</button>
-                                    </div>
-                                ) : (
-                                    <div className="flex items-center justify-between gap-2">
-                                        <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1">
-                                            {['Yes', 'No', 'Maybe'].map(opt => (
-                                                <button 
-                                                    key={opt}
-                                                    onClick={() => setSelectedOptions({...selectedOptions, [ev.id]: opt})}
-                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${
-                                                        currentSelection === opt 
-                                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
-                                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
-                                                    }`}
-                                                >
-                                                    {opt}
-                                                </button>
-                                            ))}
-                                        </div>
+                            <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                                <span className="text-xs font-bold text-slate-500">RSVP:</span>
+                                <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-0.5">
+                                    {['Yes', 'No', 'Maybe'].map(opt => (
                                         <button 
-                                            onClick={()=>handleSubmitRSVP(ev.id)} 
-                                            disabled={submitting[ev.id] || !currentSelection}
-                                            className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition"
+                                            key={opt}
+                                            onClick={() => handleSubmitRSVP(ev.id, opt)}
+                                            className={`px-3 py-1 rounded-md text-[10px] font-bold transition ${
+                                                myStatus === opt 
+                                                ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm ring-1 ring-black/5' 
+                                                : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                                            }`}
                                         >
-                                            {submitting[ev.id] ? '...' : 'Submit'}
+                                            {opt}
                                         </button>
-                                    </div>
-                                )}
+                                    ))}
+                                </div>
                             </div>
                         )}
                     </div>
@@ -1042,9 +1017,9 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
     };
 
     const FieldRow = ({ label, field, value, type="text" }: any) => (
-        <div className="flex justify-between items-center py-4 border-b border-slate-100 dark:border-slate-700 last:border-0">
+        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-700 last:border-0">
             <div className="flex-1">
-                <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</p>
+                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">{label}</p>
                 {isEditing ? (
                     <input 
                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 text-slate-900 dark:text-white text-sm"
@@ -1080,27 +1055,27 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                 </button>
             </div>
             
-            {/* User Info Card */}
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
-                 <div className="flex items-center justify-between mb-6">
+            {/* User Info Card (Compact) */}
+            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 max-w-sm mx-auto">
+                 <div className="flex items-center justify-between mb-4">
                      <div className="flex items-center gap-4">
-                         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                         <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg">
                              {user?.firstName?.[0]}{user?.lastName?.[0]}
                          </div>
                          <div>
-                             <h2 className="text-lg font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
+                             <h2 className="text-base font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
                              <span className="inline-block bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{user?.role}</span>
                          </div>
                      </div>
                      <button 
                         onClick={isEditing ? saveChanges : startEditing}
-                        className={`p-3 rounded-full transition shadow-sm ${isEditing ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-blue-600'}`}
+                        className={`p-2 rounded-full transition shadow-sm ${isEditing ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-blue-600'}`}
                      >
-                        {isEditing ? <Check size={20} /> : <Edit2 size={20} />}
+                        {isEditing ? <Check size={18} /> : <Edit2 size={18} />}
                      </button>
                  </div>
 
-                 <div className="space-y-1">
+                 <div className="space-y-0.5">
                      <FieldRow label="First Name" field="firstName" value={user?.firstName} />
                      <FieldRow label="Last Name" field="lastName" value={user?.lastName} />
                      <FieldRow label="Date of Birth" field="dob" value={user?.dob} type="date" />

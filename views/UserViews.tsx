@@ -103,7 +103,7 @@ export const BibleView = () => {
         const fetchText = async () => {
             try {
                 const encodedBook = encodeURIComponent(book);
-                const res = await fetch(`https://bible-api.com/${encodedBook}+${chapter}`);
+                const res = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://bible-api.com/${encodedBook}+${chapter}`));
                 const data = await res.json();
                 setText(data.text || "Text not found.");
             } catch (e) {
@@ -673,6 +673,14 @@ export const CommunityView = () => {
     const handleJoinRequest = async (groupId: string) => {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return alert("Please login to join.");
+        
+        // Check if row exists first to avoid duplicate key error if clicked twice quickly
+        const { data: existing } = await supabase.from('community_group_members').select('*').eq('group_id', groupId).eq('user_id', user.id).single();
+        
+        if (existing) {
+            alert("You have already requested to join.");
+            return;
+        }
         
         const { error } = await supabase.from('community_group_members').insert({ 
             group_id: groupId, 

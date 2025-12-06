@@ -674,18 +674,19 @@ export const CommunityView = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return alert("Please login to join.");
         
-        // Check if row exists first to avoid duplicate key error if clicked twice quickly
+        // Check if row exists first to avoid duplicate key error
         const { data: existing } = await supabase.from('community_group_members').select('*').eq('group_id', groupId).eq('user_id', user.id).single();
         
         if (existing) {
-            alert("You have already requested to join.");
+            // If already exists, maybe update status? Or just refresh.
+            fetchMyMemberships();
             return;
         }
         
         const { error } = await supabase.from('community_group_members').insert({ 
             group_id: groupId, 
             user_id: user.id, 
-            status: 'pending' 
+            status: 'Pending' 
         });
         
         if (error) alert("Error requesting to join: " + error.message);
@@ -700,7 +701,6 @@ export const CommunityView = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
 
-        // Map to DB: user_id, group_id, content (message_content), created_at
         const { error } = await supabase.from('group_posts').insert({
             group_id: activeGroup.id,
             user_id: user.id,
@@ -836,12 +836,12 @@ export const CommunityView = () => {
              <div className="space-y-4">
                  {groups.map(g => {
                      const membership = myMemberships.find(m => m.group_id === g.id);
-                     const status = membership?.status; // 'pending' or 'joined'/'approved'
+                     const status = membership?.status?.toLowerCase(); // normalize 'Pending', 'pending', 'Joined', etc.
 
-                     // Logic for button display
-                     // 1. Not a member -> Request to Join
-                     // 2. Pending -> Button shows Pending (disabled)
-                     // 3. Approved/Joined -> Enter Group
+                     // Status Logic:
+                     // undefined/null -> Join
+                     // 'pending' -> Pending (Disabled)
+                     // 'approved' / 'joined' -> Enter Group
 
                      return (
                          <div key={g.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
@@ -852,13 +852,13 @@ export const CommunityView = () => {
                                      <p className="text-xs text-slate-500 line-clamp-1">{g.description}</p>
                                  </div>
                                  
-                                 {/* REQUEST TO JOIN BUTTON - VISIBLE FOR NON-MEMBERS */}
+                                 {/* REQUEST TO JOIN BUTTON - VISIBLE IF NOT A MEMBER */}
                                  {!status && (
                                      <button 
                                         onClick={()=>handleJoinRequest(g.id)} 
                                         className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition"
                                      >
-                                        Request to Join
+                                        Join Group
                                      </button>
                                  )}
                              </div>
@@ -866,7 +866,7 @@ export const CommunityView = () => {
                              <div className="mt-2">
                                  {status === 'pending' && (
                                      <button disabled className="w-full bg-slate-100 dark:bg-slate-700 text-slate-400 py-2 rounded-xl text-xs font-bold cursor-not-allowed">
-                                        Membership Pending Approval
+                                        Pending Approval
                                      </button>
                                  )}
 

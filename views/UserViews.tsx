@@ -4,7 +4,7 @@ import {
   Bell, User, ChevronRight, Heart, MessageCircle, Share2, 
   Play, Download, Search, CheckCircle, ArrowLeft, Bookmark,
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
-  BookOpen, Users, MapPin, Music, ChevronDown, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
+  BookOpen, Users, MapPin, Music, ChevronDown, ChevronUp, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
   Edit2, Save, Sun, Check
 } from 'lucide-react';
@@ -594,9 +594,6 @@ export const BlogView = () => {
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm" alt="Blog cover" />}
                 <div className="flex justify-between items-start gap-4 mb-2">
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white flex-1">{selectedBlog.title}</h1>
-                    <button onClick={() => shareBlog(selectedBlog)} className="p-2 text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition">
-                        <Share2 size={20}/>
-                    </button>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
                     <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
@@ -1002,8 +999,11 @@ export const CommunityView = () => {
 
 // --- PROFILE VIEW ---
 export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
-    const [editingField, setEditingField] = useState<string | null>(null);
-    const [tempValue, setTempValue] = useState('');
+    const [isEditing, setIsEditing] = useState(false);
+    const [editForm, setEditForm] = useState({
+        firstName: '', lastName: '', email: '', phone: '', dob: ''
+    });
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [settings, setSettings] = useState({
         blogNotifs: true,
         groupNotifs: true,
@@ -1019,14 +1019,20 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
         }
     }, [user?.id]);
 
-    const handleEdit = (field: string, currentValue: string) => {
-        setEditingField(field);
-        setTempValue(currentValue);
+    const startEditing = () => {
+        setEditForm({
+            firstName: user?.firstName || '',
+            lastName: user?.lastName || '',
+            email: user?.email || '',
+            phone: user?.phone || '',
+            dob: user?.dob || ''
+        });
+        setIsEditing(true);
     };
 
-    const handleSave = (field: string) => {
-        onUpdateUser({ [field]: tempValue });
-        setEditingField(null);
+    const saveChanges = () => {
+        onUpdateUser(editForm);
+        setIsEditing(false);
     };
 
     const toggleSetting = (key: keyof typeof settings) => {
@@ -1039,23 +1045,17 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
         <div className="flex justify-between items-center py-4 border-b border-slate-100 dark:border-slate-700 last:border-0">
             <div className="flex-1">
                 <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-1">{label}</p>
-                {editingField === field ? (
+                {isEditing ? (
                     <input 
                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 text-slate-900 dark:text-white text-sm"
-                        value={tempValue}
-                        onChange={(e) => setTempValue(e.target.value)}
+                        value={(editForm as any)[field]}
+                        onChange={(e) => setEditForm({...editForm, [field]: e.target.value})}
                         type={type}
                     />
                 ) : (
                     <p className="text-sm font-semibold text-slate-900 dark:text-white">{value || 'Not set'}</p>
                 )}
             </div>
-            <button 
-                onClick={() => editingField === field ? handleSave(field) : handleEdit(field, value || '')}
-                className={`p-2 rounded-full ml-4 transition ${editingField === field ? 'bg-green-100 text-green-600' : 'bg-slate-50 dark:bg-slate-700 text-slate-400 hover:text-blue-600'}`}
-            >
-                {editingField === field ? <Check size={16} /> : <Edit2 size={16} />}
-            </button>
         </div>
     );
 
@@ -1082,14 +1082,22 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
             
             {/* User Info Card */}
             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
-                 <div className="flex items-center gap-4 mb-6">
-                     <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
-                         {user?.firstName?.[0]}{user?.lastName?.[0]}
+                 <div className="flex items-center justify-between mb-6">
+                     <div className="flex items-center gap-4">
+                         <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xl font-bold shadow-lg">
+                             {user?.firstName?.[0]}{user?.lastName?.[0]}
+                         </div>
+                         <div>
+                             <h2 className="text-lg font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
+                             <span className="inline-block bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{user?.role}</span>
+                         </div>
                      </div>
-                     <div>
-                         <h2 className="text-lg font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
-                         <span className="inline-block bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{user?.role}</span>
-                     </div>
+                     <button 
+                        onClick={isEditing ? saveChanges : startEditing}
+                        className={`p-3 rounded-full transition shadow-sm ${isEditing ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-blue-600'}`}
+                     >
+                        {isEditing ? <Check size={20} /> : <Edit2 size={20} />}
+                     </button>
                  </div>
 
                  <div className="space-y-1">
@@ -1102,29 +1110,39 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
             </div>
 
             {/* Settings Card */}
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-4">Settings</h3>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 overflow-hidden">
+                <div 
+                    onClick={() => setIsSettingsOpen(!isSettingsOpen)} 
+                    className="p-6 flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition"
+                >
+                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Settings</h3>
+                    {isSettingsOpen ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
+                </div>
                 
-                <div className="mb-6">
-                    <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Appearance</p>
-                    <div className="flex justify-between items-center py-2">
-                        <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><Moon size={16}/> Dark Mode</span>
-                        <button 
-                            onClick={toggleTheme}
-                            className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 relative ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}
-                        >
-                            <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                        </button>
-                    </div>
-                </div>
+                {isSettingsOpen && (
+                    <div className="px-6 pb-6 pt-0 border-t border-slate-100 dark:border-slate-700">
+                        <div className="mb-6 mt-4">
+                            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Appearance</p>
+                            <div className="flex justify-between items-center py-2">
+                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><Moon size={16}/> Dark Mode</span>
+                                <button 
+                                    onClick={toggleTheme}
+                                    className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 relative ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}
+                                >
+                                    <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                                </button>
+                            </div>
+                        </div>
 
-                <div>
-                    <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Notifications</p>
-                    <SettingRow label="Blog Posts" isOn={settings.blogNotifs} onToggle={() => toggleSetting('blogNotifs')} />
-                    <SettingRow label="Group Activity" isOn={settings.groupNotifs} onToggle={() => toggleSetting('groupNotifs')} />
-                    <SettingRow label="Events" isOn={settings.eventNotifs} onToggle={() => toggleSetting('eventNotifs')} />
-                    <SettingRow label="Announcements" isOn={settings.announcementNotifs} onToggle={() => toggleSetting('announcementNotifs')} />
-                </div>
+                        <div>
+                            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Notifications</p>
+                            <SettingRow label="Blog Posts" isOn={settings.blogNotifs} onToggle={() => toggleSetting('blogNotifs')} />
+                            <SettingRow label="Group Activity" isOn={settings.groupNotifs} onToggle={() => toggleSetting('groupNotifs')} />
+                            <SettingRow label="Events" isOn={settings.eventNotifs} onToggle={() => toggleSetting('eventNotifs')} />
+                            <SettingRow label="Announcements" isOn={settings.announcementNotifs} onToggle={() => toggleSetting('announcementNotifs')} />
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Contact Us */}

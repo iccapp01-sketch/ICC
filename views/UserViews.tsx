@@ -6,7 +6,7 @@ import {
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, ChevronUp, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
-  Edit2, Save, Sun, Check
+  Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon
 } from 'lucide-react';
 import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -98,49 +98,175 @@ export const BibleView = () => {
     const [book, setBook] = useState('John');
     const [chapter, setChapter] = useState(1);
     const [text, setText] = useState('');
-    const [activeTab, setActiveTab] = useState('read');
+    const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState<'read' | 'plan'>('read');
+    const [progress, setProgress] = useState<{book: string, chapter: number, updated_at: string} | null>(null);
 
     useEffect(() => {
-        const fetchText = async () => {
-            try {
-                const encodedBook = encodeURIComponent(book);
-                const res = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://bible-api.com/${encodedBook}+${chapter}`));
-                const data = await res.json();
-                setText(data.text || "Text not found.");
-            } catch (e) {
-                setText("Could not fetch scripture. Please check internet connection.");
-            }
-        };
+        fetchProgress();
+    }, []);
+
+    useEffect(() => {
         fetchText();
+        // Save progress whenever chapter changes (debounced logically by effect)
+        saveProgress();
     }, [book, chapter]);
 
-    const openReadingMode = () => {
-        const win = window.open('', '_blank');
-        if(win) win.document.write(`<h1>${book} ${chapter}</h1><p>${text}</p>`);
-    }
+    const fetchProgress = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+        
+        try {
+            const { data, error } = await supabase
+                .from('user_bible_progress')
+                .select('*')
+                .eq('user_id', user.id)
+                .single();
+            
+            if (data) {
+                setProgress(data);
+                // Only set state if we are in plan mode or initial load, typically we don't force jump unless requested
+            }
+        } catch (e) {
+            console.log("No progress found or table missing");
+        }
+    };
+
+    const saveProgress = async () => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+
+        try {
+            const { error } = await supabase.from('user_bible_progress').upsert({
+                user_id: user.id,
+                book,
+                chapter,
+                last_read_at: new Date().toISOString()
+            }, { onConflict: 'user_id' });
+            
+            if(!error) setProgress({ book, chapter, updated_at: new Date().toISOString() });
+        } catch(e) {
+            // Fail silently if table doesn't exist
+        }
+    };
+
+    const fetchText = async () => {
+        setLoading(true);
+        try {
+            const encodedBook = encodeURIComponent(book);
+            const res = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://bible-api.com/${encodedBook}+${chapter}`));
+            const data = await res.json();
+            setText(data.text || "Text not found.");
+        } catch (e) {
+            setText("Could not fetch scripture. Please check internet connection.");
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleNext = () => setChapter(c => c + 1);
+    const handlePrev = () => setChapter(c => Math.max(1, c - 1));
+
+    const continueReading = () => {
+        if(progress) {
+            setBook(progress.book);
+            setChapter(progress.chapter);
+            setActiveTab('read');
+        }
+    };
 
     return (
-        <div className="p-4 pb-32 h-full flex flex-col">
-             <div className="flex gap-4 mb-4 border-b border-slate-200">
-                 <button onClick={()=>setActiveTab('read')} className={`pb-2 ${activeTab==='read'?'text-blue-600 border-b-2 border-blue-600':''}`}>Scripture</button>
-                 <button onClick={()=>setActiveTab('plan')} className={`pb-2 ${activeTab==='plan'?'text-blue-600 border-b-2 border-blue-600':''}`}>Reading Plan</button>
-                 <button onClick={()=>setActiveTab('bookmarks')} className={`pb-2 ${activeTab==='bookmarks'?'text-blue-600 border-b-2 border-blue-600':''}`}>Bookmarks</button>
+        <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 pb-24">
+             {/* Tabs */}
+             <div className="flex px-4 pt-2 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 z-10">
+                 <button onClick={()=>setActiveTab('read')} className={`flex-1 pb-3 text-sm font-bold tracking-wide ${activeTab==='read'?'text-blue-600 border-b-2 border-blue-600':'text-slate-400'}`}>Scripture</button>
+                 <button onClick={()=>setActiveTab('plan')} className={`flex-1 pb-3 text-sm font-bold tracking-wide ${activeTab==='plan'?'text-blue-600 border-b-2 border-blue-600':'text-slate-400'}`}>Reading Plan</button>
              </div>
              
              {activeTab === 'read' && (
-                 <>
-                    <div className="flex gap-2 mb-3 bg-white p-4 rounded-xl shadow-sm">
-                        <select className="flex-1 bg-slate-50 p-2 rounded text-slate-900" value={book} onChange={e => setBook(e.target.value)}>{BIBLE_BOOKS.map(b=><option key={b}>{b}</option>)}</select>
-                        <select className="w-20 bg-slate-50 p-2 rounded text-slate-900" value={chapter} onChange={e=>setChapter(parseInt(e.target.value))}>{[...Array(50)].map((_,i)=><option key={i+1} value={i+1}>{i+1}</option>)}</select>
+                 <div className="flex flex-col h-full overflow-hidden">
+                    {/* Compact Controls */}
+                    <div className="flex items-center gap-2 p-3 bg-white dark:bg-slate-800 border-b dark:border-slate-700 shadow-sm z-10">
+                        <button onClick={handlePrev} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><ChevronDown size={16} className="rotate-90"/></button>
+                        
+                        <div className="flex-1 flex gap-2">
+                            <select 
+                                className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white p-2 rounded-lg text-sm font-bold border-none outline-none appearance-none truncate" 
+                                value={book} 
+                                onChange={e => { setBook(e.target.value); setChapter(1); }}
+                            >
+                                {BIBLE_BOOKS.map(b=><option key={b} value={b}>{b}</option>)}
+                            </select>
+                            
+                            <select 
+                                className="w-20 bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white p-2 rounded-lg text-sm font-bold border-none outline-none appearance-none text-center" 
+                                value={chapter} 
+                                onChange={e=>setChapter(parseInt(e.target.value))}
+                            >
+                                {[...Array(150)].map((_,i)=><option key={i+1} value={i+1}>Ch {i+1}</option>)}
+                            </select>
+                        </div>
+
+                        <button onClick={handleNext} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500"><ChevronRight size={16}/></button>
                     </div>
-                    <div className="flex-1 bg-white p-6 rounded-2xl overflow-y-auto cursor-pointer" onClick={openReadingMode}>
-                         <h2 className="text-2xl font-serif font-bold mb-4">{book} {chapter}</h2>
-                         <p className="text-lg leading-loose font-serif whitespace-pre-wrap">{text}</p>
+
+                    {/* Content Area - Scrollable */}
+                    <div className="flex-1 overflow-y-auto p-6 bg-white dark:bg-slate-900 scroll-smooth">
+                         <div className="max-w-xl mx-auto">
+                             <h2 className="text-xl font-bold text-center mb-6 text-slate-400 uppercase tracking-widest">{book} {chapter}</h2>
+                             {loading ? (
+                                 <div className="flex justify-center py-10"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div></div>
+                             ) : (
+                                 <p className="text-lg leading-loose font-serif whitespace-pre-wrap text-slate-800 dark:text-slate-200">
+                                     {text}
+                                 </p>
+                             )}
+                             <div className="mt-12 flex justify-center">
+                                 <button onClick={handleNext} className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-6 py-3 rounded-full font-bold text-sm flex items-center gap-2 hover:bg-blue-50 hover:text-blue-600 transition">
+                                     Next Chapter <ArrowRight size={16}/>
+                                 </button>
+                             </div>
+                         </div>
                     </div>
-                 </>
+                 </div>
              )}
-             {activeTab === 'plan' && <div className="p-4 text-center text-slate-500">Reading Plans Coming Soon</div>}
-             {activeTab === 'bookmarks' && <div className="p-4 text-center text-slate-500">Bookmarks Coming Soon</div>}
+
+             {activeTab === 'plan' && (
+                 <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-900">
+                     <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
+                         <h3 className="text-lg font-black dark:text-white mb-2">Current Read</h3>
+                         {progress ? (
+                             <div>
+                                 <div className="flex items-center gap-3 mb-4">
+                                     <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600"><BookmarkIcon size={20}/></div>
+                                     <div>
+                                         <p className="font-bold text-slate-900 dark:text-white text-xl">{progress.book} {progress.chapter}</p>
+                                         <p className="text-xs text-slate-500">Last read: {new Date(progress.updated_at).toLocaleDateString()}</p>
+                                     </div>
+                                 </div>
+                                 <button onClick={continueReading} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg shadow-blue-200 dark:shadow-none">
+                                     <BookOpen size={18}/> Continue Reading
+                                 </button>
+                             </div>
+                         ) : (
+                             <div className="text-center py-6 text-slate-500">
+                                 <p className="mb-4">Start reading the Bible to track your progress here.</p>
+                                 <button onClick={()=>setActiveTab('read')} className="bg-slate-100 dark:bg-slate-700 px-4 py-2 rounded-lg text-sm font-bold text-slate-700 dark:text-white">Go to Bible</button>
+                             </div>
+                         )}
+                     </div>
+
+                     <h3 className="font-bold text-slate-900 dark:text-white mb-4 px-2">Reading Plans</h3>
+                     <div className="grid gap-3">
+                         {['New Testament in 90 Days', 'Psalms & Proverbs', 'The Gospels', 'Whole Bible in a Year'].map((plan, i) => (
+                             <div key={i} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-700 flex items-center justify-between opacity-70">
+                                 <span className="font-bold text-sm text-slate-700 dark:text-slate-300">{plan}</span>
+                                 <span className="text-[10px] bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded text-slate-500">Coming Soon</span>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+             )}
         </div>
     );
 };

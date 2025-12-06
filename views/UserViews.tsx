@@ -408,7 +408,6 @@ export const BlogView = () => {
     const [likes, setLikes] = useState(0);
     const [comments, setComments] = useState<any[]>([]);
     const [commentText, setCommentText] = useState('');
-    const [showShareMenu, setShowShareMenu] = useState(false);
 
     useEffect(() => {
         const fetchBlogs = async () => {
@@ -459,62 +458,34 @@ export const BlogView = () => {
         }
     }
 
-    const shareBlog = (blog: BlogPost) => {
-        const url = window.location.href;
-        const text = blog.content || "";
-        const title = blog.title || "Sharing this blog";
+    // --------------------------------------------------------
+    // ROBUST SHARE FUNCTION PROVIDED
+    // --------------------------------------------------------
+    function shareBlog(selectedBlog: any) {
+        const currentURL = window.location.href;
+        const blogURL = selectedBlog?.url || currentURL; // use blog URL if available, else current page
+        const text = selectedBlog?.content || "";
+        const title = selectedBlog?.title || "Sharing this blog";
 
-        if (navigator.share) {
-            navigator.share({
-                title: title,
-                text: text,
-                url: url
-            }).catch((err) => console.log("Share canceled:", err));
-        } else {
-            navigator.clipboard.writeText(url);
-            alert("Blog link copied! You can paste it into WhatsApp, Instagram, Facebook, etc.");
-        }
-    }
-
-    const handleShare = async (platform?: string) => {
-        // Use window.location.href or a fallback if running in a weird context
-        const url = window.location.href || 'https://icc-app.com'; 
-        const text = `Read "${selectedBlog?.title}" at ICC App`;
-        
-        if (!platform) {
-            // Try native share first
-            if (navigator.share) {
-                try {
-                    await navigator.share({ title: selectedBlog?.title, text, url });
-                } catch (err) {
-                    console.log("Native share failed or cancelled, falling back to menu", err);
-                    // Fallback to custom menu if native share fails (e.g. invalid URL or cancelled)
-                    setShowShareMenu(true);
-                }
-            } else {
-                // No native share, toggle menu
-                setShowShareMenu(!showShareMenu);
-            }
+        if (blogURL && !blogURL.startsWith("http")) {
+            // Note: If url is explicitly invalid. If it's undefined it falls back to currentURL which is valid.
+            // But if selectedBlog.url exists and is bad:
+            alert("Cannot share: invalid URL");
+            console.log("Invalid share URL:", blogURL);
             return;
         }
 
-        const encodedUrl = encodeURIComponent(url);
-        const encodedText = encodeURIComponent(text);
-
-        switch(platform) {
-            case 'whatsapp': 
-                window.open(`https://wa.me/?text=${encodedText}%20${encodedUrl}`, '_blank'); 
-                break;
-            case 'facebook': 
-                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, '_blank'); 
-                break;
-            case 'copy': 
-                navigator.clipboard.writeText(url); 
-                alert("Link copied to clipboard!"); 
-                break;
-            default: setShowShareMenu(false);
+        if (navigator.share) {
+            navigator.share({
+            title: title,
+            text: text,
+            url: blogURL
+            }).catch((err) => console.log("Share canceled:", err));
+        } else {
+            navigator.clipboard.writeText(blogURL);
+            alert("Blog link copied! You can paste it into WhatsApp, Instagram, Facebook, etc.");
         }
-    };
+    }
 
     if(selectedBlog) {
         return (
@@ -523,9 +494,6 @@ export const BlogView = () => {
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm" alt="Blog cover" />}
                 <div className="flex justify-between items-start gap-4 mb-2">
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white flex-1">{selectedBlog.title}</h1>
-                    <button onClick={() => shareBlog(selectedBlog)} className="p-2 bg-blue-50 text-blue-600 rounded-full hover:bg-blue-100 transition">
-                        <Share2 size={20} />
-                    </button>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
                     <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
@@ -539,18 +507,11 @@ export const BlogView = () => {
                         <button onClick={handleLike} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-red-50 hover:text-red-500 transition">
                             <ThumbsUp size={20} fill={likes > (selectedBlog.likes || 0) ? "currentColor" : "none"}/> {likes} Likes
                         </button>
-                        <div className="relative flex-1">
-                             <button onClick={() => handleShare()} className="w-full bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
-                                 <Share2 size={20}/> Share
-                             </button>
-                             {showShareMenu && (
-                                 <div className="absolute bottom-full left-0 w-full mb-2 bg-white dark:bg-slate-800 shadow-xl rounded-xl border border-slate-200 dark:border-slate-700 p-2 flex flex-col gap-1 z-10">
-                                     <button onClick={()=>handleShare('whatsapp')} className="p-2 hover:bg-green-50 text-left text-sm font-bold text-slate-700 dark:text-slate-300 rounded flex items-center gap-2"><Phone size={14} className="text-green-500"/> WhatsApp</button>
-                                     <button onClick={()=>handleShare('facebook')} className="p-2 hover:bg-blue-50 text-left text-sm font-bold text-slate-700 dark:text-slate-300 rounded flex items-center gap-2"><LinkIcon size={14} className="text-blue-600"/> Facebook</button>
-                                     <button onClick={()=>handleShare('copy')} className="p-2 hover:bg-slate-50 text-left text-sm font-bold text-slate-700 dark:text-slate-300 rounded flex items-center gap-2"><Copy size={14}/> Copy Link</button>
-                                 </div>
-                             )}
-                        </div>
+                        
+                        {/* SHARE BUTTON CONNECTED TO NEW FUNCTION */}
+                        <button onClick={() => shareBlog(selectedBlog)} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
+                             <Share2 size={20}/> Share
+                        </button>
                     </div>
 
                     <h3 className="font-bold text-lg mb-4 dark:text-white">Comments</h3>

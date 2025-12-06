@@ -489,6 +489,9 @@ export const BlogView = () => {
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm" alt="Blog cover" />}
                 <div className="flex justify-between items-start gap-4 mb-2">
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white flex-1">{selectedBlog.title}</h1>
+                    <button onClick={() => shareBlog(selectedBlog)} className="p-2 text-blue-600 bg-blue-50 rounded-full hover:bg-blue-100 transition">
+                        <Share2 size={20}/>
+                    </button>
                 </div>
                 <div className="flex items-center gap-2 text-xs text-slate-400 mb-6">
                     <span>{selectedBlog.author}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
@@ -678,7 +681,6 @@ export const CommunityView = () => {
         const { data: existing } = await supabase.from('community_group_members').select('*').eq('group_id', groupId).eq('user_id', user.id).single();
         
         if (existing) {
-            // If already exists, maybe update status? Or just refresh.
             fetchMyMemberships();
             return;
         }
@@ -686,12 +688,11 @@ export const CommunityView = () => {
         const { error } = await supabase.from('community_group_members').insert({ 
             group_id: groupId, 
             user_id: user.id, 
-            status: 'Pending' 
+            status: 'Pending' // Explicitly set pending status
         });
         
         if (error) alert("Error requesting to join: " + error.message);
         else {
-            alert("Request sent! An admin needs to approve your membership.");
             fetchMyMemberships();
         }
     };
@@ -836,12 +837,7 @@ export const CommunityView = () => {
              <div className="space-y-4">
                  {groups.map(g => {
                      const membership = myMemberships.find(m => m.group_id === g.id);
-                     const status = membership?.status?.toLowerCase(); // normalize 'Pending', 'pending', 'Joined', etc.
-
-                     // Status Logic:
-                     // undefined/null -> Join
-                     // 'pending' -> Pending (Disabled)
-                     // 'approved' / 'joined' -> Enter Group
+                     const status = membership?.status; 
 
                      return (
                          <div key={g.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
@@ -852,8 +848,8 @@ export const CommunityView = () => {
                                      <p className="text-xs text-slate-500 line-clamp-1">{g.description}</p>
                                  </div>
                                  
-                                 {/* REQUEST TO JOIN BUTTON - VISIBLE IF NOT A MEMBER */}
-                                 {!status && (
+                                 {/* JOIN BUTTON */}
+                                 {(!status) && (
                                      <button 
                                         onClick={()=>handleJoinRequest(g.id)} 
                                         className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition"
@@ -864,13 +860,13 @@ export const CommunityView = () => {
                              </div>
                              
                              <div className="mt-2">
-                                 {status === 'pending' && (
+                                 {(status === 'Pending' || status === 'pending') && (
                                      <button disabled className="w-full bg-slate-100 dark:bg-slate-700 text-slate-400 py-2 rounded-xl text-xs font-bold cursor-not-allowed">
-                                        Pending Approval
+                                        Pending
                                      </button>
                                  )}
 
-                                 {(status === 'joined' || status === 'approved') && (
+                                 {(status === 'Approved' || status === 'approved' || status === 'Joined' || status === 'joined') && (
                                      <button 
                                         onClick={()=>setActiveGroup(g)} 
                                         className="w-full bg-green-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-green-700 transition flex items-center justify-center gap-2"

@@ -132,7 +132,7 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
       try {
           const { count, data } = await supabase.from('community_group_members')
               .select('*, profiles(first_name, last_name, email), community_groups(name)', { count: 'exact' })
-              .eq('status', 'pending');
+              .eq('status', 'Pending'); // Capital 'Pending' to match User insert
           pendingCount = count || 0;
           if(data) setPendingMembers(data);
       } catch (e) {
@@ -196,7 +196,7 @@ create table if not exists public.blog_posts (
 );
 create table if not exists public.blog_comments (
   id uuid default gen_random_uuid() primary key,
-  post_id uuid references public.blog_posts on delete cascade,
+  blog_id uuid references public.blog_posts on delete cascade,
   user_id uuid references public.profiles on delete cascade,
   content text,
   created_at timestamp with time zone default timezone('utc'::text, now())
@@ -244,7 +244,22 @@ create table if not exists public.community_group_members (
   id uuid default gen_random_uuid() primary key,
   group_id uuid references public.community_groups on delete cascade,
   user_id uuid references public.profiles on delete cascade,
-  status text default 'pending', -- 'joined', 'pending'
+  status text default 'Pending', -- 'Approved', 'Pending'
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+create table if not exists public.group_posts (
+  id uuid default gen_random_uuid() primary key,
+  group_id uuid references public.community_groups on delete cascade,
+  user_id uuid references public.profiles on delete cascade,
+  content text,
+  likes int default 0,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+create table if not exists public.group_comments (
+  id uuid default gen_random_uuid() primary key,
+  post_id uuid references public.group_posts on delete cascade,
+  user_id uuid references public.profiles on delete cascade,
+  content text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -278,6 +293,8 @@ alter table public.music_tracks enable row level security;
 alter table public.playlists enable row level security;
 alter table public.community_groups enable row level security;
 alter table public.community_group_members enable row level security;
+alter table public.group_posts enable row level security;
+alter table public.group_comments enable row level security;
 alter table public.reading_plans enable row level security;
 alter table public.notifications enable row level security;
 
@@ -329,6 +346,12 @@ create policy "Admin manage groups" on public.community_groups for all using ( p
 
 drop policy if exists "Auth join groups" on public.community_group_members;
 create policy "Auth join groups" on public.community_group_members for all using (auth.uid() = user_id or public.is_admin());
+
+drop policy if exists "Auth group posts" on public.group_posts;
+create policy "Auth group posts" on public.group_posts for all using (auth.uid() = user_id or public.is_admin() or true); -- allow read
+
+drop policy if exists "Auth group comments" on public.group_comments;
+create policy "Auth group comments" on public.group_comments for all using (auth.uid() = user_id or public.is_admin() or true); -- allow read
 
 drop policy if exists "Public read plans" on public.reading_plans;
 create policy "Public read plans" on public.reading_plans for select using (true);
@@ -703,7 +726,7 @@ const MusicManager = () => {
             const { error } = await supabase.storage.from('music').upload(fileName, file);
             if(error) throw error;
             const { data } = supabase.storage.from('music').getPublicUrl(fileName);
-            setForm({...form, url: data.publicUrl});
+            setForm({...form, url: data.publicUrl });
         } catch(err) { handleSupabaseError(err, 'Music Upload'); } 
         finally { setUploading(false); }
     };
@@ -811,7 +834,7 @@ const GroupManager = () => {
         try {
             const { data } = await supabase.from('community_group_members')
                 .select('*, profiles(first_name, last_name, email), community_groups(name)')
-                .eq('status', 'pending');
+                .eq('status', 'Pending'); // Ensure capital 'Pending'
             if(data) setRequests(data);
         } catch(e) {}
     }
@@ -860,8 +883,8 @@ const GroupManager = () => {
                                     <p className="text-xs text-slate-500">Wants to join: {r.community_groups?.name}</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={()=>handleApproval(r.id, 'joined')} className="bg-green-100 text-green-700 px-3 py-1 rounded text-xs font-bold">Approve</button>
-                                    <button onClick={()=>handleApproval(r.id, 'rejected')} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs font-bold">Reject</button>
+                                    <button onClick={()=>handleApproval(r.id, 'Approved')} className="bg-green-100 text-green-700 px-3 py-1 rounded text-xs font-bold hover:bg-green-200">Approve</button>
+                                    <button onClick={()=>handleApproval(r.id, 'Rejected')} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs font-bold hover:bg-red-200">Reject</button>
                                 </div>
                             </div>
                         ))}

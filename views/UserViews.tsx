@@ -181,7 +181,6 @@ export const EventsView = ({ onBack }: any) => {
         const { data: { user } } = await supabase.auth.getUser();
         
         if(user) {
-             // Upsert ensures one entry per user per event
              const { error } = await supabase.from('event_rsvps').upsert({ 
                  event_id: eventId, 
                  user_id: user.id, 
@@ -192,7 +191,6 @@ export const EventsView = ({ onBack }: any) => {
                  alert("Error submitting RSVP: " + error.message);
              } else {
                  setMyRsvps({...myRsvps, [eventId]: status});
-                 alert("RSVP Submitted Successfully!");
              }
         } else {
             alert("Please login to RSVP.");
@@ -221,47 +219,48 @@ export const EventsView = ({ onBack }: any) => {
                         </div>
 
                         {/* Media */}
-                        {ev.image && <div className="h-40 bg-cover bg-center rounded-2xl mb-4" style={{backgroundImage: `url(${ev.image})`}}></div>}
+                        {ev.image && <div className="h-32 bg-cover bg-center rounded-2xl mb-4" style={{backgroundImage: `url(${ev.image})`}}></div>}
                         
                         {/* Details */}
-                        <h3 className="text-lg font-bold dark:text-white mb-2">{ev.title}</h3>
+                        <h3 className="text-lg font-bold dark:text-white mb-2 leading-tight">{ev.title}</h3>
                         
                         {!isAnnouncement && (
-                            <div className="flex flex-col gap-1 mb-4 text-sm text-slate-500">
+                            <div className="flex flex-col gap-1 mb-3 text-xs text-slate-500">
                                 <div className="flex items-center gap-2"><Calendar size={14}/> {ev.date}</div>
                                 <div className="flex items-center gap-2"><Clock size={14}/> {ev.time}</div>
                                 {ev.location && <div className="flex items-center gap-2"><MapPin size={14}/> {ev.location}</div>}
                             </div>
                         )}
                         
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-6 whitespace-pre-wrap">{ev.description}</p>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">{ev.description}</p>
 
-                        {/* RSVP Section (Only for Events) */}
+                        {/* Compact RSVP Section (Only for Events) */}
                         {!isAnnouncement && (
-                            <div className="bg-slate-50 dark:bg-slate-900 p-4 rounded-xl border dark:border-slate-700">
+                            <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-700">
                                 {myStatus ? (
-                                    <div className="text-center">
-                                        <p className="text-sm text-slate-500 mb-1">You responded:</p>
-                                        <div className={`inline-block px-4 py-1 rounded-full font-bold text-sm ${
-                                            myStatus === 'Yes' ? 'bg-green-100 text-green-700' : 
-                                            myStatus === 'No' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'
-                                        }`}>
-                                            {myStatus}
+                                    <div className="flex items-center justify-between">
+                                        <div className="flex items-center gap-2 text-sm">
+                                            <span className="text-slate-500">RSVP:</span>
+                                            <span className={`font-bold ${
+                                                myStatus === 'Yes' ? 'text-green-600' : 
+                                                myStatus === 'No' ? 'text-red-500' : 'text-orange-500'
+                                            }`}>
+                                                {myStatus}
+                                            </span>
                                         </div>
-                                        <button onClick={()=>setMyRsvps({...myRsvps, [ev.id]: ''})} className="block mx-auto mt-2 text-xs text-blue-500 underline">Change Response</button>
+                                        <button onClick={()=>setMyRsvps({...myRsvps, [ev.id]: ''})} className="text-xs text-blue-600 font-bold hover:underline">Change</button>
                                     </div>
                                 ) : (
-                                    <div>
-                                        <p className="text-xs font-bold text-slate-500 uppercase mb-3 text-center">Will you attend?</p>
-                                        <div className="flex justify-center gap-2 mb-4">
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1">
                                             {['Yes', 'No', 'Maybe'].map(opt => (
                                                 <button 
                                                     key={opt}
                                                     onClick={() => setSelectedOptions({...selectedOptions, [ev.id]: opt})}
-                                                    className={`px-4 py-2 rounded-lg text-sm font-bold border transition ${
+                                                    className={`px-3 py-1.5 rounded-md text-xs font-bold transition ${
                                                         currentSelection === opt 
-                                                        ? 'bg-blue-600 text-white border-blue-600' 
-                                                        : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50'
+                                                        ? 'bg-white dark:bg-slate-700 text-slate-900 dark:text-white shadow-sm' 
+                                                        : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
                                                     }`}
                                                 >
                                                     {opt}
@@ -271,9 +270,9 @@ export const EventsView = ({ onBack }: any) => {
                                         <button 
                                             onClick={()=>handleSubmitRSVP(ev.id)} 
                                             disabled={submitting[ev.id] || !currentSelection}
-                                            className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold py-3 rounded-xl disabled:opacity-50 transition"
+                                            className="bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-blue-700 transition"
                                         >
-                                            {submitting[ev.id] ? 'Submitting...' : 'Submit RSVP'}
+                                            {submitting[ev.id] ? '...' : 'Submit'}
                                         </button>
                                     </div>
                                 )}

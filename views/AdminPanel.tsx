@@ -48,17 +48,30 @@ const exportToCSV = (data: any[], filename: string) => {
 };
 
 const handleSupabaseError = (error: any, context: string) => {
-    console.error(`${context} Error:`, error);
+    console.error(`${context} Error Full Object:`, error);
     
     let msg = "Unknown error";
-    if (typeof error === 'string') {
+    
+    if (!error) {
+        msg = "An unspecified error occurred.";
+    } else if (typeof error === 'string') {
         msg = error;
+    } else if (error instanceof Error) {
+        msg = error.message;
     } else if (error?.message) {
         msg = error.message;
     } else if (error?.error_description) {
         msg = error.error_description;
+    } else if (error?.details) {
+        msg = error.details;
+    } else if (error?.hint) {
+        msg = error.hint;
     } else {
-        msg = JSON.stringify(error);
+        try {
+            msg = JSON.stringify(error);
+        } catch (e) {
+            msg = "Error object could not be stringified.";
+        }
     }
     
     if (error?.code === 'PGRST205' || error?.code === '42P01') {
@@ -653,8 +666,16 @@ const ContentManager = () => {
   }
 
   const handleSubmit = async () => {
-      const payload = { ...formData, image_url: formData.image_url || null, video_url: formData.video_url || null };
-      delete (payload as any).id; // Remove ID for insert, but used for update logic below if needed differently
+      // Clean payload: Remove ID and convert empty strings to null
+      const payload: any = {
+          title: formData.title,
+          author: formData.author,
+          category: formData.category,
+          excerpt: formData.excerpt,
+          content: formData.content,
+          image_url: formData.image_url || null,
+          video_url: formData.video_url || null
+      };
 
       let error;
       if (editingId) {

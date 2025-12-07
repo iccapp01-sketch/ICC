@@ -59,7 +59,7 @@ export const HomeView = ({ onNavigate }: any) => {
               <div>
                   <h3 className="font-bold text-lg dark:text-white mb-4">Latest Sermon</h3>
                   <div onClick={() => onNavigate('sermons')} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 cursor-pointer">
-                      <div className="w-24 h-24 bg-slate-200 rounded-xl bg-cover bg-center flex-shrink-0 relative" style={{ backgroundImage: latestSermon.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(latestSermon.videoUrl)}/default.jpg)` : 'none' }}>
+                      <div className="w-24 h-24 bg-slate-200 rounded-xl bg-cover bg-center flex-shrink-0 relative" style={{ backgroundImage: latestSermon.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(latestSermon.videoUrl ?? "")}/default.jpg)` : 'none' }}>
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl"><Play fill="white" className="text-white"/></div>
                       </div>
                       <div className="flex-1">
@@ -596,7 +596,7 @@ export const MusicView = () => {
                          <div className="w-full aspect-square bg-black rounded-3xl mb-8 overflow-hidden shadow-2xl">
                              <iframe 
                                 width="100%" height="100%" 
-                                src={`https://www.youtube.com/embed/${getYouTubeID(currentTrack.url)}?autoplay=1&controls=0`} 
+                                src={`https://www.youtube.com/embed/${getYouTubeID(currentTrack.url ?? "")}?autoplay=1&controls=0`} 
                                 allow="autoplay"
                              ></iframe>
                          </div>
@@ -648,7 +648,14 @@ export const BlogView = () => {
     useEffect(() => {
         const fetchBlogs = async () => {
             const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-            if(data) setBlogs(data.map((b:any)=>({...b, image: b.image_url})));
+            if(data) {
+                // Map database columns to app interface
+                setBlogs(data.map((b:any)=>({
+                    ...b, 
+                    image: b.image_url,
+                    videoUrl: b.video_url // Added video mapping
+                })));
+            }
         };
         fetchBlogs();
     }, []);
@@ -722,7 +729,25 @@ export const BlogView = () => {
         return (
             <div className="p-4 pb-24 bg-white dark:bg-slate-900 min-h-full">
                 <button onClick={()=>setSelectedBlog(null)} className="mb-4 flex items-center gap-2 text-slate-500"><ArrowLeft size={16}/> Back to Articles</button>
+                
+                {/* Image Display */}
                 {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-64 object-cover rounded-2xl mb-6 shadow-sm" alt="Blog cover" />}
+                
+                {/* Video Display */}
+                {selectedBlog.videoUrl && getYouTubeID(selectedBlog.videoUrl) && (
+                    <div className="w-full aspect-video bg-black rounded-2xl mb-6 overflow-hidden shadow-sm">
+                        <iframe 
+                            width="100%" 
+                            height="100%" 
+                            src={`https://www.youtube.com/embed/${getYouTubeID(selectedBlog.videoUrl ?? "")}`} 
+                            title="Blog Video"
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                            allowFullScreen
+                            className="w-full h-full"
+                        ></iframe>
+                    </div>
+                )}
+
                 <div className="flex justify-between items-start gap-4 mb-2">
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white flex-1">{selectedBlog.title}</h1>
                 </div>
@@ -774,22 +799,36 @@ export const BlogView = () => {
     return (
         <div className="p-4 pb-24 space-y-6">
             <h1 className="text-2xl font-black dark:text-white">Articles & Devotionals</h1>
-            {blogs.map(blog => (
-                <div key={blog.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="flex gap-4">
-                        {blog.image && <div className="w-24 h-24 bg-cover bg-center rounded-xl flex-shrink-0" style={{backgroundImage: `url(${blog.image})`}}></div>}
-                        <div className="flex-1">
-                             <div className="flex items-center gap-2 mb-1">
-                                <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{blog.category}</span>
-                                <span className="text-xs text-slate-400">{new Date(blog.date).toLocaleDateString()}</span>
-                             </div>
-                             <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2">{blog.title}</h3>
-                             <p className="text-xs text-slate-500 line-clamp-2 mb-3">{blog.excerpt}</p>
-                             <button onClick={()=>setSelectedBlog(blog)} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline">Read More <ChevronRight size={12}/></button>
+            {blogs.map(blog => {
+                const videoId = getYouTubeID(blog.videoUrl || '');
+                // Use image if available, otherwise video thumbnail, otherwise default none
+                const displayImage = blog.image || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null);
+
+                return (
+                    <div key={blog.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="flex gap-4">
+                            {displayImage && (
+                                <div className="w-24 h-24 bg-cover bg-center rounded-xl flex-shrink-0 relative overflow-hidden" style={{backgroundImage: `url(${displayImage})`}}>
+                                    {!blog.image && videoId && (
+                                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                            <Play size={20} fill="white" className="text-white opacity-80" />
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                            <div className="flex-1">
+                                 <div className="flex items-center gap-2 mb-1">
+                                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{blog.category}</span>
+                                    <span className="text-xs text-slate-400">{new Date(blog.date).toLocaleDateString()}</span>
+                                 </div>
+                                 <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2">{blog.title}</h3>
+                                 <p className="text-xs text-slate-500 line-clamp-2 mb-3">{blog.excerpt}</p>
+                                 <button onClick={()=>setSelectedBlog(blog)} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline">Read More <ChevronRight size={12}/></button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            ))}
+                );
+            })}
         </div>
     );
 };
@@ -847,7 +886,7 @@ export const SermonsView = () => {
                             <iframe 
                                 width="100%" 
                                 height="100%" 
-                                src={`https://www.youtube.com/embed/${getYouTubeID(s.videoUrl)}`} 
+                                src={`https://www.youtube.com/embed/${getYouTubeID(s.videoUrl ?? "")}`} 
                                 title={s.title}
                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
                                 allowFullScreen

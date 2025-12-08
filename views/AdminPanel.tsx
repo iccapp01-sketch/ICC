@@ -589,8 +589,23 @@ const ReelManager = () => {
     };
 
     const handleDelete = async (reel: Reel) => {
-        if(!confirm("Delete this reel?")) return;
+        if(!confirm("Delete this reel? This cannot be undone.")) return;
+        
+        // 1. Delete Video File
+        if (reel.videoUrl) {
+            const videoName = reel.videoUrl.split('/').pop();
+            if (videoName) await supabase.storage.from('reels-videos').remove([videoName]);
+        }
+        
+        // 2. Delete Thumbnail File
+        if (reel.thumbnail) {
+            const thumbName = reel.thumbnail.split('/').pop();
+            if (thumbName) await supabase.storage.from('reels-thumbnails').remove([thumbName]);
+        }
+
+        // 3. Delete DB Record
         const { error } = await supabase.from('reels').delete().eq('id', reel.id);
+        
         if(error) handleSupabaseError(error, 'Delete Reel');
         else fetchReels();
     };
@@ -618,12 +633,17 @@ const ReelManager = () => {
                     
                     <div className="border p-3 rounded-xl">
                         <label className="text-xs font-bold text-slate-500 mb-2 block">Video File</label>
-                        <div className="flex gap-2 items-center">
-                            <label className="bg-slate-100 px-3 py-2 rounded text-xs cursor-pointer hover:bg-slate-200 text-slate-800">
+                        <div className="flex flex-col gap-2">
+                            <label className="bg-slate-100 px-3 py-2 rounded text-xs cursor-pointer hover:bg-slate-200 text-slate-800 flex items-center justify-center gap-2">
                                 <Upload size={12}/> {uploading ? 'Uploading...' : 'Choose Video'}
                                 <input type="file" hidden accept="video/*" onChange={handleUploadVideo} />
                             </label>
-                            {form.videoUrl && <span className="text-xs text-green-600 font-bold">Video Ready</span>}
+                            {form.videoUrl && (
+                                <div className="mt-2">
+                                    <span className="text-xs text-green-600 font-bold block mb-1">Video Ready</span>
+                                    <video src={form.videoUrl} className="w-full h-32 object-cover rounded bg-black" controls />
+                                </div>
+                            )}
                         </div>
                     </div>
 

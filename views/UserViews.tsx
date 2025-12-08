@@ -52,21 +52,20 @@ export const HomeView = ({ onNavigate }: any) => {
   }, []);
 
   const handleShareReel = async (reel: Reel) => {
-      const shareData = {
-          title: reel.title,
-          text: `Check out this reel: ${reel.title}\n${reel.description}`,
-          url: reel.videoUrl
-      };
-
-      try {
-          if (navigator.share) {
-              await navigator.share(shareData);
-          } else {
-              throw new Error("Native share not supported");
+      // STRICT REQUIREMENT: Native Share API Only.
+      // No clipboard fallback. No toast messages.
+      if (navigator.share) {
+          try {
+              await navigator.share({
+                  title: reel.title,
+                  text: `${reel.title}\n\n${reel.description}`,
+                  url: reel.videoUrl
+              });
+          } catch (err) {
+              console.log("Share cancelled or failed:", err);
           }
-      } catch (err) {
-          navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
-          alert("Copied! You can paste into Instagram, WhatsApp, or Facebook.");
+      } else {
+          console.warn("Native Share API not supported on this device.");
       }
   };
 
@@ -123,14 +122,17 @@ export const HomeView = ({ onNavigate }: any) => {
                                   className="w-full h-full object-cover" 
                                   controls 
                                   playsInline
+                                  preload="metadata"
                               />
-                              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent pointer-events-none">
                                   <h4 className="text-white font-bold text-xs line-clamp-1 mb-1">{reel.title}</h4>
+                              </div>
+                              <div className="absolute bottom-3 right-3 pointer-events-auto">
                                   <button 
                                       onClick={() => handleShareReel(reel)}
-                                      className="flex items-center gap-1 text-[10px] text-white bg-white/20 px-2 py-1 rounded-full backdrop-blur-sm"
+                                      className="flex items-center gap-1 text-[10px] text-white bg-white/20 px-2 py-1 rounded-full backdrop-blur-sm hover:bg-white/30 transition"
                                   >
-                                      <Share2 size={10} /> Share
+                                      <Share2 size={12} /> Share
                                   </button>
                               </div>
                           </div>
@@ -755,34 +757,29 @@ export const BlogView = () => {
         }
     }
 
-    const handleShare = async () => {
-        if (!selectedBlog) return;
+    function shareBlog(selectedBlog: BlogPost) {
+        const currentURL = window.location.href;
+        const blogURL = (selectedBlog as any).url || currentURL; // use blog URL if available, else current page
+        const text = selectedBlog?.content || "";
+        const title = selectedBlog?.title || "Sharing this blog";
 
-        const title = selectedBlog.title || "Blog Post";
-        const content = selectedBlog.content || "";
-        const url = window.location.href;
-        
-        // Construct the full message
-        const fullMessage = `${title}\n\n${content}\n\nRead more: ${url}`;
-
-        const shareData = {
-            title: title,
-            text: fullMessage,
-            url: url
-        };
-
-        try {
-            if (navigator.share) {
-                await navigator.share(shareData);
-            } else {
-                throw new Error("Native share not supported");
-            }
-        } catch (err) {
-            // Fallback: Copy full text to clipboard
-            navigator.clipboard.writeText(fullMessage);
-            alert("Text copied. You can now paste into social media.");
+        if (!blogURL.startsWith("http")) {
+            alert("Cannot share: invalid URL");
+            console.log("Invalid share URL:", blogURL);
+            return;
         }
-    };
+
+        if (navigator.share) {
+            navigator.share({
+            title: title,
+            text: text,
+            url: blogURL
+            }).catch((err) => console.log("Share canceled:", err));
+        } else {
+            navigator.clipboard.writeText(blogURL);
+            alert("Blog link copied! You can paste it into WhatsApp, Instagram, Facebook, etc.");
+        }
+    }
 
     if(selectedBlog) {
         return (
@@ -823,7 +820,7 @@ export const BlogView = () => {
                             <ThumbsUp size={20} fill={likes > (selectedBlog.likes || 0) ? "currentColor" : "none"}/> {likes} Likes
                         </button>
                         
-                        <button onClick={handleShare} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
+                        <button onClick={() => shareBlog(selectedBlog)} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
                              <Share2 size={20}/> Share
                         </button>
                     </div>

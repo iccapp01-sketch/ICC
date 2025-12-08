@@ -126,6 +126,7 @@ export interface Reel {
   videoUrl: string;
   thumbnail: string;
   likes: number;
+  created_at: string;
 }
 
 export interface BibleStudy {

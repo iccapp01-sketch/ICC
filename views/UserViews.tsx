@@ -6,9 +6,9 @@ import {
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, ChevronUp, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
-  Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon
+  Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon, Film
 } from 'lucide-react';
-import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification } from '../types';
+import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification, Reel } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 const getYouTubeID = (url: string) => { 
@@ -23,6 +23,7 @@ export const HomeView = ({ onNavigate }: any) => {
   const [verse, setVerse] = useState<BibleVerse | null>(null);
   const [latestSermon, setLatestSermon] = useState<Sermon | null>(null);
   const [latestBlogs, setLatestBlogs] = useState<BlogPost[]>([]);
+  const [reels, setReels] = useState<Reel[]>([]);
 
   useEffect(() => {
      fetch('https://corsproxy.io/?' + encodeURIComponent('https://bible-api.com/philippians+4:13'))
@@ -40,9 +41,34 @@ export const HomeView = ({ onNavigate }: any) => {
          if(data) setLatestBlogs(data.map((b: any) => ({...b, image: b.image_url})));
      };
 
+     const fetchReels = async () => {
+         const { data } = await supabase.from('reels').select('*').order('created_at', { ascending: false }).limit(10);
+         if(data) setReels(data as any);
+     };
+
      fetchSermon();
      fetchBlogs();
+     fetchReels();
   }, []);
+
+  const handleShareReel = async (reel: Reel) => {
+      const shareData = {
+          title: reel.title,
+          text: `Check out this reel: ${reel.title}\n${reel.description}`,
+          url: reel.videoUrl
+      };
+
+      try {
+          if (navigator.share) {
+              await navigator.share(shareData);
+          } else {
+              throw new Error("Native share not supported");
+          }
+      } catch (err) {
+          navigator.clipboard.writeText(`${shareData.text}\n${shareData.url}`);
+          alert("Copied! You can paste into Instagram, WhatsApp, or Facebook.");
+      }
+  };
 
   return (
       <div className="p-4 space-y-6 pb-24">
@@ -79,6 +105,34 @@ export const HomeView = ({ onNavigate }: any) => {
                               {blog.image && <div className="h-32 w-full bg-cover bg-center rounded-xl mb-3" style={{backgroundImage: `url(${blog.image})`}}></div>}
                               <h4 className="font-bold text-slate-900 dark:text-white line-clamp-1">{blog.title}</h4>
                               <p className="text-xs text-slate-500 line-clamp-2">{blog.excerpt}</p>
+                          </div>
+                      ))}
+                  </div>
+              </div>
+          )}
+
+          {reels.length > 0 && (
+              <div>
+                  <h3 className="font-bold text-lg dark:text-white mb-4">Reels</h3>
+                  <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
+                      {reels.map(reel => (
+                          <div key={reel.id} className="min-w-[160px] w-[160px] relative rounded-2xl overflow-hidden shadow-lg aspect-[9/16] bg-black">
+                              <video 
+                                  src={reel.videoUrl} 
+                                  poster={reel.thumbnail} 
+                                  className="w-full h-full object-cover" 
+                                  controls 
+                                  playsInline
+                              />
+                              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                                  <h4 className="text-white font-bold text-xs line-clamp-1 mb-1">{reel.title}</h4>
+                                  <button 
+                                      onClick={() => handleShareReel(reel)}
+                                      className="flex items-center gap-1 text-[10px] text-white bg-white/20 px-2 py-1 rounded-full backdrop-blur-sm"
+                                  >
+                                      <Share2 size={10} /> Share
+                                  </button>
+                              </div>
                           </div>
                       ))}
                   </div>

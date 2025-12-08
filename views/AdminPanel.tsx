@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
   Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film
 } from 'lucide-react';
-import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist } from '../types';
+import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface AdminProps {
@@ -16,6 +16,7 @@ const SIDEBAR_ITEMS = [
   { id: 'members', icon: Users, label: 'Members' },
   { id: 'content', icon: FileText, label: 'Blog' },
   { id: 'media', icon: Video, label: 'Sermons' },
+  { id: 'reels', icon: Film, label: 'Reels' },
   { id: 'music', icon: Music, label: 'Music' },
   { id: 'groups', icon: MessageCircle, label: 'Groups' },
   { id: 'bible', icon: BookOpen, label: 'Bible' },
@@ -27,6 +28,11 @@ const getYouTubeID = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null; 
+};
+
+const formatDate = (dateString?: string, formatStr?: string) => {
+    if (!dateString) return new Date().toLocaleDateString();
+    return new Date(dateString).toLocaleDateString();
 };
 
 const exportToCSV = (data: any[], filename: string) => {
@@ -94,6 +100,7 @@ export const AdminPanel: React.FC<AdminProps> = ({ onLogout }) => {
       case 'members': return <MembersManager />;
       case 'content': return <ContentManager />;
       case 'media': return <SermonManager />;
+      case 'reels': return <ReelManager />;
       case 'music': return <MusicManager />;
       case 'groups': return <GroupManager />;
       case 'bible': return <BibleManager />;
@@ -229,6 +236,12 @@ create table if not exists public.sermons (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
+create table if not exists public.reels (
+  id uuid default gen_random_uuid() primary key,
+  title text, description text, video_url text, thumbnail_url text, likes int default 0,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
 create table if not exists public.events (
   id uuid default gen_random_uuid() primary key,
   title text not null, date text, time text, location text, description text,
@@ -306,6 +319,7 @@ alter table public.events add column if not exists video_url text;
 alter table public.blog_posts enable row level security;
 alter table public.blog_comments enable row level security;
 alter table public.sermons enable row level security;
+alter table public.reels enable row level security;
 alter table public.events enable row level security;
 alter table public.event_rsvps enable row level security;
 alter table public.music_tracks enable row level security;
@@ -335,6 +349,12 @@ create policy "Public read sermons" on public.sermons for select using (true);
 
 drop policy if exists "Admin manage sermons" on public.sermons;
 create policy "Admin manage sermons" on public.sermons for all using ( public.is_admin() );
+
+drop policy if exists "Public read reels" on public.reels;
+create policy "Public read reels" on public.reels for select using (true);
+
+drop policy if exists "Admin manage reels" on public.reels;
+create policy "Admin manage reels" on public.reels for all using ( public.is_admin() );
 
 drop policy if exists "Public read events" on public.events;
 create policy "Public read events" on public.events for select using (true);
@@ -388,27 +408,39 @@ create policy "Admin manage notifs" on public.notifications for all using ( publ
 insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('blog-images', 'blog-images', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('blog-videos', 'blog-videos', true) on conflict do nothing;
+insert into storage.buckets (id, name, public) values ('reels-videos', 'reels-videos', true) on conflict do nothing;
+insert into storage.buckets (id, name, public) values ('reels-thumbnails', 'reels-thumbnails', true) on conflict do nothing;
 
 drop policy if exists "Public Access Music" on storage.objects;
 create policy "Public Access Music" on storage.objects for select using ( bucket_id = 'music' );
-
 drop policy if exists "Admin Upload Music" on storage.objects;
 create policy "Admin Upload Music" on storage.objects for insert with check ( bucket_id = 'music' and public.is_admin() );
-
 drop policy if exists "Admin Delete Music" on storage.objects;
 create policy "Admin Delete Music" on storage.objects for delete using ( bucket_id = 'music' and public.is_admin() );
 
 drop policy if exists "Public Access Blog" on storage.objects;
 create policy "Public Access Blog" on storage.objects for select using ( bucket_id = 'blog-images' );
-
 drop policy if exists "Admin Upload Blog" on storage.objects;
 create policy "Admin Upload Blog" on storage.objects for insert with check ( bucket_id = 'blog-images' and public.is_admin() );
 
 drop policy if exists "Public Access Blog Video" on storage.objects;
 create policy "Public Access Blog Video" on storage.objects for select using ( bucket_id = 'blog-videos' );
-
 drop policy if exists "Admin Upload Blog Video" on storage.objects;
 create policy "Admin Upload Blog Video" on storage.objects for insert with check ( bucket_id = 'blog-videos' and public.is_admin() );
+
+drop policy if exists "Public Access Reels Video" on storage.objects;
+create policy "Public Access Reels Video" on storage.objects for select using ( bucket_id = 'reels-videos' );
+drop policy if exists "Admin Upload Reels Video" on storage.objects;
+create policy "Admin Upload Reels Video" on storage.objects for insert with check ( bucket_id = 'reels-videos' and public.is_admin() );
+drop policy if exists "Admin Delete Reels Video" on storage.objects;
+create policy "Admin Delete Reels Video" on storage.objects for delete using ( bucket_id = 'reels-videos' and public.is_admin() );
+
+drop policy if exists "Public Access Reels Thumb" on storage.objects;
+create policy "Public Access Reels Thumb" on storage.objects for select using ( bucket_id = 'reels-thumbnails' );
+drop policy if exists "Admin Upload Reels Thumb" on storage.objects;
+create policy "Admin Upload Reels Thumb" on storage.objects for insert with check ( bucket_id = 'reels-thumbnails' and public.is_admin() );
+drop policy if exists "Admin Delete Reels Thumb" on storage.objects;
+create policy "Admin Delete Reels Thumb" on storage.objects for delete using ( bucket_id = 'reels-thumbnails' and public.is_admin() );
   `;
 
   return (
@@ -485,6 +517,156 @@ create policy "Admin Upload Blog Video" on storage.objects for insert with check
       </div>
     </div>
   );
+};
+
+const ReelManager = () => {
+    const [reels, setReels] = useState<Reel[]>([]);
+    const [form, setForm] = useState({ title: '', description: '', videoUrl: '', thumbnail: '' });
+    const [uploading, setUploading] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+
+    useEffect(() => { fetchReels(); }, []);
+
+    const fetchReels = async () => {
+        const { data } = await supabase.from('reels').select('*').order('created_at', { ascending: false });
+        if(data) setReels(data as any);
+    };
+
+    const handleUploadVideo = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        setUploading(true);
+        try {
+            const file = e.target.files[0];
+            const fileName = `${Date.now()}_reel.${file.name.split('.').pop()}`;
+            const { error } = await supabase.storage.from('reels-videos').upload(fileName, file);
+            if(error) throw error;
+            const { data } = supabase.storage.from('reels-videos').getPublicUrl(fileName);
+            setForm({ ...form, videoUrl: data.publicUrl });
+        } catch(error) { handleSupabaseError(error, 'Reel Video Upload'); }
+        finally { setUploading(false); }
+    };
+
+    const handleUploadThumbnail = async (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!e.target.files || e.target.files.length === 0) return;
+        setUploading(true);
+        try {
+            const file = e.target.files[0];
+            const fileName = `${Date.now()}_thumb.${file.name.split('.').pop()}`;
+            const { error } = await supabase.storage.from('reels-thumbnails').upload(fileName, file);
+            if(error) throw error;
+            const { data } = supabase.storage.from('reels-thumbnails').getPublicUrl(fileName);
+            setForm({ ...form, thumbnail: data.publicUrl });
+        } catch(error) { handleSupabaseError(error, 'Reel Thumbnail Upload'); }
+        finally { setUploading(false); }
+    };
+
+    const handleSave = async () => {
+        if (!form.title || !form.videoUrl) return alert("Title and Video are required");
+        
+        const payload = {
+            title: form.title,
+            description: form.description,
+            video_url: form.videoUrl,
+            thumbnail_url: form.thumbnail || null
+        };
+
+        let error;
+        if(editingId) {
+            const { error: err } = await supabase.from('reels').update(payload).eq('id', editingId);
+            error = err;
+        } else {
+            const { error: err } = await supabase.from('reels').insert([payload]);
+            error = err;
+        }
+
+        if(error) handleSupabaseError(error, 'Save Reel');
+        else {
+            alert(editingId ? "Reel updated" : "Reel uploaded");
+            setForm({ title: '', description: '', videoUrl: '', thumbnail: '' });
+            setEditingId(null);
+            fetchReels();
+        }
+    };
+
+    const handleDelete = async (reel: Reel) => {
+        if(!confirm("Delete this reel?")) return;
+        const { error } = await supabase.from('reels').delete().eq('id', reel.id);
+        if(error) handleSupabaseError(error, 'Delete Reel');
+        else fetchReels();
+    };
+
+    const handleEdit = (r: Reel) => {
+        setForm({
+            title: r.title,
+            description: r.description,
+            videoUrl: r.videoUrl,
+            thumbnail: r.thumbnail
+        });
+        setEditingId(r.id);
+    };
+
+    return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-lg text-[#0c2d58]">{editingId ? 'Edit Reel' : 'Upload Reel'}</h3>
+                    {editingId && <button onClick={()=>{setEditingId(null); setForm({title:'',description:'',videoUrl:'',thumbnail:''})}} className="text-xs text-red-500 underline">Cancel</button>}
+                </div>
+                <div className="space-y-3">
+                    <input className="w-full border p-2 rounded text-slate-900" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <textarea className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
+                    
+                    <div className="border p-3 rounded-xl">
+                        <label className="text-xs font-bold text-slate-500 mb-2 block">Video File</label>
+                        <div className="flex gap-2 items-center">
+                            <label className="bg-slate-100 px-3 py-2 rounded text-xs cursor-pointer hover:bg-slate-200 text-slate-800">
+                                <Upload size={12}/> {uploading ? 'Uploading...' : 'Choose Video'}
+                                <input type="file" hidden accept="video/*" onChange={handleUploadVideo} />
+                            </label>
+                            {form.videoUrl && <span className="text-xs text-green-600 font-bold">Video Ready</span>}
+                        </div>
+                    </div>
+
+                    <div className="border p-3 rounded-xl">
+                        <label className="text-xs font-bold text-slate-500 mb-2 block">Thumbnail (Optional)</label>
+                        <div className="flex gap-2 items-center">
+                            <label className="bg-slate-100 px-3 py-2 rounded text-xs cursor-pointer hover:bg-slate-200 text-slate-800">
+                                <Upload size={12}/> {uploading ? 'Uploading...' : 'Choose Image'}
+                                <input type="file" hidden accept="image/*" onChange={handleUploadThumbnail} />
+                            </label>
+                            {form.thumbnail && <img src={form.thumbnail} className="h-10 w-10 object-cover rounded"/>}
+                        </div>
+                    </div>
+
+                    <button onClick={handleSave} className="w-full bg-blue-600 text-white py-2 rounded font-bold">{editingId ? 'Update Reel' : 'Upload Reel'}</button>
+                </div>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 h-[600px] overflow-y-auto">
+                <h3 className="font-bold mb-4 text-[#0c2d58]">Reels Library</h3>
+                <div className="space-y-4">
+                    {reels.map(r => (
+                        <div key={r.id} className="flex gap-4 p-3 border rounded-xl hover:bg-slate-50">
+                            <div className="w-20 h-28 bg-black rounded-lg flex-shrink-0 overflow-hidden relative">
+                                <video src={r.videoUrl} className="w-full h-full object-cover" />
+                                <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+                                    <Film className="text-white"/>
+                                </div>
+                            </div>
+                            <div className="flex-1">
+                                <h4 className="font-bold text-sm text-slate-900 line-clamp-1">{r.title}</h4>
+                                <p className="text-xs text-slate-500 line-clamp-2 mb-2">{r.description}</p>
+                                <div className="flex gap-2">
+                                    <button onClick={()=>handleEdit(r)} className="text-blue-500 text-xs font-bold">Edit</button>
+                                    <button onClick={()=>handleDelete(r)} className="text-red-500 text-xs font-bold">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
+        </div>
+    );
 };
 
 const MembersManager = () => {
@@ -807,8 +989,16 @@ const ContentManager = () => {
                       <div key={b.id} className="p-4 border rounded-xl hover:bg-slate-50 transition flex justify-between items-start gap-3">
                           <div className="flex-1">
                               <h4 className="font-bold text-slate-900 line-clamp-1">{b.title}</h4>
-                              <p className="text-xs text-slate-500 mb-1">{b.author} • {b.category} • {new Date(b.date).toLocaleDateString()}</p>
+                              <p className="text-xs text-slate-500 mb-1">{b.author} • {b.category} • {formatDate(b.date)}</p>
                               <p className="text-xs text-slate-400 line-clamp-2">{b.excerpt}</p>
+                              {b.image && (
+                                  <div className="w-20 h-12 bg-cover bg-center rounded mt-2" style={{backgroundImage: `url(${b.image})`}}></div>
+                              )}
+                              {b.videoUrl && getYouTubeID(b.videoUrl) && (
+                                  <div className="w-20 h-12 bg-black rounded mt-2 flex items-center justify-center">
+                                      <img src={`https://img.youtube.com/vi/${getYouTubeID(b.videoUrl)}/default.jpg`} className="h-full object-cover opacity-70"/>
+                                  </div>
+                              )}
                           </div>
                           <div className="flex flex-col gap-2">
                               <button onClick={() => handleEdit(b)} className="text-blue-500 hover:text-blue-700 bg-blue-50 p-2 rounded"><Edit size={16}/></button>

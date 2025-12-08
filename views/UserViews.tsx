@@ -644,7 +644,6 @@ export const BlogView = () => {
     const [likes, setLikes] = useState(0);
     const [comments, setComments] = useState<any[]>([]);
     const [commentText, setCommentText] = useState('');
-    const [showShareModal, setShowShareModal] = useState(false);
 
     useEffect(() => {
         const fetchBlogs = async () => {
@@ -702,43 +701,33 @@ export const BlogView = () => {
         }
     }
 
-    const handleShareClick = (platform: string) => {
+    const handleShare = async () => {
         if (!selectedBlog) return;
-        
-        const url = window.location.href;
+
+        const title = selectedBlog.title || "Blog Post";
         const content = selectedBlog.content || "";
-        const title = selectedBlog.title || "";
-        const text = `${title}\n\n${content}\n\nRead more: ${url}`;
+        const url = window.location.href;
+        
+        // Construct the full message
+        const fullMessage = `${title}\n\n${content}\n\nRead more: ${url}`;
 
-        const encodedText = encodeURIComponent(text);
-        const encodedUrl = encodeURIComponent(url);
-        const encodedQuote = encodeURIComponent(content.substring(0, 1000));
+        const shareData = {
+            title: title,
+            text: fullMessage,
+            url: url
+        };
 
-        switch (platform) {
-            case 'whatsapp':
-                window.location.href = `whatsapp://send?text=${encodedText}`;
-                break;
-            case 'facebook':
-                window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}&quote=${encodedQuote}`, '_blank', 'width=600,height=400');
-                break;
-            case 'instagram':
-                if (navigator.share) {
-                    navigator.share({
-                        title: title,
-                        text: text,
-                        url: url
-                    }).catch((err) => console.log("Share canceled:", err));
-                } else {
-                    navigator.clipboard.writeText(url);
-                    alert("Instagram does not support direct web sharing. Link copied! Open Instagram to paste.");
-                }
-                break;
-            case 'copy':
-                navigator.clipboard.writeText(url);
-                alert("Link copied to clipboard!");
-                break;
+        try {
+            if (navigator.share) {
+                await navigator.share(shareData);
+            } else {
+                throw new Error("Native share not supported");
+            }
+        } catch (err) {
+            // Fallback: Copy full text to clipboard
+            navigator.clipboard.writeText(fullMessage);
+            alert("Text copied. You can now paste into social media.");
         }
-        setShowShareModal(false);
     };
 
     if(selectedBlog) {
@@ -780,7 +769,7 @@ export const BlogView = () => {
                             <ThumbsUp size={20} fill={likes > (selectedBlog.likes || 0) ? "currentColor" : "none"}/> {likes} Likes
                         </button>
                         
-                        <button onClick={() => setShowShareModal(true)} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
+                        <button onClick={handleShare} className="flex-1 bg-slate-100 dark:bg-slate-800 py-3 rounded-xl flex items-center justify-center gap-2 font-bold text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition">
                              <Share2 size={20}/> Share
                         </button>
                     </div>
@@ -808,33 +797,6 @@ export const BlogView = () => {
                         {comments.length === 0 && <p className="text-slate-400 text-sm text-center py-4">No comments yet. Be the first!</p>}
                     </div>
                 </div>
-
-                {showShareModal && (
-                 <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm" onClick={() => setShowShareModal(false)}>
-                    <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-sm p-6 shadow-2xl transform transition-all border border-slate-100 dark:border-slate-700" onClick={e => e.stopPropagation()}>
-                        <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-black text-xl dark:text-white">Share Article</h3>
-                            <button onClick={() => setShowShareModal(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition">
-                                <X size={20} className="text-slate-500" />
-                            </button>
-                        </div>
-                        <div className="grid gap-3">
-                            <button onClick={() => handleShareClick('whatsapp')} className="w-full bg-[#25D366] hover:bg-[#20bd5a] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition shadow-lg shadow-green-200 dark:shadow-none">
-                                <MessageCircle size={22} fill="white" /> WhatsApp
-                            </button>
-                            <button onClick={() => handleShareClick('facebook')} className="w-full bg-[#1877F2] hover:bg-[#166fe5] text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition shadow-lg shadow-blue-200 dark:shadow-none">
-                                <Share2 size={22} fill="white" /> Facebook
-                            </button>
-                            <button onClick={() => handleShareClick('instagram')} className="w-full bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 text-white py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition shadow-lg shadow-pink-200 dark:shadow-none">
-                                <ImageIcon size={22} /> Instagram
-                            </button>
-                            <button onClick={() => handleShareClick('copy')} className="w-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 py-4 rounded-xl font-bold flex items-center justify-center gap-3 transition">
-                                <Copy size={22} /> Copy Link
-                            </button>
-                        </div>
-                    </div>
-                 </div>
-             )}
             </div>
         )
     }

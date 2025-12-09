@@ -351,17 +351,6 @@ export const Auth: React.FC<AuthProps> = () => {
               {isLoading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
            </button>
         </form>
-
-        <div className="mt-6 flex items-center gap-3 px-2">
-           <div className="h-px bg-white/20 flex-1"></div>
-           <span className="text-xs bg-white/10 px-2 py-1 rounded text-slate-200">or</span>
-           <div className="h-px bg-white/20 flex-1"></div>
-        </div>
-
-        <button className="w-full bg-white hover:bg-slate-50 text-slate-700 font-bold py-3.5 rounded-2xl mt-6 flex items-center justify-center gap-3 shadow-md transition transform active:scale-95">
-           <img src="https://www.svgrepo.com/show/475656/google-color.svg" className="w-5 h-5" alt="Google" />
-           <span className="text-sm">Continue with Google</span>
-        </button>
       </div>
     </div>
   );

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
@@ -215,6 +216,13 @@ drop policy if exists "Admin manage profiles" on public.profiles;
 create policy "Admin manage profiles" on public.profiles for all using ( public.is_admin() );
 
 -- CONTENT TABLES
+create table if not exists public.blog_categories (
+  id uuid default gen_random_uuid() primary key,
+  name text unique not null,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+alter table public.blog_categories enable row level security;
+
 create table if not exists public.blog_posts (
   id uuid default gen_random_uuid() primary key,
   title text not null, author text, category text, content text, excerpt text,
@@ -332,6 +340,12 @@ alter table public.reading_plans enable row level security;
 alter table public.notifications enable row level security;
 
 -- RECREATE POLICIES (DROP FIRST)
+drop policy if exists "Public read categories" on public.blog_categories;
+create policy "Public read categories" on public.blog_categories for select using (true);
+
+drop policy if exists "Admin manage categories" on public.blog_categories;
+create policy "Admin manage categories" on public.blog_categories for all using ( public.is_admin() );
+
 drop policy if exists "Public read blogs" on public.blog_posts;
 create policy "Public read blogs" on public.blog_posts for select using (true);
 
@@ -403,6 +417,11 @@ create policy "Public read notifs" on public.notifications for select using (tru
 
 drop policy if exists "Admin manage notifs" on public.notifications;
 create policy "Admin manage notifs" on public.notifications for all using ( public.is_admin() );
+
+-- SEED CATEGORIES
+insert into public.blog_categories (name) values 
+  ('Faith'), ('Testimony'), ('Teaching'), ('Devotional'), ('Sermon Devotional'), ('Psalm Devotional')
+  on conflict (name) do nothing;
 
 -- STORAGE POLICIES
 insert into storage.buckets (id, name, public) values ('music', 'music', true) on conflict do nothing;
@@ -783,18 +802,58 @@ const MembersManager = () => {
 
 const ContentManager = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
-  const [categories, setCategories] = useState(['Faith', 'Testimony', 'Teaching', 'Devotional', 'Sermon Devotional', 'Psalm Devotional']);
+  const [categories, setCategories] = useState<{id: string, name: string}[]>([]);
   const [newCategory, setNewCategory] = useState('');
   const [formData, setFormData] = useState({ id: '', title: '', author: 'Admin', category: 'Faith', excerpt: '', content: '', image_url: '', video_url: '' });
   const [uploadingImage, setUploadingImage] = useState(false);
   const [uploadingVideo, setUploadingVideo] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
 
-  useEffect(() => { fetchBlogs(); }, []);
+  useEffect(() => { 
+      fetchBlogs(); 
+      fetchCategories();
+  }, []);
 
   const fetchBlogs = async () => {
     const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
     if(data) setBlogs(data as any);
+  };
+
+  const fetchCategories = async () => {
+      const { data } = await supabase.from('blog_categories').select('*').order('name');
+      if(data) setCategories(data);
+  };
+
+  const handleAddCategory = async () => {
+      if(!newCategory) return;
+      const { data, error } = await supabase.from('blog_categories').insert({ name: newCategory }).select();
+      if(error) {
+          handleSupabaseError(error, 'Add Category');
+      } else if (data) {
+          setCategories([...categories, data[0]]);
+          setNewCategory('');
+      }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+      if(!confirm("Delete this category permanently?")) return;
+      const { error } = await supabase.from('blog_categories').delete().eq('id', id);
+      if(error) handleSupabaseError(error, 'Delete Category');
+      else {
+          setCategories(categories.filter(c => c.id !== id));
+      }
+  };
+  
+  const handleCategoryRename = async (id: string, oldName: string) => {
+      const newName = prompt("Rename category:", oldName);
+      if(newName && newName !== oldName) {
+          const { error } = await supabase.from('blog_categories').update({ name: newName }).eq('id', id);
+          if(error) handleSupabaseError(error, 'Rename Category');
+          else {
+              setCategories(categories.map(c => c.id === id ? { ...c, name: newName } : c));
+              if(formData.category === oldName) setFormData({...formData, category: newName});
+          }
+      }
   };
 
   const handleDelete = async (id: string) => {
@@ -819,7 +878,7 @@ const ContentManager = () => {
   };
 
   const cancelEdit = () => {
-      setFormData({ id: '', title: '', author: 'Admin', category: categories[0] || 'Faith', excerpt: '', content: '', image_url: '', video_url: '' });
+      setFormData({ id: '', title: '', author: 'Admin', category: categories[0]?.name || 'Faith', excerpt: '', content: '', image_url: '', video_url: '' });
       setEditingId(null);
   };
 
@@ -858,14 +917,6 @@ const ContentManager = () => {
         setUploadingVideo(false);
     }
   };
-
-  const handleCategoryRename = (oldName: string) => {
-      const newName = prompt("Rename category:", oldName);
-      if(newName && newName !== oldName) {
-          setCategories(categories.map(c => c === oldName ? newName : c));
-          if(formData.category === oldName) setFormData({...formData, category: newName});
-      }
-  }
 
   const handleSubmit = async () => {
       // Clean payload: Remove ID and convert empty strings to null
@@ -911,15 +962,15 @@ const ContentManager = () => {
                   <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Manage Categories</p>
                   <div className="flex gap-2 mb-2">
                       <input className="border p-2 rounded text-xs flex-1 text-slate-900" placeholder="New Category" value={newCategory} onChange={e => setNewCategory(e.target.value)} />
-                      <button onClick={() => {if(newCategory){setCategories([...categories, newCategory]); setNewCategory('');}}} className="bg-blue-600 text-white px-3 rounded text-xs"><Plus size={14}/></button>
+                      <button onClick={handleAddCategory} className="bg-blue-600 text-white px-3 rounded text-xs"><Plus size={14}/></button>
                   </div>
                   <div className="flex flex-wrap gap-2">
                       {categories.map(c => (
-                          <span key={c} className="bg-white border px-2 py-1 rounded text-xs text-slate-800 flex gap-2 items-center">
-                              {c} 
+                          <span key={c.id} className="bg-white border px-2 py-1 rounded text-xs text-slate-800 flex gap-2 items-center">
+                              {c.name} 
                               <div className="flex gap-1">
-                                  <button onClick={()=>handleCategoryRename(c)} className="text-blue-500 hover:text-blue-700"><Edit size={10}/></button>
-                                  <button onClick={()=>setCategories(categories.filter(cat=>cat!==c))} className="text-red-500 hover:text-red-700"><X size={10}/></button>
+                                  <button onClick={()=>handleCategoryRename(c.id, c.name)} className="text-blue-500 hover:text-blue-700"><Edit size={10}/></button>
+                                  <button onClick={()=>handleDeleteCategory(c.id)} className="text-red-500 hover:text-red-700"><X size={10}/></button>
                               </div>
                           </span>
                       ))}
@@ -941,7 +992,7 @@ const ContentManager = () => {
                       <div className="flex-1">
                           <label className="text-xs font-bold text-slate-500">Category</label>
                           <select className="w-full border p-3 rounded-xl text-slate-900" value={formData.category} onChange={e=>setFormData({...formData, category: e.target.value})}>
-                              {categories.map(c=><option key={c}>{c}</option>)}
+                              {categories.map(c=><option key={c.id} value={c.name}>{c.name}</option>)}
                           </select>
                       </div>
                   </div>
@@ -1399,3 +1450,4 @@ const EventManager = () => {
         </div>
     );
 };
+

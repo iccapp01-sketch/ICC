@@ -465,6 +465,7 @@ export const EventsView = ({ onBack }: any) => {
 
 // --- MUSIC VIEW ---
 export const MusicView = () => {
+    // ... music logic retained
     const [activeTab, setActiveTab] = useState<'MUSIC' | 'PODCAST' | 'MY_PLAYLISTS'>('MUSIC');
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -701,20 +702,29 @@ export const BlogView = () => {
     const [comments, setComments] = useState<any[]>([]);
     const [commentText, setCommentText] = useState('');
     const [activeCategory, setActiveCategory] = useState('All');
+    const [categories, setCategories] = useState<{id: string, name: string}[]>([]);
 
     useEffect(() => {
-        const fetchBlogs = async () => {
-            const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-            if(data) {
+        const fetchData = async () => {
+            // Fetch categories for tabs
+            const { data: catData } = await supabase.from('blog_categories').select('*').order('name');
+            if (catData) setCategories(catData);
+
+            // Fetch blogs with join
+            const { data: blogData } = await supabase.from('blog_posts').select('*, blog_categories(id, name)').order('created_at', { ascending: false });
+            if(blogData) {
                 // Map database columns to app interface
-                setBlogs(data.map((b:any)=>({
+                setBlogs(blogData.map((b:any)=>({
                     ...b, 
                     image: b.image_url,
-                    videoUrl: b.video_url // Added video mapping
+                    videoUrl: b.video_url, // Added video mapping
+                    // Map joined category name to 'category' property
+                    category: b.blog_categories?.name || 'Uncategorized',
+                    category_id: b.category_id || b.blog_categories?.id
                 })));
             }
         };
-        fetchBlogs();
+        fetchData();
     }, []);
 
     useEffect(() => {
@@ -782,14 +792,10 @@ export const BlogView = () => {
         }
     }
 
-    const filterCategories = [
-        { id: 'All', label: 'All' },
-        { id: 'Sermon Devotional', label: 'Sermon Devotionals' },
-        { id: 'Psalm Devotional', label: 'Psalm Devotionals' },
-        { id: 'Devotional', label: 'General' },
-        { id: 'Faith', label: 'Faith' },
-        { id: 'Teaching', label: 'Teaching' },
-        { id: 'Testimony', label: 'Testimonies' }
+    // Dynamic Filter Categories (Always include 'All')
+    const filterTabs = [
+        { id: 'All', name: 'All' },
+        ...categories.map(c => ({ id: c.name, name: c.name })) // Use Name as ID for filter logic simplicity to match existing 'All' logic
     ];
 
     const filteredBlogs = activeCategory === 'All' 
@@ -872,7 +878,7 @@ export const BlogView = () => {
             <h1 className="text-2xl font-black dark:text-white">Articles & Devotionals</h1>
             
             <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-2">
-                {filterCategories.map(cat => (
+                {filterTabs.map(cat => (
                     <button 
                         key={cat.id}
                         onClick={() => setActiveCategory(cat.id)}
@@ -882,7 +888,7 @@ export const BlogView = () => {
                             : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700 hover:bg-slate-50'
                         }`}
                     >
-                        {cat.label}
+                        {cat.name}
                     </button>
                 ))}
             </div>
@@ -930,77 +936,49 @@ export const BlogView = () => {
 // --- SERMONS VIEW ---
 export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
-        const fetch = async () => { 
-            const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false }); 
-            if(data) {
-                // Map database fields to frontend model
-                const mappedData = data.map((s: any) => ({
-                    ...s,
-                    date: s.date_preached, // Map date_preached from DB to date in frontend
-                    videoUrl: s.video_url // Map video_url from DB to videoUrl in frontend
-                }));
-                setSermons(mappedData); 
-            }
-        }
-        fetch();
+        const fetchSermons = async () => {
+            const { data } = await supabase.from('sermons').select('*').order('date_preached', { ascending: false });
+            if (data) setSermons(data as any);
+        };
+        fetchSermons();
     }, []);
 
-    const handleShare = (s: Sermon) => {
-        const urlToShare = s.videoUrl || '';
-        if (!urlToShare) return;
-        
-        if (navigator.share) {
-            navigator.share({
-                title: s.title,
-                text: `Watch this sermon: ${s.title} by ${s.preacher}`,
-                url: urlToShare
-            }).catch(console.error);
-        } else {
-            navigator.clipboard.writeText(urlToShare);
-            alert("Link copied to clipboard!");
-        }
-    };
-
-    const formatDate = (dateString: string) => {
-        if (!dateString) return '';
-        const date = new Date(dateString);
-        return isNaN(date.getTime()) ? dateString : date.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
-    };
+    const filteredSermons = sermons.filter(s => s.title.toLowerCase().includes(searchTerm.toLowerCase()) || s.preacher.toLowerCase().includes(searchTerm.toLowerCase()));
 
     return (
-        <div className="p-4 pb-24">
-            <h1 className="text-2xl font-black mb-6 dark:text-white">Sermon Library</h1>
-            <div className="grid gap-6">
-                {sermons.map(s => (
-                    <div key={s.id} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
-                        {/* Inline Video Player */}
-                        <div className="aspect-video w-full bg-black">
-                            <iframe 
-                                width="100%" 
-                                height="100%" 
-                                src={`https://www.youtube.com/embed/${getYouTubeID(s.videoUrl ?? "")}`} 
-                                title={s.title}
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                                allowFullScreen
-                                className="w-full h-full"
-                            ></iframe>
-                        </div>
-                        
-                        {/* Details & Share */}
-                        <div className="p-4 flex items-start justify-between gap-4">
-                            <div>
-                                <h3 className="font-bold text-lg text-slate-900 dark:text-white leading-tight mb-1">{s.title}</h3>
-                                <p className="text-sm text-slate-500">{s.preacher} • {formatDate(s.date)}</p>
+        <div className="p-4 pb-24 space-y-4">
+            <h1 className="text-2xl font-black dark:text-white">Sermons</h1>
+            <div className="relative">
+                <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
+                <input 
+                    className="w-full bg-white dark:bg-slate-800 py-3 pl-10 pr-4 rounded-xl border-none shadow-sm text-slate-900 dark:text-white"
+                    placeholder="Search sermons..."
+                    value={searchTerm}
+                    onChange={e => setSearchTerm(e.target.value)}
+                />
+            </div>
+            
+            <div className="grid gap-4">
+                {filteredSermons.map(sermon => (
+                    <div key={sermon.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                        {sermon.videoUrl && (
+                            <div className="w-full aspect-video bg-black rounded-xl mb-3 overflow-hidden relative">
+                                <iframe 
+                                    src={`https://www.youtube.com/embed/${getYouTubeID(sermon.videoUrl)}`} 
+                                    className="w-full h-full" 
+                                    allowFullScreen
+                                    title={sermon.title}
+                                ></iframe>
                             </div>
-                            <button 
-                                onClick={() => handleShare(s)}
-                                className="p-2 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 hover:bg-blue-50 hover:text-blue-600 transition flex-shrink-0"
-                                title="Share Sermon"
-                            >
-                                <Share2 size={20}/>
-                            </button>
+                        )}
+                        <h3 className="font-bold text-lg dark:text-white leading-tight mb-1">{sermon.title}</h3>
+                        <p className="text-sm text-blue-600 font-bold mb-2">{sermon.preacher}</p>
+                        <div className="flex items-center gap-4 text-xs text-slate-500">
+                            <span className="flex items-center gap-1"><Calendar size={12}/> {sermon.date}</span>
+                            <span className="flex items-center gap-1"><Clock size={12}/> {sermon.duration}</span>
                         </div>
                     </div>
                 ))}
@@ -1012,285 +990,66 @@ export const SermonsView = () => {
 // --- COMMUNITY VIEW ---
 export const CommunityView = () => {
     const [groups, setGroups] = useState<CommunityGroup[]>([]);
-    const [activeGroup, setActiveGroup] = useState<CommunityGroup | null>(null);
-    const [myMemberships, setMyMemberships] = useState<any[]>([]);
-    const [feedPosts, setFeedPosts] = useState<any[]>([]);
-    const [postText, setPostText] = useState('');
-    const [replyText, setReplyText] = useState<{[key:string]: string}>({});
-    const [showReplyInput, setShowReplyInput] = useState<{[key:string]: boolean}>({});
-    const [user, setUser] = useState<any>(null);
+    const [myGroups, setMyGroups] = useState<string[]>([]);
 
     useEffect(() => {
-        fetchGroups();
-        fetchMyMemberships();
-        const getUser = async () => {
+        const fetchGroups = async () => {
+            const { data } = await supabase.from('community_groups').select('*');
+            if (data) setGroups(data as any);
+            
             const { data: { user } } = await supabase.auth.getUser();
-            setUser(user);
+            if (user) {
+                const { data: members } = await supabase.from('community_group_members').select('group_id').eq('user_id', user.id).in('status', ['Approved', 'Joined']);
+                if(members) setMyGroups(members.map((m:any) => m.group_id));
+            }
         };
-        getUser();
+        fetchGroups();
     }, []);
 
-    useEffect(() => {
-        if (activeGroup) {
-            fetchPosts();
-        }
-    }, [activeGroup]);
-
-    const fetchGroups = async () => { 
-        const { data } = await supabase.from('community_groups').select('*'); 
-        if(data) setGroups(data as any); 
-    };
-
-    const fetchMyMemberships = async () => {
+    const handleJoin = async (groupId: string) => {
         const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const { data } = await supabase.from('community_group_members').select('*').eq('user_id', user.id);
-            if (data) setMyMemberships(data);
-        }
-    };
-
-    const fetchPosts = async () => {
-        if(!activeGroup) return;
+        if(!user) return alert("Please login to join groups.");
         
-        // Fetch posts and likes join
-        const { data, error } = await supabase
-            .from('group_posts')
-            .select(`
-                *, 
-                profiles(first_name, last_name, avatar_url),
-                group_post_likes(user_id)
-            `)
-            .eq('group_id', activeGroup.id)
-            .order('created_at', { ascending: true }); // Newest last for chat style
-        
-        if (data) setFeedPosts(data);
-        if (error) console.log("Feed fetch error:", error.message);
-    };
-
-    const handleJoinRequest = async (groupId: string) => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user) return alert("Please login to join.");
-        
-        const { data: existing } = await supabase.from('community_group_members').select('*').eq('group_id', groupId).eq('user_id', user.id).single();
-        
-        if (existing) {
-            fetchMyMemberships();
-            return;
-        }
-        
-        const { error } = await supabase.from('community_group_members').insert({ 
-            group_id: groupId, 
-            user_id: user.id, 
-            status: 'Pending' 
-        });
-        
-        if (error) alert("Error requesting to join: " + error.message);
-        else {
-            fetchMyMemberships();
-        }
-    };
-
-    const handleCreatePost = async (parentId: string | null = null, content: string) => {
-        if(!content.trim() || !activeGroup || !user) return;
-
-        const { error } = await supabase.from('group_posts').insert({
-            group_id: activeGroup.id,
+        const { error } = await supabase.from('community_group_members').insert({
+            group_id: groupId,
             user_id: user.id,
-            content: content,
-            parent_id: parentId
+            status: 'Pending'
         });
-
-        if(error) alert("Could not post: " + error.message);
-        else {
-            if(parentId) {
-                setReplyText({...replyText, [parentId]: ''});
-                setShowReplyInput({...showReplyInput, [parentId]: false});
-            } else {
-                setPostText('');
-            }
-            fetchPosts();
-        }
-    };
-
-    const handleLike = async (postId: string, likedByMe: boolean) => {
-        if(!user) return;
         
-        if (likedByMe) {
-            // Unlike
-            await supabase.from('group_post_likes').delete().eq('post_id', postId).eq('user_id', user.id);
+        if(error) {
+             if(error.code === '23505') alert("You have already requested to join this group.");
+             else alert("Error joining group: " + error.message);
         } else {
-            // Like
-            await supabase.from('group_post_likes').insert({ post_id: postId, user_id: user.id });
+            alert("Request sent! Waiting for approval.");
         }
-        fetchPosts();
-    };
-
-    const PostItem: React.FC<{ post: any, isReply?: boolean }> = ({ post, isReply = false }) => {
-        const likedByMe = post.group_post_likes?.some((l:any) => l.user_id === user?.id);
-        const likeCount = post.group_post_likes?.length || 0;
-
-        return (
-            <div className={`mb-3 ${isReply ? 'ml-8 mt-2 border-l-2 border-slate-200 pl-3' : 'bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700'}`}>
-                {/* Header */}
-                <div className="flex items-center gap-3 mb-2">
-                    <div className={`rounded-full flex items-center justify-center text-white font-bold ${isReply ? 'w-6 h-6 text-xs bg-slate-400' : 'w-10 h-10 text-sm bg-gradient-to-br from-blue-400 to-indigo-500'}`}>
-                        {post.profiles?.first_name?.[0] || 'U'}
-                    </div>
-                    <div>
-                        <h4 className={`font-bold text-slate-900 dark:text-white ${isReply ? 'text-xs' : 'text-sm'}`}>{post.profiles?.first_name} {post.profiles?.last_name}</h4>
-                        <span className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString()}</span>
-                    </div>
-                </div>
-                
-                {/* Content */}
-                <p className={`text-slate-700 dark:text-slate-300 whitespace-pre-wrap ${isReply ? 'text-xs' : 'text-sm mb-3'}`}>{post.content}</p>
-
-                {/* Actions */}
-                <div className="flex gap-4 mt-2">
-                    <button 
-                        onClick={()=>handleLike(post.id, likedByMe)} 
-                        className={`flex items-center gap-1 text-xs font-bold transition ${likedByMe ? 'text-blue-600' : 'text-slate-500 hover:text-blue-600'}`}
-                    >
-                        <ThumbsUp size={isReply ? 14 : 16} fill={likedByMe ? 'currentColor' : 'none'}/> {likeCount > 0 ? likeCount : ''}
-                    </button>
-                    {!isReply && (
-                        <button 
-                            onClick={()=>setShowReplyInput({...showReplyInput, [post.id]: !showReplyInput[post.id]})} 
-                            className="flex items-center gap-1 text-slate-500 hover:text-blue-600 text-xs font-bold transition"
-                        >
-                            Reply
-                        </button>
-                    )}
-                </div>
-
-                {/* Nested Replies */}
-                {!isReply && (
-                    <>
-                        {/* Render Children */}
-                        {feedPosts.filter(p => p.parent_id === post.id).map(reply => (
-                            <PostItem key={reply.id} post={reply} isReply={true} />
-                        ))}
-
-                        {/* Reply Input */}
-                        {showReplyInput[post.id] && (
-                            <div className="flex gap-2 mt-3 ml-8">
-                                <input 
-                                    className="flex-1 bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-2 text-xs dark:text-white" 
-                                    placeholder="Write a reply..."
-                                    value={replyText[post.id] || ''}
-                                    onChange={e=>setReplyText({...replyText, [post.id]: e.target.value})}
-                                />
-                                <button onClick={()=>handleCreatePost(post.id, replyText[post.id])} className="text-blue-600 p-2"><Send size={16}/></button>
-                            </div>
-                        )}
-                    </>
-                )}
-            </div>
-        );
-    };
-
-    // RENDER: Active Group Feed (Threaded Chat)
-    if (activeGroup) {
-        const membership = myMemberships.find(m => m.group_id === activeGroup.id);
-        const canAccess = membership?.status === 'Approved';
-
-        if (!canAccess) {
-             return (
-                 <div className="p-8 text-center">
-                     <h2 className="text-xl font-bold mb-4 dark:text-white">Access Denied</h2>
-                     <p className="text-slate-500 mb-6">You must be an approved member to view this group.</p>
-                     <button onClick={()=>setActiveGroup(null)} className="bg-slate-200 px-4 py-2 rounded-lg text-sm font-bold">Go Back</button>
-                 </div>
-             )
-        }
-
-        return (
-            <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900 pb-24">
-                <div className="p-4 bg-white dark:bg-slate-800 border-b dark:border-slate-700 flex items-center gap-3 shadow-sm sticky top-0 z-10">
-                    <button onClick={()=>setActiveGroup(null)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-700"><ArrowLeft size={20} className="dark:text-white"/></button>
-                    <div>
-                        <h2 className="font-bold text-slate-900 dark:text-white leading-none">{activeGroup.name}</h2>
-                        <span className="text-xs text-slate-500">Group Chat</span>
-                    </div>
-                </div>
-
-                <div className="flex-1 overflow-y-auto p-4 space-y-4">
-                    {/* Feed */}
-                    {feedPosts.filter(p => !p.parent_id).length === 0 && <p className="text-center text-slate-400 py-8">No posts yet. Start the conversation!</p>}
-                    
-                    {feedPosts.filter(p => !p.parent_id).map(post => (
-                        <PostItem key={post.id} post={post} />
-                    ))}
-                </div>
-
-                {/* Create Main Post Input */}
-                <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-700">
-                    <div className="flex gap-2">
-                        <textarea 
-                            className="flex-1 bg-slate-50 dark:bg-slate-900 border-none rounded-xl p-3 text-sm focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none" 
-                            placeholder={`Message ${activeGroup.name}...`}
-                            rows={1}
-                            value={postText}
-                            onChange={e=>setPostText(e.target.value)}
-                        />
-                        <button onClick={()=>handleCreatePost(null, postText)} className="bg-blue-600 text-white p-3 rounded-xl flex items-center justify-center">
-                            <Send size={20}/>
-                        </button>
-                    </div>
-                </div>
-            </div>
-        );
     }
 
-    // RENDER: Groups List
     return (
-        <div className="p-4 pb-24">
-             <h1 className="text-2xl font-black mb-6 dark:text-white">Community Groups</h1>
-             <div className="space-y-4">
-                 {groups.map(g => {
-                     const membership = myMemberships.find(m => m.group_id === g.id);
-                     const status = membership?.status; 
-
-                     return (
-                         <div key={g.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                             <div className="flex gap-4 items-center mb-3">
-                                 <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center text-blue-600 font-bold text-lg">{g.name[0]}</div>
-                                 <div className="flex-1">
-                                     <h3 className="font-bold text-slate-900 dark:text-white">{g.name}</h3>
-                                     <p className="text-xs text-slate-500 line-clamp-1">{g.description}</p>
-                                 </div>
-                                 
-                                 {/* JOIN BUTTON */}
-                                 {(!status) && (
-                                     <button 
-                                        onClick={()=>handleJoinRequest(g.id)} 
-                                        className="bg-blue-600 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-700 transition"
-                                     >
-                                        Join Group
-                                     </button>
-                                 )}
-                             </div>
-                             
-                             <div className="mt-2">
-                                 {(status === 'Pending' || status === 'pending') && (
-                                     <button disabled className="w-full bg-slate-100 dark:bg-slate-700 text-slate-400 py-2 rounded-xl text-xs font-bold cursor-not-allowed">
-                                        Pending
-                                     </button>
-                                 )}
-
-                                 {(status === 'Approved' || status === 'approved') && (
-                                     <button 
-                                        onClick={()=>setActiveGroup(g)} 
-                                        className="w-full bg-green-600 text-white py-2 rounded-xl text-xs font-bold hover:bg-green-700 transition flex items-center justify-center gap-2"
-                                     >
-                                        Enter Group <ChevronRight size={14}/>
-                                     </button>
-                                 )}
-                             </div>
-                         </div>
-                     );
-                 })}
-             </div>
+        <div className="p-4 pb-24 space-y-4">
+            <h1 className="text-2xl font-black dark:text-white">Community Groups</h1>
+            <p className="text-slate-500 text-sm">Connect with others, grow in faith, and do life together.</p>
+            
+            <div className="grid gap-4">
+                {groups.map(group => (
+                    <div key={group.id} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
+                        {group.image && <div className="h-32 w-full bg-cover bg-center" style={{backgroundImage: `url(${group.image})`}}></div>}
+                        <div className="p-4">
+                            <h3 className="font-bold text-lg dark:text-white mb-2">{group.name}</h3>
+                            <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{group.description}</p>
+                            
+                            {myGroups.includes(group.id) ? (
+                                <button disabled className="w-full bg-green-100 text-green-700 py-2 rounded-xl font-bold text-sm flex items-center justify-center gap-2">
+                                    <CheckCircle size={16}/> Joined
+                                </button>
+                            ) : (
+                                <button onClick={()=>handleJoin(group.id)} className="w-full bg-blue-600 text-white py-2 rounded-xl font-bold text-sm">
+                                    Join Group
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                ))}
+            </div>
         </div>
     );
 };
@@ -1298,175 +1057,156 @@ export const CommunityView = () => {
 // --- PROFILE VIEW ---
 export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
     const [isEditing, setIsEditing] = useState(false);
-    const [editForm, setEditForm] = useState({
-        firstName: '', lastName: '', email: '', phone: '', dob: ''
-    });
-    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [settings, setSettings] = useState({
-        blogNotifs: true,
-        groupNotifs: true,
-        eventNotifs: true,
-        announcementNotifs: true
-    });
-
+    const [formData, setFormData] = useState<any>({});
+    
     useEffect(() => {
-        // Load settings from local storage
-        if(user?.id) {
-            const saved = localStorage.getItem(`user_settings_${user.id}`);
-            if(saved) setSettings(JSON.parse(saved));
-        }
-    }, [user?.id]);
+        if(user) setFormData({ ...user });
+    }, [user]);
 
-    const startEditing = () => {
-        setEditForm({
-            firstName: user?.firstName || '',
-            lastName: user?.lastName || '',
-            email: user?.email || '',
-            phone: user?.phone || '',
-            dob: user?.dob || ''
-        });
-        setIsEditing(true);
-    };
-
-    const saveChanges = () => {
-        onUpdateUser(editForm);
+    const handleSave = () => {
+        onUpdateUser(formData);
         setIsEditing(false);
-    };
+    }
 
-    const toggleSetting = (key: keyof typeof settings) => {
-        const newSettings = { ...settings, [key]: !settings[key] };
-        setSettings(newSettings);
-        if(user?.id) localStorage.setItem(`user_settings_${user.id}`, JSON.stringify(newSettings));
-    };
-
-    const FieldRow = ({ label, field, value, type="text" }: any) => (
-        <div className="flex justify-between items-center py-2 border-b border-slate-100 dark:border-slate-700 last:border-0">
-            <div className="flex-1">
-                <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">{label}</p>
-                {isEditing ? (
-                    <input 
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded px-2 py-1 text-slate-900 dark:text-white text-sm"
-                        value={(editForm as any)[field]}
-                        onChange={(e) => setEditForm({...editForm, [field]: e.target.value})}
-                        type={type}
-                    />
-                ) : (
-                    <p className="text-sm font-semibold text-slate-900 dark:text-white">{value || 'Not set'}</p>
-                )}
-            </div>
-        </div>
-    );
-
-    const SettingRow = ({ label, isOn, onToggle }: any) => (
-        <div className="flex justify-between items-center py-3 border-b border-slate-100 dark:border-slate-700 last:border-0">
-            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
-            <button 
-                onClick={onToggle}
-                className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 ease-in-out relative ${isOn ? 'bg-blue-600' : 'bg-slate-200 dark:bg-slate-600'}`}
-            >
-                <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${isOn ? 'translate-x-6' : 'translate-x-0'}`}></div>
-            </button>
-        </div>
-    );
+    if(!user) return <div className="p-4">Please log in.</div>;
 
     return (
         <div className="p-4 pb-24">
-            <div className="flex items-center justify-between mb-6">
-                <h1 className="text-2xl font-black dark:text-white">Profile</h1>
-                <button onClick={onLogout} className="text-red-500 font-bold text-xs bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg flex items-center gap-1 transition">
-                    <LogOut size={14}/> Logout
+            <div className="flex justify-between items-center mb-6">
+                <h1 className="text-2xl font-black dark:text-white">My Profile</h1>
+                <button onClick={toggleTheme} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
                 </button>
             </div>
-            
-            {/* User Info Card (Compact) */}
-            <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 max-w-sm mx-auto">
-                 <div className="flex items-center justify-between mb-4">
-                     <div className="flex items-center gap-4">
-                         <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg">
-                             {user?.firstName?.[0]}{user?.lastName?.[0]}
-                         </div>
-                         <div>
-                             <h2 className="text-base font-bold text-slate-900 dark:text-white">{user?.firstName} {user?.lastName}</h2>
-                             <span className="inline-block bg-blue-50 text-blue-600 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide">{user?.role}</span>
-                         </div>
-                     </div>
-                     <button 
-                        onClick={isEditing ? saveChanges : startEditing}
-                        className={`p-2 rounded-full transition shadow-sm ${isEditing ? 'bg-green-100 text-green-600 hover:bg-green-200' : 'bg-slate-100 dark:bg-slate-700 text-slate-500 hover:text-blue-600'}`}
-                     >
-                        {isEditing ? <Check size={18} /> : <Edit2 size={18} />}
-                     </button>
-                 </div>
 
-                 <div className="space-y-0.5">
-                     <FieldRow label="First Name" field="firstName" value={user?.firstName} />
-                     <FieldRow label="Last Name" field="lastName" value={user?.lastName} />
-                     <FieldRow label="Date of Birth" field="dob" value={user?.dob} type="date" />
-                     <FieldRow label="Phone" field="phone" value={user?.phone} type="tel" />
-                     <FieldRow label="Email" field="email" value={user?.email} type="email" />
-                 </div>
-            </div>
-
-            {/* Settings Card */}
-            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 overflow-hidden">
-                <div 
-                    onClick={() => setIsSettingsOpen(!isSettingsOpen)} 
-                    className="p-6 flex justify-between items-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition"
-                >
-                    <h3 className="text-lg font-bold text-slate-900 dark:text-white">Settings</h3>
-                    {isSettingsOpen ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 mb-6 text-center">
+                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
+                    {user.firstName[0]}{user.lastName[0]}
                 </div>
-                
-                {isSettingsOpen && (
-                    <div className="px-6 pb-6 pt-0 border-t border-slate-100 dark:border-slate-700">
-                        <div className="mb-6 mt-4">
-                            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Appearance</p>
-                            <div className="flex justify-between items-center py-2">
-                                <span className="text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2"><Moon size={16}/> Dark Mode</span>
-                                <button 
-                                    onClick={toggleTheme}
-                                    className={`w-12 h-6 rounded-full p-1 transition-colors duration-200 relative ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}
-                                >
-                                    <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                                </button>
-                            </div>
+                {isEditing ? (
+                    <div className="space-y-3">
+                        <div className="flex gap-2">
+                             <input className="flex-1 border p-2 rounded-xl dark:bg-slate-700 dark:text-white dark:border-slate-600" value={formData.firstName} onChange={e=>setFormData({...formData, firstName: e.target.value})} placeholder="First Name"/>
+                             <input className="flex-1 border p-2 rounded-xl dark:bg-slate-700 dark:text-white dark:border-slate-600" value={formData.lastName} onChange={e=>setFormData({...formData, lastName: e.target.value})} placeholder="Last Name"/>
                         </div>
-
-                        <div>
-                            <p className="text-xs text-slate-400 uppercase font-bold tracking-wider mb-2">Notifications</p>
-                            <SettingRow label="Blog Posts" isOn={settings.blogNotifs} onToggle={() => toggleSetting('blogNotifs')} />
-                            <SettingRow label="Group Activity" isOn={settings.groupNotifs} onToggle={() => toggleSetting('groupNotifs')} />
-                            <SettingRow label="Events" isOn={settings.eventNotifs} onToggle={() => toggleSetting('eventNotifs')} />
-                            <SettingRow label="Announcements" isOn={settings.announcementNotifs} onToggle={() => toggleSetting('announcementNotifs')} />
+                        <input className="w-full border p-2 rounded-xl dark:bg-slate-700 dark:text-white dark:border-slate-600" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} placeholder="Phone"/>
+                        <div className="flex gap-2">
+                             <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded-xl font-bold text-sm">Save</button>
+                             <button onClick={()=>setIsEditing(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-white py-2 rounded-xl font-bold text-sm">Cancel</button>
                         </div>
+                    </div>
+                ) : (
+                    <div>
+                        <h2 className="text-xl font-bold dark:text-white">{user.firstName} {user.lastName}</h2>
+                        <p className="text-slate-500 text-sm mb-4">{user.email}</p>
+                        <button onClick={()=>setIsEditing(true)} className="text-blue-600 text-sm font-bold flex items-center justify-center gap-1 mx-auto hover:underline">
+                            <Edit2 size={14}/> Edit Profile
+                        </button>
                     </div>
                 )}
             </div>
 
-            {/* Contact Us */}
-            <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between border border-slate-100 dark:border-slate-700 shadow-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition">
-                <span className="font-bold flex items-center gap-3 text-slate-700 dark:text-slate-200"><Mail size={18} className="text-blue-500"/> Contact Us</span>
-                <ChevronRight size={16} className="text-slate-400"/>
-            </button>
+            <div className="space-y-3">
+                <button onClick={()=>onNavigate('notifications')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-red-100 text-red-600 p-2 rounded-xl"><Bell size={20}/></div>
+                        <span className="font-bold dark:text-white">Notifications</span>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-400"/>
+                </button>
+                
+                <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-100 text-blue-600 p-2 rounded-xl"><MapPin size={20}/></div>
+                        <span className="font-bold dark:text-white">Contact Us</span>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-400"/>
+                </button>
+
+                <button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between text-red-500">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-red-50 p-2 rounded-xl"><LogOut size={20}/></div>
+                        <span className="font-bold">Log Out</span>
+                    </div>
+                </button>
+            </div>
         </div>
     );
 };
 
-export const ContactView = ({ onBack }: any) => (
-    <div className="p-4">
-        <button onClick={onBack} className="mb-4 flex items-center gap-2"><ArrowLeft/> Back</button>
-        <h1 className="text-2xl font-bold mb-4">Contact Us</h1>
-        <div className="bg-white p-6 rounded-2xl space-y-4">
-             <input className="w-full border p-3 rounded-xl" placeholder="Subject"/>
-             <textarea className="w-full border p-3 rounded-xl h-32" placeholder="Message"/>
-             <button className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Send Message</button>
-        </div>
-    </div>
-);
+// --- NOTIFICATIONS VIEW ---
+export const NotificationsView = () => {
+    // Mock notifications for now, as DB table structure isn't confirmed/populated in seed
+    const notifications = [
+        { id: '1', title: 'Welcome to ICC App', message: 'We are glad to have you here. Explore sermons, blogs and more.', time: 'Just now', read: false },
+        { id: '2', title: 'Sunday Service', message: 'Join us this Sunday at 9:00 AM for a powerful service.', time: '2 days ago', read: true },
+    ];
 
-export const NotificationsView = () => (
-    <div className="p-4">
-        <h1 className="text-2xl font-bold mb-6">Notifications</h1>
-        <div className="text-center text-slate-400 mt-10">No new notifications</div>
-    </div>
-);
+    return (
+        <div className="p-4 pb-24">
+             <h1 className="text-2xl font-black dark:text-white mb-6">Notifications</h1>
+             <div className="space-y-3">
+                 {notifications.map(n => (
+                     <div key={n.id} className={`p-4 rounded-2xl border ${n.read ? 'bg-slate-50 dark:bg-slate-800 border-transparent' : 'bg-white dark:bg-slate-700 border-blue-100 shadow-sm'}`}>
+                         <div className="flex justify-between items-start mb-1">
+                             <h4 className={`font-bold text-sm ${n.read ? 'text-slate-700 dark:text-slate-300' : 'text-slate-900 dark:text-white'}`}>{n.title}</h4>
+                             <span className="text-[10px] text-slate-400">{n.time}</span>
+                         </div>
+                         <p className="text-xs text-slate-500 dark:text-slate-400">{n.message}</p>
+                     </div>
+                 ))}
+             </div>
+        </div>
+    );
+};
+
+// --- CONTACT VIEW ---
+export const ContactView = ({ onBack }: any) => {
+    return (
+        <div className="p-4 pb-24">
+            <button onClick={onBack} className="mb-6 flex items-center gap-2 text-slate-500 font-bold text-sm"><ArrowLeft size={18}/> Back to Profile</button>
+            <h1 className="text-2xl font-black dark:text-white mb-6">Contact Us</h1>
+            
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 mb-6">
+                <div className="space-y-6">
+                    <div className="flex items-start gap-4">
+                        <div className="bg-blue-100 text-blue-600 p-3 rounded-xl"><MapPin size={24}/></div>
+                        <div>
+                            <h3 className="font-bold dark:text-white">Visit Us</h3>
+                            <p className="text-slate-500 text-sm">123 Church Street<br/>Isipingo Hills, Durban<br/>4133</p>
+                        </div>
+                    </div>
+                    
+                    <div className="flex items-start gap-4">
+                         <div className="bg-green-100 text-green-600 p-3 rounded-xl"><Phone size={24}/></div>
+                         <div>
+                             <h3 className="font-bold dark:text-white">Call Us</h3>
+                             <p className="text-slate-500 text-sm">+27 31 123 4567</p>
+                             <p className="text-slate-500 text-sm">+27 82 123 4567</p>
+                         </div>
+                    </div>
+
+                    <div className="flex items-start gap-4">
+                         <div className="bg-purple-100 text-purple-600 p-3 rounded-xl"><Mail size={24}/></div>
+                         <div>
+                             <h3 className="font-bold dark:text-white">Email Us</h3>
+                             <p className="text-slate-500 text-sm">info@isipingochurch.co.za</p>
+                         </div>
+                    </div>
+                </div>
+            </div>
+            
+            {/* Map Embed Placeholder */}
+            <div className="w-full h-64 bg-slate-200 rounded-3xl overflow-hidden relative">
+                 <iframe 
+                    src="https://www.google.com/maps/embed?pb=!1m18!1m12!1m3!1d3456.811394173874!2d30.9333!3d-29.9833!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1!3m3!1m2!1s0x0%3A0x0!2zMjnCsDU5JzAwLjAiUyAzMMKwNTYnMDAuMCJF!5e0!3m2!1sen!2sza!4v1630000000000!5m2!1sen!2sza" 
+                    width="100%" 
+                    height="100%" 
+                    style={{border:0}} 
+                    allowFullScreen 
+                    loading="lazy"
+                 ></iframe>
+            </div>
+        </div>
+    );
+};

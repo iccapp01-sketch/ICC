@@ -26,6 +26,7 @@ export interface BlogPost {
   author: string;
   date: string;
   category: string;
+  category_id?: string; // Link to blog_categories table
   excerpt: string;
   content: string;
   likes: number;

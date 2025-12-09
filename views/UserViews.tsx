@@ -1089,6 +1089,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
     const [notifyComments, setNotifyComments] = useState(true);
     const [notifyBlogs, setNotifyBlogs] = useState(true);
     const [notifyGroups, setNotifyGroups] = useState(true);
+    const [settingsOpen, setSettingsOpen] = useState(false);
 
     useEffect(() => {
         if(user) setFormData({ ...user });
@@ -1204,53 +1205,55 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                 </div>
             </div>
 
-            {/* Settings Section */}
-            <h3 className="font-bold text-lg mb-3 px-1 dark:text-white">Settings</h3>
-            <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4 mb-6">
-                {/* Dark Mode */}
-                <div className="flex items-center justify-between p-2">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300">
-                            {isDarkMode ? <Moon size={18}/> : <Sun size={18}/>}
-                        </div>
-                        <span className="text-sm font-bold dark:text-white">Dark Mode</span>
+            {/* Settings Accordion */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 overflow-hidden transition-all">
+                <button 
+                    onClick={() => setSettingsOpen(!settingsOpen)}
+                    className="w-full flex justify-between items-center p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition"
+                >
+                    <div className="flex items-center gap-2">
+                        <span className="font-bold text-lg dark:text-white">Settings</span>
                     </div>
-                    <button onClick={toggleTheme} className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}>
-                        <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${isDarkMode ? 'translate-x-6' : ''}`}></div>
-                    </button>
-                </div>
-
-                {/* Notifications */}
-                {[
-                    { label: 'Comments Notifications', state: notifyComments, setter: setNotifyComments, key: 'notifyComments' },
-                    { label: 'Blog Notifications', state: notifyBlogs, setter: setNotifyBlogs, key: 'notifyBlogs' },
-                    { label: 'Group Notifications', state: notifyGroups, setter: setNotifyGroups, key: 'notifyGroups' }
-                ].map((item, i) => (
-                    <div key={item.key} className={`flex items-center justify-between p-2 ${i !== 0 ? 'border-t border-slate-50 dark:border-slate-700/50' : ''}`}>
-                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300 ml-2">{item.label}</span>
-                        <button 
-                            onClick={() => toggleSetting(item.key, !item.state, item.setter)}
-                            className={`w-10 h-5 rounded-full p-1 transition-colors duration-300 ${item.state ? 'bg-green-500' : 'bg-slate-200'}`}
-                        >
-                            <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${item.state ? 'translate-x-5' : ''}`}></div>
-                        </button>
-                    </div>
-                ))}
-            </div>
-
-            {/* Navigation Links */}
-            <div className="space-y-3">
-                <button onClick={()=>onNavigate('notifications')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between group active:scale-95 transition">
-                    <div className="flex items-center gap-4">
-                        <div className="bg-orange-100 text-orange-600 p-3 rounded-xl"><Bell size={20}/></div>
-                        <div className="text-left">
-                            <span className="font-bold text-slate-900 dark:text-white block">Notifications View</span>
-                            <span className="text-xs text-slate-500">View your latest alerts</span>
-                        </div>
-                    </div>
-                    <ChevronRight size={20} className="text-slate-300 group-hover:text-slate-500"/>
+                    {settingsOpen ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
                 </button>
                 
+                {settingsOpen && (
+                    <div className="p-4 pt-0 space-y-4 border-t border-slate-100 dark:border-slate-700/50 mt-2">
+                        {/* Dark Mode */}
+                        <div className="flex items-center justify-between p-2">
+                            <div className="flex items-center gap-3">
+                                <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300">
+                                    {isDarkMode ? <Moon size={18}/> : <Sun size={18}/>}
+                                </div>
+                                <span className="text-sm font-bold dark:text-white">Dark Mode</span>
+                            </div>
+                            <button onClick={toggleTheme} className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}>
+                                <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${isDarkMode ? 'translate-x-6' : ''}`}></div>
+                            </button>
+                        </div>
+
+                        {/* Notifications Toggles */}
+                        {[
+                            { label: 'Comments Notifications', state: notifyComments, setter: setNotifyComments, key: 'notifyComments' },
+                            { label: 'Blog Notifications', state: notifyBlogs, setter: setNotifyBlogs, key: 'notifyBlogs' },
+                            { label: 'Group Notifications', state: notifyGroups, setter: setNotifyGroups, key: 'notifyGroups' }
+                        ].map((item, i) => (
+                            <div key={item.key} className="flex items-center justify-between p-2 border-t border-slate-50 dark:border-slate-700/50">
+                                <span className="text-sm font-medium text-slate-600 dark:text-slate-300 ml-2">{item.label}</span>
+                                <button 
+                                    onClick={() => toggleSetting(item.key, !item.state, item.setter)}
+                                    className={`w-10 h-5 rounded-full p-1 transition-colors duration-300 ${item.state ? 'bg-green-500' : 'bg-slate-200'}`}
+                                >
+                                    <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${item.state ? 'translate-x-5' : ''}`}></div>
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+
+            {/* Navigation Links - Removed Notifications */}
+            <div className="space-y-3">
                 <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between group active:scale-95 transition">
                     <div className="flex items-center gap-4">
                         <div className="bg-blue-100 text-blue-600 p-3 rounded-xl"><MapPin size={20}/></div>

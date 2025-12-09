@@ -937,6 +937,7 @@ export const BlogView = () => {
 export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
+    const [playingSermonId, setPlayingSermonId] = useState<string | null>(null);
 
     useEffect(() => {
         const fetchSermons = async () => {
@@ -951,6 +952,8 @@ export const SermonsView = () => {
     return (
         <div className="p-4 pb-24 space-y-4">
             <h1 className="text-2xl font-black dark:text-white">Sermons</h1>
+            
+            {/* Search Bar */}
             <div className="relative">
                 <Search className="absolute left-3 top-3 text-slate-400" size={20}/>
                 <input 
@@ -961,24 +964,47 @@ export const SermonsView = () => {
                 />
             </div>
             
-            <div className="grid gap-4">
+            <div className="space-y-4">
                 {filteredSermons.map(sermon => (
                     <div key={sermon.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                        {sermon.videoUrl && (
-                            <div className="w-full aspect-video bg-black rounded-xl mb-3 overflow-hidden relative">
+                        <div className="w-full aspect-video bg-slate-200 dark:bg-slate-900 rounded-xl mb-3 overflow-hidden relative">
+                            {playingSermonId === sermon.id && sermon.videoUrl ? (
                                 <iframe 
-                                    src={`https://www.youtube.com/embed/${getYouTubeID(sermon.videoUrl)}`} 
+                                    src={`https://www.youtube.com/embed/${getYouTubeID(sermon.videoUrl)}?autoplay=1`} 
                                     className="w-full h-full" 
+                                    allow="autoplay; encrypted-media"
                                     allowFullScreen
                                     title={sermon.title}
                                 ></iframe>
+                            ) : (
+                                <div 
+                                    className="w-full h-full bg-cover bg-center cursor-pointer group relative"
+                                    style={{ backgroundImage: `url(https://img.youtube.com/vi/${getYouTubeID(sermon.videoUrl || "")}/maxresdefault.jpg)` }}
+                                    onClick={() => setPlayingSermonId(sermon.id)}
+                                >
+                                    <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition flex items-center justify-center">
+                                        <div className="w-12 h-12 bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center">
+                                            <Play fill="white" className="text-white ml-1" size={24} />
+                                        </div>
+                                    </div>
+                                    <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] px-2 py-1 rounded font-bold">
+                                        {sermon.duration}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                        
+                        <div className="flex justify-between items-start">
+                            <div className="flex-1">
+                                <h3 className="font-bold text-lg dark:text-white leading-tight mb-1">{sermon.title}</h3>
+                                <p className="text-sm text-blue-600 font-bold mb-2">{sermon.preacher}</p>
                             </div>
-                        )}
-                        <h3 className="font-bold text-lg dark:text-white leading-tight mb-1">{sermon.title}</h3>
-                        <p className="text-sm text-blue-600 font-bold mb-2">{sermon.preacher}</p>
-                        <div className="flex items-center gap-4 text-xs text-slate-500">
-                            <span className="flex items-center gap-1"><Calendar size={12}/> {sermon.date}</span>
-                            <span className="flex items-center gap-1"><Clock size={12}/> {sermon.duration}</span>
+                            <button className="text-slate-400 p-1"><MoreVertical size={20}/></button>
+                        </div>
+                        
+                        <div className="flex items-center gap-4 text-xs text-slate-500 border-t border-slate-100 dark:border-slate-700 pt-3 mt-2">
+                            <span className="flex items-center gap-1"><Calendar size={14}/> {sermon.date}</span>
+                            <span className="flex items-center gap-1 ml-auto"><Share2 size={14}/> Share</span>
                         </div>
                     </div>
                 ))}
@@ -1059,8 +1085,21 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
     const [isEditing, setIsEditing] = useState(false);
     const [formData, setFormData] = useState<any>({});
     
+    // Notification Settings State (Local Storage)
+    const [notifyComments, setNotifyComments] = useState(true);
+    const [notifyBlogs, setNotifyBlogs] = useState(true);
+    const [notifyGroups, setNotifyGroups] = useState(true);
+
     useEffect(() => {
         if(user) setFormData({ ...user });
+        
+        const storedSettings = localStorage.getItem('userSettings');
+        if (storedSettings) {
+            const parsed = JSON.parse(storedSettings);
+            if (parsed.notifyComments !== undefined) setNotifyComments(parsed.notifyComments);
+            if (parsed.notifyBlogs !== undefined) setNotifyBlogs(parsed.notifyBlogs);
+            if (parsed.notifyGroups !== undefined) setNotifyGroups(parsed.notifyGroups);
+        }
     }, [user]);
 
     const handleSave = () => {
@@ -1068,68 +1107,163 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
         setIsEditing(false);
     }
 
-    if(!user) return <div className="p-4">Please log in.</div>;
+    const toggleSetting = (key: string, val: boolean, setter: any) => {
+        setter(val);
+        const current = JSON.parse(localStorage.getItem('userSettings') || '{}');
+        localStorage.setItem('userSettings', JSON.stringify({ ...current, [key]: val }));
+    };
+
+    if(!user) return <div className="p-8 text-center text-slate-500">Please log in to view profile.</div>;
+
+    const Initials = user.firstName ? user.firstName[0] : 'U';
 
     return (
         <div className="p-4 pb-24">
+            {/* Header with Logout */}
             <div className="flex justify-between items-center mb-6">
                 <h1 className="text-2xl font-black dark:text-white">My Profile</h1>
-                <button onClick={toggleTheme} className="p-2 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                    {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
+                <button onClick={onLogout} className="flex items-center gap-2 text-red-500 font-bold text-xs bg-red-50 dark:bg-red-900/20 px-3 py-1.5 rounded-full hover:bg-red-100 dark:hover:bg-red-900/40 transition">
+                    <LogOut size={14}/> Logout
                 </button>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 mb-6 text-center">
-                <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full mx-auto mb-4 flex items-center justify-center text-white text-3xl font-bold shadow-lg">
-                    {user.firstName[0]}{user.lastName[0]}
-                </div>
-                {isEditing ? (
-                    <div className="space-y-3">
-                        <div className="flex gap-2">
-                             <input className="flex-1 border p-2 rounded-xl dark:bg-slate-700 dark:text-white dark:border-slate-600" value={formData.firstName} onChange={e=>setFormData({...formData, firstName: e.target.value})} placeholder="First Name"/>
-                             <input className="flex-1 border p-2 rounded-xl dark:bg-slate-700 dark:text-white dark:border-slate-600" value={formData.lastName} onChange={e=>setFormData({...formData, lastName: e.target.value})} placeholder="Last Name"/>
-                        </div>
-                        <input className="w-full border p-2 rounded-xl dark:bg-slate-700 dark:text-white dark:border-slate-600" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} placeholder="Phone"/>
-                        <div className="flex gap-2">
-                             <button onClick={handleSave} className="flex-1 bg-blue-600 text-white py-2 rounded-xl font-bold text-sm">Save</button>
-                             <button onClick={()=>setIsEditing(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-white py-2 rounded-xl font-bold text-sm">Cancel</button>
-                        </div>
+            {/* Profile Card & Editable Details */}
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-sm border border-slate-100 dark:border-slate-700 mb-6 relative">
+                <div className="flex justify-center mb-6">
+                     <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-3xl font-bold shadow-lg ring-4 ring-blue-50 dark:ring-slate-700">
+                        {Initials}
                     </div>
-                ) : (
-                    <div>
-                        <h2 className="text-xl font-bold dark:text-white">{user.firstName} {user.lastName}</h2>
-                        <p className="text-slate-500 text-sm mb-4">{user.email}</p>
-                        <button onClick={()=>setIsEditing(true)} className="text-blue-600 text-sm font-bold flex items-center justify-center gap-1 mx-auto hover:underline">
-                            <Edit2 size={14}/> Edit Profile
+                </div>
+
+                {/* Pencil Icon (Top Right) */}
+                {!isEditing && (
+                    <button onClick={() => setIsEditing(true)} className="absolute top-4 right-4 p-2 bg-slate-50 dark:bg-slate-700 rounded-full text-blue-600 dark:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-600 transition">
+                        <Edit2 size={16} />
+                    </button>
+                )}
+
+                {/* Details Form */}
+                <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                         <div>
+                            <label className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-1 block">Name</label>
+                            {isEditing ? (
+                                <input className="w-full border-b border-slate-200 dark:border-slate-600 bg-transparent py-1 text-sm font-bold dark:text-white outline-none focus:border-blue-500 transition-colors" value={formData.firstName} onChange={e => setFormData({...formData, firstName: e.target.value})} />
+                            ) : (
+                                <p className="text-sm font-bold dark:text-white">{user.firstName}</p>
+                            )}
+                         </div>
+                         <div>
+                            <label className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-1 block">Surname</label>
+                            {isEditing ? (
+                                <input className="w-full border-b border-slate-200 dark:border-slate-600 bg-transparent py-1 text-sm font-bold dark:text-white outline-none focus:border-blue-500 transition-colors" value={formData.lastName} onChange={e => setFormData({...formData, lastName: e.target.value})} />
+                            ) : (
+                                <p className="text-sm font-bold dark:text-white">{user.lastName}</p>
+                            )}
+                         </div>
+                    </div>
+
+                     <div>
+                        <label className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-1 block">Date of Birth</label>
+                        {isEditing ? (
+                            <input type="date" className="w-full border-b border-slate-200 dark:border-slate-600 bg-transparent py-1 text-sm font-bold dark:text-white outline-none focus:border-blue-500 transition-colors" value={formData.dob} onChange={e => setFormData({...formData, dob: e.target.value})} />
+                        ) : (
+                            <p className="text-sm font-bold dark:text-white">{user.dob || 'Not set'}</p>
+                        )}
+                     </div>
+
+                     <div>
+                        <label className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-1 block">Email</label>
+                        {isEditing ? (
+                            <input className="w-full border-b border-slate-200 dark:border-slate-600 bg-transparent py-1 text-sm font-bold dark:text-white outline-none focus:border-blue-500 transition-colors" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                        ) : (
+                            <p className="text-sm font-bold dark:text-white">{user.email}</p>
+                        )}
+                     </div>
+
+                     <div>
+                        <label className="text-[10px] uppercase text-slate-400 font-bold tracking-wider mb-1 block">Phone</label>
+                        {isEditing ? (
+                            <input className="w-full border-b border-slate-200 dark:border-slate-600 bg-transparent py-1 text-sm font-bold dark:text-white outline-none focus:border-blue-500 transition-colors" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                        ) : (
+                            <p className="text-sm font-bold dark:text-white">{user.phone || 'Not set'}</p>
+                        )}
+                     </div>
+
+                     {/* Save / Cancel Buttons */}
+                     {isEditing && (
+                         <div className="flex gap-2 mt-4 pt-2">
+                             <button onClick={handleSave} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-2 transition-colors">
+                                 <Save size={14}/> Save Changes
+                             </button>
+                             <button onClick={() => { setIsEditing(false); setFormData({...user}); }} className="px-4 py-2 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 rounded-xl font-bold text-xs transition-colors">
+                                 Cancel
+                             </button>
+                         </div>
+                     )}
+                </div>
+            </div>
+
+            {/* Settings Section */}
+            <h3 className="font-bold text-lg mb-3 px-1 dark:text-white">Settings</h3>
+            <div className="bg-white dark:bg-slate-800 rounded-3xl p-4 shadow-sm border border-slate-100 dark:border-slate-700 space-y-4 mb-6">
+                {/* Dark Mode */}
+                <div className="flex items-center justify-between p-2">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-full text-slate-600 dark:text-slate-300">
+                            {isDarkMode ? <Moon size={18}/> : <Sun size={18}/>}
+                        </div>
+                        <span className="text-sm font-bold dark:text-white">Dark Mode</span>
+                    </div>
+                    <button onClick={toggleTheme} className={`w-12 h-6 rounded-full p-1 transition-colors duration-300 ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full transition-transform duration-300 ${isDarkMode ? 'translate-x-6' : ''}`}></div>
+                    </button>
+                </div>
+
+                {/* Notifications */}
+                {[
+                    { label: 'Comments Notifications', state: notifyComments, setter: setNotifyComments, key: 'notifyComments' },
+                    { label: 'Blog Notifications', state: notifyBlogs, setter: setNotifyBlogs, key: 'notifyBlogs' },
+                    { label: 'Group Notifications', state: notifyGroups, setter: setNotifyGroups, key: 'notifyGroups' }
+                ].map((item, i) => (
+                    <div key={item.key} className={`flex items-center justify-between p-2 ${i !== 0 ? 'border-t border-slate-50 dark:border-slate-700/50' : ''}`}>
+                        <span className="text-sm font-medium text-slate-600 dark:text-slate-300 ml-2">{item.label}</span>
+                        <button 
+                            onClick={() => toggleSetting(item.key, !item.state, item.setter)}
+                            className={`w-10 h-5 rounded-full p-1 transition-colors duration-300 ${item.state ? 'bg-green-500' : 'bg-slate-200'}`}
+                        >
+                            <div className={`w-3 h-3 bg-white rounded-full transition-transform duration-300 ${item.state ? 'translate-x-5' : ''}`}></div>
                         </button>
                     </div>
-                )}
+                ))}
             </div>
 
+            {/* Navigation Links */}
             <div className="space-y-3">
-                <button onClick={()=>onNavigate('notifications')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-red-100 text-red-600 p-2 rounded-xl"><Bell size={20}/></div>
-                        <span className="font-bold dark:text-white">Notifications</span>
+                <button onClick={()=>onNavigate('notifications')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between group active:scale-95 transition">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-orange-100 text-orange-600 p-3 rounded-xl"><Bell size={20}/></div>
+                        <div className="text-left">
+                            <span className="font-bold text-slate-900 dark:text-white block">Notifications View</span>
+                            <span className="text-xs text-slate-500">View your latest alerts</span>
+                        </div>
                     </div>
-                    <ChevronRight size={20} className="text-slate-400"/>
+                    <ChevronRight size={20} className="text-slate-300 group-hover:text-slate-500"/>
                 </button>
                 
-                <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-blue-100 text-blue-600 p-2 rounded-xl"><MapPin size={20}/></div>
-                        <span className="font-bold dark:text-white">Contact Us</span>
+                <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between group active:scale-95 transition">
+                    <div className="flex items-center gap-4">
+                        <div className="bg-blue-100 text-blue-600 p-3 rounded-xl"><MapPin size={20}/></div>
+                        <div className="text-left">
+                            <span className="font-bold text-slate-900 dark:text-white block">Contact Us</span>
+                            <span className="text-xs text-slate-500">Get in touch with the church</span>
+                        </div>
                     </div>
-                    <ChevronRight size={20} className="text-slate-400"/>
-                </button>
-
-                <button onClick={onLogout} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex items-center justify-between text-red-500">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-red-50 p-2 rounded-xl"><LogOut size={20}/></div>
-                        <span className="font-bold">Log Out</span>
-                    </div>
+                    <ChevronRight size={20} className="text-slate-300 group-hover:text-slate-500"/>
                 </button>
             </div>
+            
+            <p className="text-center text-[10px] text-slate-300 mt-8 mb-4">Version 1.0.0 • Isipingo Community Church</p>
         </div>
     );
 };

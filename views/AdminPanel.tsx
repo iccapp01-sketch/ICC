@@ -783,7 +783,7 @@ const MembersManager = () => {
 
 const ContentManager = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
-  const [categories, setCategories] = useState(['Faith', 'Testimony', 'Teaching', 'Devotional']);
+  const [categories, setCategories] = useState(['Faith', 'Testimony', 'Teaching', 'Devotional', 'Sermon Devotional', 'Psalm Devotional']);
   const [newCategory, setNewCategory] = useState('');
   const [formData, setFormData] = useState({ id: '', title: '', author: 'Admin', category: 'Faith', excerpt: '', content: '', image_url: '', video_url: '' });
   const [uploadingImage, setUploadingImage] = useState(false);

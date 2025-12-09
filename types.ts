@@ -25,7 +25,7 @@ export interface BlogPost {
   title: string;
   author: string;
   date: string;
-  category: 'Faith' | 'Testimony' | 'Teaching' | 'Devotional';
+  category: string;
   excerpt: string;
   content: string;
   likes: number;

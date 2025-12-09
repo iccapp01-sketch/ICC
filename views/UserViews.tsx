@@ -700,6 +700,7 @@ export const BlogView = () => {
     const [likes, setLikes] = useState(0);
     const [comments, setComments] = useState<any[]>([]);
     const [commentText, setCommentText] = useState('');
+    const [activeCategory, setActiveCategory] = useState('All');
 
     useEffect(() => {
         const fetchBlogs = async () => {
@@ -781,6 +782,20 @@ export const BlogView = () => {
         }
     }
 
+    const filterCategories = [
+        { id: 'All', label: 'All' },
+        { id: 'Sermon Devotional', label: 'Sermon Devotionals' },
+        { id: 'Psalm Devotional', label: 'Psalm Devotionals' },
+        { id: 'Devotional', label: 'General' },
+        { id: 'Faith', label: 'Faith' },
+        { id: 'Teaching', label: 'Teaching' },
+        { id: 'Testimony', label: 'Testimonies' }
+    ];
+
+    const filteredBlogs = activeCategory === 'All' 
+        ? blogs 
+        : blogs.filter(b => b.category === activeCategory);
+
     if(selectedBlog) {
         return (
             <div className="p-4 pb-24 bg-white dark:bg-slate-900 min-h-full">
@@ -855,36 +870,59 @@ export const BlogView = () => {
     return (
         <div className="p-4 pb-24 space-y-6">
             <h1 className="text-2xl font-black dark:text-white">Articles & Devotionals</h1>
-            {blogs.map(blog => {
-                const videoId = getYouTubeID(blog.videoUrl || '');
-                // Use image if available, otherwise video thumbnail, otherwise default none
-                const displayImage = blog.image || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null);
+            
+            <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 mb-2">
+                {filterCategories.map(cat => (
+                    <button 
+                        key={cat.id}
+                        onClick={() => setActiveCategory(cat.id)}
+                        className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition border ${
+                            activeCategory === cat.id 
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
+                            : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700 hover:bg-slate-50'
+                        }`}
+                    >
+                        {cat.label}
+                    </button>
+                ))}
+            </div>
 
-                return (
-                    <div key={blog.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
-                        <div className="flex gap-4">
-                            {displayImage && (
-                                <div className="w-24 h-24 bg-cover bg-center rounded-xl flex-shrink-0 relative overflow-hidden" style={{backgroundImage: `url(${displayImage})`}}>
-                                    {!blog.image && videoId && (
-                                        <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                                            <Play size={20} fill="white" className="text-white opacity-80" />
-                                        </div>
-                                    )}
+            {filteredBlogs.length === 0 ? (
+                <div className="text-center py-10 text-slate-400">
+                    <p>No posts found in this category.</p>
+                </div>
+            ) : (
+                filteredBlogs.map(blog => {
+                    const videoId = getYouTubeID(blog.videoUrl || '');
+                    // Use image if available, otherwise video thumbnail, otherwise default none
+                    const displayImage = blog.image || (videoId ? `https://img.youtube.com/vi/${videoId}/mqdefault.jpg` : null);
+
+                    return (
+                        <div key={blog.id} className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
+                            <div className="flex gap-4">
+                                {displayImage && (
+                                    <div className="w-24 h-24 bg-cover bg-center rounded-xl flex-shrink-0 relative overflow-hidden" style={{backgroundImage: `url(${displayImage})`}}>
+                                        {!blog.image && videoId && (
+                                            <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
+                                                <Play size={20} fill="white" className="text-white opacity-80" />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                                <div className="flex-1">
+                                     <div className="flex items-center gap-2 mb-1">
+                                        <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{blog.category}</span>
+                                        <span className="text-xs text-slate-400">{new Date(blog.date).toLocaleDateString()}</span>
+                                     </div>
+                                     <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2">{blog.title}</h3>
+                                     <p className="text-xs text-slate-500 line-clamp-2 mb-3">{blog.excerpt}</p>
+                                     <button onClick={()=>setSelectedBlog(blog)} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline">Read More <ChevronRight size={12}/></button>
                                 </div>
-                            )}
-                            <div className="flex-1">
-                                 <div className="flex items-center gap-2 mb-1">
-                                    <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">{blog.category}</span>
-                                    <span className="text-xs text-slate-400">{new Date(blog.date).toLocaleDateString()}</span>
-                                 </div>
-                                 <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2">{blog.title}</h3>
-                                 <p className="text-xs text-slate-500 line-clamp-2 mb-3">{blog.excerpt}</p>
-                                 <button onClick={()=>setSelectedBlog(blog)} className="text-xs font-bold text-blue-600 flex items-center gap-1 hover:underline">Read More <ChevronRight size={12}/></button>
                             </div>
                         </div>
-                    </div>
-                );
-            })}
+                    );
+                })
+            )}
         </div>
     );
 };

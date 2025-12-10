@@ -124,10 +124,11 @@ export interface Reel {
   id: string;
   title: string;
   description: string;
-  videoUrl: string;
-  thumbnail: string;
-  likes: number;
+  thumbnail?: string;
+  embed_url?: string; // For YouTube embeds
+  video_url?: string; // For uploaded/linked videos
   created_at: string;
+  updated_at?: string;
 }
 
 export interface BibleStudy {

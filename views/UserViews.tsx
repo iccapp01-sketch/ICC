@@ -6,7 +6,7 @@ import {
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, ChevronUp, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
-  Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon, Film, MessageSquare, Reply, Facebook, Instagram, Loader2, Lock, ThumbsDown, Plus, Trash2, MoreHorizontal
+  Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon, Film, MessageSquare, Reply, Facebook, Instagram, Loader2, Lock, ThumbsDown, Plus, Trash2, MoreHorizontal, Repeat1, Globe
 } from 'lucide-react';
 import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification, Reel } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -176,6 +176,11 @@ export const MusicView = () => {
     const [duration, setDuration] = useState(0);
     const [currentTime, setCurrentTime] = useState(0);
     
+    // New Player States
+    const [isFullScreen, setIsFullScreen] = useState(false);
+    const [loopMode, setLoopMode] = useState<'OFF' | 'ONE' | 'ALL'>('OFF');
+    const [queue, setQueue] = useState<MusicTrack[]>([]);
+    
     // Playlist Management
     const [viewingPlaylist, setViewingPlaylist] = useState<Playlist | null>(null);
     const [newPlaylistName, setNewPlaylistName] = useState('');
@@ -208,7 +213,8 @@ export const MusicView = () => {
         }
     }, [currentTrack]);
 
-    const togglePlay = () => {
+    const togglePlay = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
         if(!audioRef.current || !currentTrack) return;
         if(isPlaying) {
             audioRef.current.pause();
@@ -231,6 +237,54 @@ export const MusicView = () => {
             const time = Number(e.target.value);
             audioRef.current.currentTime = time;
             setCurrentTime(time);
+        }
+    };
+
+    // New Player Logic
+    const playNext = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if(!queue.length || !currentTrack) return;
+        const idx = queue.findIndex(t => t.id === currentTrack.id);
+        if(idx === -1) return;
+        
+        if(loopMode === 'OFF' && idx === queue.length - 1) {
+            // End of queue
+            setIsPlaying(false);
+            return;
+        }
+        setCurrentTrack(queue[(idx + 1) % queue.length]);
+    };
+
+    const playPrev = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if(!queue.length || !currentTrack) return;
+        const idx = queue.findIndex(t => t.id === currentTrack.id);
+        if(idx === -1) return;
+        
+        // If > 3 seconds, replay
+        if(audioRef.current && audioRef.current.currentTime > 3) {
+            audioRef.current.currentTime = 0;
+            return;
+        }
+        
+        setCurrentTrack(queue[(idx - 1 + queue.length) % queue.length]);
+    };
+
+    const toggleLoop = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        if(loopMode === 'OFF') setLoopMode('ALL');
+        else if(loopMode === 'ALL') setLoopMode('ONE');
+        else setLoopMode('OFF');
+    };
+
+    const handleTrackEnd = () => {
+        if(loopMode === 'ONE') {
+            if(audioRef.current) {
+                audioRef.current.currentTime = 0;
+                audioRef.current.play();
+            }
+        } else {
+            playNext();
         }
     };
 
@@ -336,7 +390,7 @@ export const MusicView = () => {
                                 key={track.id} 
                                 track={track} 
                                 isPlaying={currentTrack?.id === track.id && isPlaying}
-                                onClick={() => setCurrentTrack(track)}
+                                onClick={() => { setCurrentTrack(track); setQueue(libraryTracks); }}
                                 onAddToPlaylist={() => setIsAddingToPlaylist(track.id)}
                             />
                         ))}
@@ -350,7 +404,7 @@ export const MusicView = () => {
                                 key={track.id} 
                                 track={track} 
                                 isPlaying={currentTrack?.id === track.id && isPlaying}
-                                onClick={() => setCurrentTrack(track)}
+                                onClick={() => { setCurrentTrack(track); setQueue(podcastTracks); }}
                                 onAddToPlaylist={() => setIsAddingToPlaylist(track.id)}
                                 isPodcast
                             />
@@ -401,7 +455,7 @@ export const MusicView = () => {
                                         key={track.id} 
                                         track={track} 
                                         isPlaying={currentTrack?.id === track.id && isPlaying}
-                                        onClick={() => setCurrentTrack(track)}
+                                        onClick={() => { setCurrentTrack(track); setQueue(viewingPlaylist.tracks || []); }}
                                         onRemoveFromPlaylist={() => removeTrackFromPlaylist(viewingPlaylist.id, track.id)}
                                     />
                                 ))
@@ -463,63 +517,110 @@ export const MusicView = () => {
                 </div>
             )}
 
-            {/* Persistent Media Player */}
-            <div className={`fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-2 right-2 z-40 transition-all duration-300 transform ${currentTrack ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
+            {/* Persistent Audio Logic (Hidden element) */}
+            {currentTrack && (
+                <audio 
+                    ref={audioRef} 
+                    src={currentTrack.url} 
+                    onTimeUpdate={handleTimeUpdate}
+                    onEnded={handleTrackEnd}
+                />
+            )}
+
+            {/* Persistent Mini Player (Visible when not full screen) */}
+            <div className={`fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-2 right-2 z-40 transition-all duration-300 transform ${currentTrack && !isFullScreen ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
                 {currentTrack && (
-                    <div className="bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl border border-white/20 dark:border-slate-700 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-2xl p-3 flex flex-col gap-2">
-                        {/* Progress Bar */}
-                        <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden cursor-pointer group">
-                             <div className="h-full bg-blue-500 rounded-full relative" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
+                    <div onClick={() => setIsFullScreen(true)} className="bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl border border-white/20 dark:border-slate-700 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-2xl p-2 pr-4 flex items-center gap-3 cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition">
+                         {/* Cover Art */}
+                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                             {currentTrack.type === 'PODCAST' ? <Mic size={20}/> : <Music size={20}/>}
+                         </div>
+                         
+                         {/* Info */}
+                         <div className="flex-1 min-w-0">
+                             <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{currentTrack.title}</h4>
+                             <p className="text-xs text-slate-500 truncate">{currentTrack.artist}</p>
+                         </div>
+
+                         {/* Controls */}
+                         <button 
+                             onClick={togglePlay}
+                             className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-md hover:bg-blue-700 transition transform active:scale-95"
+                         >
+                             {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1"/>}
+                         </button>
+                         <button onClick={() => setIsFullScreen(true)} className="p-2 text-slate-400 hover:text-blue-600">
+                             <Maximize2 size={20} />
+                         </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Full Screen Player Modal */}
+            {isFullScreen && currentTrack && (
+                <div className="fixed inset-0 z-[100] bg-white dark:bg-slate-900 flex flex-col animate-slide-up">
+                    {/* Header: Close Button */}
+                    <div className="p-4 pt-[calc(1rem+env(safe-area-inset-top))] flex justify-center relative">
+                        <button onClick={(e) => { e.stopPropagation(); setIsFullScreen(false); }} className="absolute left-4 top-[calc(1rem+env(safe-area-inset-top))] p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition">
+                            <ChevronDown size={32} />
+                        </button>
+                        <span className="text-xs font-bold uppercase tracking-widest mt-3 text-slate-400">Now Playing</span>
+                    </div>
+                    
+                    {/* Body */}
+                    <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8 overflow-y-auto">
+                         {/* Large Artwork */}
+                         <div className="w-full max-w-xs aspect-square bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] shadow-2xl flex items-center justify-center">
+                              {currentTrack.type === 'PODCAST' ? <Mic size={80} className="text-white opacity-50"/> : <Music size={80} className="text-white opacity-50" />}
+                         </div>
+                         
+                         {/* Info */}
+                         <div className="text-center w-full">
+                             <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 leading-tight">{currentTrack.title}</h2>
+                             <p className="text-lg text-slate-500 font-medium">{currentTrack.artist}</p>
+                         </div>
+                         
+                         {/* Timeline */}
+                         <div className="w-full max-w-md space-y-2">
                              <input 
                                 type="range" 
                                 min="0" 
                                 max={duration || 0} 
                                 value={currentTime} 
                                 onChange={handleSeek}
-                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                                className="w-full accent-blue-600 h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
                              />
-                        </div>
-                        
-                        <div className="flex items-center gap-3">
-                            {/* Cover Art */}
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
-                                {currentTrack.type === 'PODCAST' ? <Mic size={20}/> : <Music size={20}/>}
-                            </div>
-                            
-                            {/* Info */}
-                            <div className="flex-1 min-w-0">
-                                <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{currentTrack.title}</h4>
-                                <p className="text-xs text-slate-500 truncate">{currentTrack.artist}</p>
-                            </div>
-
-                            {/* Controls */}
-                            <div className="flex items-center gap-2">
-                                <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hidden sm:block"><SkipBack size={20} fill="currentColor" /></button>
-                                <button 
-                                    onClick={togglePlay}
-                                    className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-md hover:bg-blue-700 transition transform active:scale-95"
-                                >
-                                    {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1"/>}
-                                </button>
-                                <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hidden sm:block"><SkipForward size={20} fill="currentColor" /></button>
-                            </div>
-                        </div>
-                        
-                        {/* Mobile Time */}
-                        <div className="flex justify-between px-1">
-                             <span className="text-[10px] font-medium text-slate-400 font-mono">{formatTime(currentTime)}</span>
-                             <span className="text-[10px] font-medium text-slate-400 font-mono">-{formatTime(duration - currentTime)}</span>
-                        </div>
-
-                        <audio 
-                            ref={audioRef} 
-                            src={currentTrack.url} 
-                            onTimeUpdate={handleTimeUpdate}
-                            onEnded={() => setIsPlaying(false)}
-                        />
+                             <div className="flex justify-between text-xs font-bold text-slate-400 font-mono">
+                                 <span>{formatTime(currentTime)}</span>
+                                 <span>{formatTime(duration)}</span>
+                             </div>
+                         </div>
+                         
+                         {/* Controls */}
+                         <div className="flex items-center justify-between w-full max-w-xs px-2">
+                             <button onClick={toggleLoop} className={`p-3 rounded-full transition ${loopMode !== 'OFF' ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
+                                 {loopMode === 'ONE' ? <Repeat1 size={24}/> : <Repeat size={24}/>}
+                             </button>
+                             
+                             <button onClick={playPrev} className="p-4 text-slate-700 dark:text-white hover:scale-110 transition active:scale-95">
+                                 <SkipBack size={32} fill="currentColor"/>
+                             </button>
+                             
+                             <button onClick={togglePlay} className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-xl hover:scale-105 transition active:scale-95">
+                                 {isPlaying ? <Pause size={32} fill="currentColor"/> : <Play size={32} fill="currentColor" className="ml-1"/>}
+                             </button>
+                             
+                             <button onClick={playNext} className="p-4 text-slate-700 dark:text-white hover:scale-110 transition active:scale-95">
+                                 <SkipForward size={32} fill="currentColor"/>
+                             </button>
+                             
+                             <button className="p-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                                 <ListMusic size={24}/> 
+                             </button>
+                         </div>
                     </div>
-                )}
-            </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -828,148 +929,416 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     );
 };
 
+// --- BIBLE VIEW ---
 export const BibleView = () => {
-    const [book, setBook] = useState('John');
-    const [chapter, setChapter] = useState(1);
-    const [text, setText] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [activeTab, setActiveTab] = useState<'read' | 'plan'>('read');
     const [explanation, setExplanation] = useState('');
-    const [isExplaining, setIsExplaining] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [verse, setVerse] = useState<BibleVerse>({ reference: "John 3:16", text: "For God so loved the world, that he gave his one and only Son, that whoever believes in him should not perish, but have eternal life.", version: "WEB" });
 
-    useEffect(() => { fetchText(); setExplanation(''); }, [book, chapter]);
-
-    const fetchText = async () => {
-        setLoading(true);
-        try {
-            const encodedBook = encodeURIComponent(book);
-            const res = await fetch(`https://corsproxy.io/?` + encodeURIComponent(`https://bible-api.com/${encodedBook}+${chapter}`));
-            const data = await res.json();
-            setText(data.text || "Text not found.");
-        } catch (e) { setText("Could not fetch scripture."); } finally { setLoading(false); }
-    };
-    
     const handleExplain = async () => {
-        if (!text) return;
-        setIsExplaining(true);
-        try { const insight = await explainVerse(text, `${book} ${chapter}`); setExplanation(insight); } catch (e) { setExplanation("Error getting insight."); } finally { setIsExplaining(false); }
-    };
-
-    return (
-        <div className="bg-slate-50 dark:bg-slate-900 min-h-full">
-             <div className="px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 z-10 sticky top-0 shadow-sm">
-                 <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                     <button onClick={()=>setActiveTab('read')} className={`flex-1 py-2 text-sm font-bold rounded-lg ${activeTab==='read' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Scripture</button>
-                     <button onClick={()=>setActiveTab('plan')} className={`flex-1 py-2 text-sm font-bold rounded-lg ${activeTab==='plan' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Reading Plan</button>
-                 </div>
-             </div>
-             {activeTab === 'read' && (
-                 <div className="p-6">
-                     <h2 className="text-xl font-bold text-center mb-6 text-slate-400 uppercase">{book} {chapter}</h2>
-                     {loading ? <div className="text-center">Loading...</div> : <p className="text-lg leading-loose font-serif whitespace-pre-wrap text-slate-800 dark:text-slate-200">{text}</p>}
-                     <div className="mt-8 flex justify-center">{!explanation && <button onClick={handleExplain} className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2"><Sparkles size={16}/> AI Insight</button>}</div>
-                     {explanation && <div className="mt-6 bg-blue-50 dark:bg-slate-800 p-4 rounded-2xl border border-blue-100 dark:border-slate-700"><p className="text-sm">{explanation}</p></div>}
-                     <div className="mt-8 flex justify-center pb-8"><button onClick={()=>setChapter(c=>c+1)} className="bg-slate-100 dark:bg-slate-800 px-6 py-3 rounded-full font-bold text-sm">Next Chapter</button></div>
-                 </div>
-             )}
-        </div>
-    );
-};
-
-export const EventsView = ({ onBack }: any) => {
-    const [events, setEvents] = useState<Event[]>([]);
-    useEffect(() => { const fetchEvents = async () => { const { data } = await supabase.from('events').select('*').order('date', { ascending: true }); if(data) setEvents(data as any); }; fetchEvents(); }, []);
-    return (
-        <div className="p-4 space-y-4">
-            <h1 className="text-2xl font-black mb-6 dark:text-white">Events</h1>
-            {events.map(ev => (<div key={ev.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl mb-4 border dark:border-slate-700"><h3 className="font-bold dark:text-white">{ev.title}</h3><p className="text-sm text-slate-500">{ev.description}</p></div>))}
-        </div>
-    );
-};
-
-export const SermonsView = () => {
-    const [sermons, setSermons] = useState<Sermon[]>([]);
-    useEffect(() => { const fetchSermons = async () => { const { data } = await supabase.from('sermons').select('*'); if(data) setSermons(data as any); }; fetchSermons(); }, []);
-    return (
-        <div className="p-4">
-            <h1 className="text-2xl font-black mb-6 dark:text-white">Sermons</h1>
-            <div className="grid gap-6">{sermons.map(s => (<div key={s.id} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border dark:border-slate-700"><div className="h-48 bg-slate-200 bg-cover bg-center" style={{ backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(s.videoUrl ?? "")}/mqdefault.jpg)` : 'none' }}></div><div className="p-4"><h3 className="font-bold dark:text-white">{s.title}</h3></div></div>))}</div>
-        </div>
-    );
-};
-
-export const BlogView = () => {
-    const [blogs, setBlogs] = useState<BlogPost[]>([]);
-    const [selectedBlog, setSelectedBlog] = useState<BlogPost | null>(null);
-    useEffect(() => { const fetchBlogs = async () => { const { data } = await supabase.from('blog_posts').select('*'); if(data) setBlogs(data.map((b: any) => ({...b, image: b.image_url}))); }; fetchBlogs(); }, []);
-    if (selectedBlog) return <div className="p-4"><button onClick={()=>setSelectedBlog(null)} className="mb-4 flex items-center gap-2"><ArrowLeft size={16}/> Back</button><h1 className="text-2xl font-bold dark:text-white">{selectedBlog.title}</h1><p className="dark:text-white mt-4">{selectedBlog.content}</p></div>;
-    return (
-        <div className="p-4">
-            <h1 className="text-2xl font-black mb-6 dark:text-white">Articles</h1>
-            <div className="grid gap-6">{blogs.map(blog => (<div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border dark:border-slate-700"><h3 className="font-bold dark:text-white">{blog.title}</h3><p className="text-xs text-slate-500">{blog.excerpt}</p></div>))}</div>
-        </div>
-    );
-};
-
-export const ContactView = ({ onBack }: { onBack: () => void }) => (<div className="p-4"><button onClick={onBack} className="mb-6 flex items-center gap-2"><ArrowLeft size={16}/> Back</button><h1 className="text-2xl font-black dark:text-white">Contact</h1><p className="dark:text-white">info@isipingochurch.com</p></div>);
-
-export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
-    if(!user) return <div className="p-4 text-center">Please log in.</div>;
-    return (
-        <div className="p-4">
-            <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-black dark:text-white">My Profile</h1><button onClick={onLogout} className="text-red-500 font-bold text-sm bg-red-50 px-3 py-1 rounded">Logout</button></div>
-            <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 flex flex-col items-center">
-                <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center text-3xl font-bold text-slate-400 mb-3">{user.firstName[0]}{user.lastName[0]}</div>
-                <h2 className="text-xl font-black dark:text-white">{user.firstName} {user.lastName}</h2>
-            </div>
-            <button onClick={toggleTheme} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex justify-between shadow-sm border dark:border-slate-700 mb-4"><span className="dark:text-white">Dark Mode</span><div className={`w-10 h-5 rounded-full p-1 ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}><div className={`w-3 h-3 rounded-full bg-white transition-transform ${isDarkMode ? 'translate-x-5' : ''}`}></div></div></button>
-            <button onClick={()=>onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex justify-between shadow-sm border dark:border-slate-700"><span className="dark:text-white">Contact Us</span><ChevronRight size={16}/></button>
-        </div>
-    );
-};
-
-export const NotificationsView = () => <div className="p-4"><h1 className="text-2xl font-black dark:text-white">Notifications</h1><p className="text-center text-slate-500">No new notifications.</p></div>;
-
-export const CommunityView = () => {
-    const [groups, setGroups] = useState<CommunityGroup[]>([]);
-    const [selectedGroup, setSelectedGroup] = useState<CommunityGroup | null>(null);
-    const [myMemberships, setMyMemberships] = useState<Record<string, string>>({}); 
-
-    useEffect(() => { fetchGroups(); }, []);
-    const fetchGroups = async () => {
-        const { data: groupsData } = await supabase.from('community_groups').select('*');
-        if (groupsData) setGroups(groupsData as any);
-        const { data: { user } } = await supabase.auth.getUser();
-        if (user) {
-            const { data: membersData } = await supabase.from('community_group_members').select('group_id, status').eq('user_id', user.id);
-            if (membersData) { const map: any = {}; membersData.forEach((m:any) => map[m.group_id] = m.status); setMyMemberships(map); }
-        }
-    };
-
-    const handleJoin = async (groupId: string) => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        const { error } = await supabase.from('community_group_members').insert({ group_id: groupId, user_id: user.id, status: 'Pending' });
-        if (!error) { setMyMemberships({...myMemberships, [groupId]: 'Pending'}); alert("Request sent."); }
-    };
-
-    if (selectedGroup) return <GroupChat group={selectedGroup} onBack={() => setSelectedGroup(null)} />;
+        setLoading(true);
+        const text = await explainVerse(verse.text, verse.reference);
+        setExplanation(text);
+        setLoading(false);
+    }
 
     return (
         <div className="p-4 space-y-6">
-            <h1 className="text-2xl font-black dark:text-white">Groups</h1>
-             {groups.map(group => {
-                 const status = myMemberships[group.id];
-                 return (
-                    <div key={group.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border dark:border-slate-700">
-                        <h3 className="font-bold text-lg dark:text-white">{group.name}</h3>
-                        <p className="text-sm text-slate-600 dark:text-slate-300 mb-4">{group.description}</p>
-                        {status === 'Approved' ? <button onClick={() => setSelectedGroup(group)} className="w-full bg-green-600 text-white py-3 rounded-xl font-bold">Enter Group</button> : 
-                         status === 'Pending' ? <button disabled className="w-full bg-orange-100 text-orange-600 py-3 rounded-xl font-bold">Pending</button> :
-                         <button onClick={() => handleJoin(group.id)} className="w-full bg-blue-600 text-white py-3 rounded-xl font-bold">Join Group</button>}
+             <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden">
+                <BookOpen size={100} className="absolute -top-4 -right-4 opacity-10"/>
+                <h2 className="text-2xl font-serif font-bold mb-6 text-center">Daily Scripture</h2>
+                <div className="space-y-4">
+                    <p className="text-xl leading-relaxed text-center font-serif">"{verse.text}"</p>
+                    <p className="text-center font-bold text-indigo-300 uppercase tracking-widest text-sm">{verse.reference}</p>
+                </div>
+                
+                <div className="mt-8">
+                     {!explanation && !loading && (
+                         <button onClick={handleExplain} className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold flex items-center justify-center gap-2 transition backdrop-blur-sm">
+                             <Sparkles size={18}/> Explain this verse
+                         </button>
+                     )}
+                     {loading && (
+                         <div className="text-center py-4 flex items-center justify-center gap-2">
+                             <Loader2 size={20} className="animate-spin"/> Consulting AI Pastor...
+                         </div>
+                     )}
+                     {explanation && (
+                         <div className="bg-white/10 rounded-xl p-4 backdrop-blur-md animate-fade-in border border-white/10">
+                             <h4 className="font-bold text-indigo-200 mb-2 flex items-center gap-2"><Sparkles size={16}/> Interpretation</h4>
+                             <p className="text-sm leading-relaxed opacity-90">{explanation}</p>
+                         </div>
+                     )}
+                </div>
+             </div>
+             
+             {/* Additional Bible Features Placeholder */}
+             <div className="grid grid-cols-2 gap-4">
+                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
+                     <Bookmark size={24} className="mx-auto text-blue-500 mb-2"/>
+                     <span className="font-bold text-sm dark:text-white">Reading Plans</span>
+                 </div>
+                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
+                     <Search size={24} className="mx-auto text-purple-500 mb-2"/>
+                     <span className="font-bold text-sm dark:text-white">Search Bible</span>
+                 </div>
+             </div>
+        </div>
+    );
+};
+
+// --- BLOG VIEW ---
+export const BlogView = () => {
+    const [blogs, setBlogs] = useState<BlogPost[]>([]);
+    const [selectedBlog, setSelectedBlog] = useState<BlogPost|null>(null);
+
+    useEffect(() => {
+        const fetchBlogs = async () => {
+            const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
+            if(data) setBlogs(data as any);
+        };
+        fetchBlogs();
+    }, []);
+
+    if (selectedBlog) {
+        return (
+            <div className="p-4 bg-white dark:bg-slate-900 min-h-full">
+                <button onClick={() => setSelectedBlog(null)} className="mb-4 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>
+                {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-48 object-cover rounded-2xl mb-6 shadow-md"/>}
+                <h1 className="text-2xl font-black mb-2 dark:text-white">{selectedBlog.title}</h1>
+                <div className="flex gap-2 text-xs text-slate-500 mb-6 font-bold uppercase tracking-wider">
+                    <span>{selectedBlog.category}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
+                </div>
+                <div className="prose dark:prose-invert max-w-none">
+                    <p className="whitespace-pre-wrap">{selectedBlog.content}</p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-4 space-y-4">
+            <h2 className="text-2xl font-black mb-2 dark:text-white">Articles & Devotionals</h2>
+            {blogs.map(blog => (
+                <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer flex gap-4">
+                    {blog.image && <div className="w-24 h-24 bg-cover bg-center rounded-xl flex-shrink-0" style={{backgroundImage: `url(${blog.image})`}}></div>}
+                    <div className="flex-1">
+                        <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">{blog.category}</div>
+                        <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2">{blog.title}</h3>
+                        <p className="text-xs text-slate-500 line-clamp-2">{blog.excerpt}</p>
                     </div>
-                 );
-             })}
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// --- SERMONS VIEW ---
+export const SermonsView = () => {
+    const [sermons, setSermons] = useState<Sermon[]>([]);
+    
+    useEffect(() => {
+        const fetchSermons = async () => {
+            const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false });
+            if(data) setSermons(data as any);
+        };
+        fetchSermons();
+    }, []);
+
+    return (
+        <div className="p-4 space-y-6">
+            <h2 className="text-2xl font-black dark:text-white">Sermons</h2>
+            {sermons.map(sermon => (
+                <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-3xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="relative aspect-video bg-black">
+                         {sermon.videoUrl && (
+                             <iframe 
+                                 src={`https://www.youtube.com/embed/${getYouTubeID(sermon.videoUrl)}`} 
+                                 className="absolute inset-0 w-full h-full" 
+                                 allowFullScreen 
+                                 title={sermon.title}
+                             ></iframe>
+                         )}
+                    </div>
+                    <div className="p-4">
+                        <h3 className="font-bold text-lg dark:text-white mb-1">{sermon.title}</h3>
+                        <div className="flex justify-between items-center text-sm text-slate-500">
+                            <span>{sermon.preacher}</span>
+                            <span>{new Date(sermon.date).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// --- COMMUNITY VIEW ---
+export const CommunityView = () => {
+    const [groups, setGroups] = useState<CommunityGroup[]>([]);
+    const [viewingGroup, setViewingGroup] = useState<CommunityGroup|null>(null);
+    const [loading, setLoading] = useState(true);
+
+    const fetchGroups = async () => {
+        try {
+            const { data: { user } } = await supabase.auth.getUser();
+            const { data: allGroups } = await supabase.from('community_groups').select('*');
+            
+            let userMemberships: any[] = [];
+            if (user) {
+                const { data: memberships } = await supabase.from('community_group_members').select('group_id, status').eq('user_id', user.id);
+                userMemberships = memberships || [];
+            }
+
+            const groupsWithStatus = (allGroups || []).map((g: any) => {
+                const membership = userMemberships.find(m => m.group_id === g.id);
+                return { 
+                    ...g, 
+                    isMember: membership?.status === 'Approved',
+                    status: membership?.status || 'None'
+                };
+            });
+            
+            setGroups(groupsWithStatus);
+        } catch (e) {
+            console.error(e);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchGroups();
+    }, []);
+
+    const handleJoin = async (groupId: string) => {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return alert("Please log in to join groups.");
+
+        const { error } = await supabase.from('community_group_members').insert({
+            user_id: user.id,
+            group_id: groupId,
+            status: 'Pending' // Requires admin approval
+        });
+
+        if(error) alert("Could not request to join.");
+        else {
+            alert("Request sent! Waiting for admin approval.");
+            fetchGroups();
+        }
+    };
+
+    if (viewingGroup) {
+        return <GroupChat group={viewingGroup} onBack={() => { setViewingGroup(null); fetchGroups(); }} />;
+    }
+
+    return (
+        <div className="p-4 space-y-4">
+            <h2 className="text-2xl font-black dark:text-white">Community Groups</h2>
+            <p className="text-sm text-slate-500 mb-4">Connect with others in smaller groups.</p>
+            
+            {loading ? <div className="text-center py-10"><Loader2 className="animate-spin mx-auto"/></div> : (
+                <div className="space-y-4">
+                    {groups.map(group => (
+                        <div key={group.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 items-center">
+                            {group.image ? (
+                                <div className="w-16 h-16 rounded-full bg-cover bg-center" style={{backgroundImage: `url(${group.image})`}}></div>
+                            ) : (
+                                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl">{group.name.substring(0,1)}</div>
+                            )}
+                            <div className="flex-1">
+                                <h3 className="font-bold text-slate-900 dark:text-white">{group.name}</h3>
+                                <p className="text-xs text-slate-500 line-clamp-1">{group.description}</p>
+                            </div>
+                            <div>
+                                {group.status === 'Approved' ? (
+                                    <button onClick={() => setViewingGroup(group)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Open</button>
+                                ) : group.status === 'Pending' ? (
+                                    <button disabled className="bg-orange-100 text-orange-600 px-4 py-2 rounded-xl text-xs font-bold">Pending</button>
+                                ) : (
+                                    <button onClick={() => handleJoin(group.id)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-bold">Join</button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
+// --- EVENTS VIEW ---
+export const EventsView = ({ onBack }: { onBack?: () => void }) => {
+    const [events, setEvents] = useState<Event[]>([]);
+    
+    useEffect(() => {
+        const fetchEvents = async () => {
+            const { data } = await supabase.from('events').select('*').order('date', { ascending: true });
+            if(data) setEvents(data as any);
+        };
+        fetchEvents();
+    }, []);
+
+    return (
+        <div className="p-4 space-y-4">
+            {onBack && <button onClick={onBack} className="mb-2 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>}
+            <h2 className="text-2xl font-black dark:text-white">Upcoming Events</h2>
+            {events.map(event => (
+                <div key={event.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 border-l-4 border-l-blue-500">
+                    <div className="flex justify-between items-start mb-2">
+                        <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
+                            {new Date(event.date).toLocaleDateString([], {month: 'short', day: 'numeric'})}
+                        </div>
+                        <span className="text-xs font-bold text-slate-400">{event.time}</span>
+                    </div>
+                    <h3 className="font-bold text-lg dark:text-white mb-1">{event.title}</h3>
+                    <p className="text-sm text-slate-500 mb-2 flex items-center gap-1"><MapPin size={14}/> {event.location}</p>
+                    <p className="text-sm text-slate-600 dark:text-slate-300">{event.description}</p>
+                </div>
+            ))}
+        </div>
+    );
+};
+
+// --- PROFILE VIEW ---
+export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [formData, setFormData] = useState({ firstName: user?.firstName || '', lastName: user?.lastName || '', phone: user?.phone || '', dob: user?.dob || '' });
+
+    const handleSave = () => {
+        onUpdateUser(formData);
+        setIsEditing(false);
+    }
+
+    return (
+        <div className="p-4 space-y-6">
+            <div className="flex items-center gap-4 mb-6">
+                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                    {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </div>
+                <div>
+                    <h2 className="text-2xl font-black dark:text-white">{user?.firstName} {user?.lastName}</h2>
+                    <p className="text-sm text-slate-500">{user?.email}</p>
+                    <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-bold mt-1">{user?.role}</span>
+                </div>
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold dark:text-white">Personal Info</h3>
+                    <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className="text-blue-600 font-bold text-sm">
+                        {isEditing ? 'Save' : 'Edit'}
+                    </button>
+                </div>
+                <div className="space-y-4">
+                    <div>
+                        <label className="text-xs text-slate-400 uppercase font-bold">Phone</label>
+                        {isEditing ? (
+                            <input className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} />
+                        ) : (
+                            <p className="dark:text-white font-medium">{user?.phone || 'Not set'}</p>
+                        )}
+                    </div>
+                    <div>
+                        <label className="text-xs text-slate-400 uppercase font-bold">Date of Birth</label>
+                         {isEditing ? (
+                            <input type="date" className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white" value={formData.dob} onChange={e=>setFormData({...formData, dob: e.target.value})} />
+                        ) : (
+                            <p className="dark:text-white font-medium">{user?.dob || 'Not set'}</p>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            <div className="space-y-2">
+                <button onClick={toggleTheme} className="w-full bg-white dark:bg-slate-800 p-4 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">{isDarkMode ? <Sun size={20} className="text-orange-500"/> : <Moon size={20} className="text-indigo-500"/>}</div>
+                        <span className="font-bold dark:text-white">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+                    </div>
+                </button>
+                
+                <button onClick={() => onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
+                     <div className="flex items-center gap-3">
+                        <div className="p-2 bg-blue-50 dark:bg-slate-700 rounded-lg"><Phone size={20} className="text-blue-500"/></div>
+                        <span className="font-bold dark:text-white">Contact Us</span>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-400"/>
+                </button>
+
+                <button onClick={() => onNavigate('events')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
+                     <div className="flex items-center gap-3">
+                        <div className="p-2 bg-green-50 dark:bg-slate-700 rounded-lg"><Calendar size={20} className="text-green-500"/></div>
+                        <span className="font-bold dark:text-white">Events</span>
+                    </div>
+                    <ChevronRight size={20} className="text-slate-400"/>
+                </button>
+
+                <button onClick={onLogout} className="w-full bg-red-50 dark:bg-red-900/10 p-4 rounded-xl flex items-center gap-3 text-red-600 mt-4">
+                    <LogOut size={20}/>
+                    <span className="font-bold">Log Out</span>
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- NOTIFICATIONS VIEW ---
+export const NotificationsView = () => {
+    return (
+        <div className="p-4">
+            <h2 className="text-2xl font-black mb-4 dark:text-white">Notifications</h2>
+            <div className="text-center py-20 bg-slate-50 dark:bg-slate-800 rounded-3xl">
+                <Bell size={48} className="mx-auto text-slate-300 mb-4"/>
+                <p className="text-slate-500 font-medium">No new notifications</p>
+            </div>
+        </div>
+    );
+};
+
+// --- CONTACT VIEW ---
+export const ContactView = ({ onBack }: { onBack?: () => void }) => {
+    return (
+        <div className="p-4 space-y-6">
+            {onBack && <button onClick={onBack} className="mb-2 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>}
+            <h2 className="text-2xl font-black dark:text-white">Contact Us</h2>
+            
+            <div className="bg-blue-600 rounded-[32px] p-8 text-white text-center shadow-xl">
+                <Logo className="w-24 h-24 mx-auto mb-4"/>
+                <h3 className="text-xl font-bold mb-2">Isipingo Community Church</h3>
+                <p className="opacity-80">Where it's all about Jesus</p>
+            </div>
+
+            <div className="space-y-4">
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+                    <div className="bg-green-100 p-3 rounded-full text-green-600"><Phone size={24}/></div>
+                    <div>
+                        <p className="text-xs text-slate-500 font-bold uppercase">Phone</p>
+                        <p className="font-bold dark:text-white">+27 31 902 1234</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+                    <div className="bg-blue-100 p-3 rounded-full text-blue-600"><Mail size={24}/></div>
+                    <div>
+                        <p className="text-xs text-slate-500 font-bold uppercase">Email</p>
+                        <p className="font-bold dark:text-white">info@icc.org.za</p>
+                    </div>
+                </div>
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+                    <div className="bg-purple-100 p-3 rounded-full text-purple-600"><MapPin size={24}/></div>
+                    <div>
+                        <p className="text-xs text-slate-500 font-bold uppercase">Address</p>
+                        <p className="font-bold dark:text-white">123 Church Street, Isipingo</p>
+                    </div>
+                </div>
+                 <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
+                    <div className="bg-indigo-100 p-3 rounded-full text-indigo-600"><Globe size={24}/></div>
+                    <div>
+                        <p className="text-xs text-slate-500 font-bold uppercase">Website</p>
+                        <p className="font-bold dark:text-white">www.isipingochurch.com</p>
+                    </div>
+                </div>
+            </div>
         </div>
     );
 };

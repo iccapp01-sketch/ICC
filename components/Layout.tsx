@@ -1,6 +1,7 @@
 
 import React from 'react';
 import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar, User, Menu } from 'lucide-react';
+import { Logo } from './Logo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -31,13 +32,19 @@ export const Layout: React.FC<LayoutProps> = ({
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       
       {/* Top Navigation Bar */}
-      <div className="fixed top-0 w-full z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm h-14 flex items-center justify-between px-4 transition-colors duration-300">
+      <div className="fixed top-0 w-full z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm h-16 flex items-center justify-between px-4 transition-colors duration-300">
         
-        {/* Left: Branding (Compact) */}
-        <div className="flex items-center gap-2 overflow-hidden">
-           <span className="text-sm font-bold text-slate-900 dark:text-white leading-tight truncate max-w-[180px]">
-             Welcome back{userName ? `, ${userName}` : ''}
-           </span>
+        {/* Left: Branding */}
+        <div className="flex items-center gap-3 overflow-hidden">
+           <div className="w-8 h-8 flex-shrink-0">
+             <Logo className="w-full h-full" />
+           </div>
+           <div className="flex flex-col">
+             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Isipingo</span>
+             <span className="text-sm font-black text-[#0c2d58] dark:text-white leading-none truncate max-w-[140px]">
+               Community Church
+             </span>
+           </div>
         </div>
 
         {/* Right: Events, Notifications & Profile */}
@@ -61,7 +68,7 @@ export const Layout: React.FC<LayoutProps> = ({
              onClick={() => onTabChange('profile')}
              className={`p-0.5 rounded-full border-2 transition ${activeTab === 'profile' ? 'border-blue-500' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'}`}
           >
-            <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-[10px] font-bold uppercase overflow-hidden">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold uppercase overflow-hidden shadow-md">
               {userName ? userName.substring(0,2) : <User size={14}/>}
             </div>
           </button>
@@ -69,7 +76,7 @@ export const Layout: React.FC<LayoutProps> = ({
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24 pt-14 relative">
+      <div className="flex-1 overflow-y-auto no-scrollbar pb-24 pt-16 relative">
         {children}
       </div>
 

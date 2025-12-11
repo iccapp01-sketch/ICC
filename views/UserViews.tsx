@@ -6,7 +6,7 @@ import {
   Calendar, Clock, MoreVertical, X, Send, Sparkles,
   BookOpen, Users, MapPin, Music, ChevronDown, ChevronUp, SkipBack, SkipForward, Repeat, Shuffle, Pause, ThumbsUp,
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
-  Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon, Film, MessageSquare, Reply, Facebook, Instagram, Loader2, Lock, ThumbsDown
+  Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon, Film, MessageSquare, Reply, Facebook, Instagram, Loader2, Lock, ThumbsDown, Plus, Trash2, MoreHorizontal
 } from 'lucide-react';
 import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification, Reel } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -165,6 +165,401 @@ export const HomeView = ({ onNavigate }: any) => {
       </div>
   );
 };
+
+// --- MUSIC VIEW (UPDATED) ---
+export const MusicView = () => {
+    const [activeTab, setActiveTab] = useState<'library' | 'podcast' | 'playlists'>('library');
+    const [tracks, setTracks] = useState<MusicTrack[]>([]);
+    const [playlists, setPlaylists] = useState<Playlist[]>([]);
+    const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
+    const [isPlaying, setIsPlaying] = useState(false);
+    const [duration, setDuration] = useState(0);
+    const [currentTime, setCurrentTime] = useState(0);
+    
+    // Playlist Management
+    const [viewingPlaylist, setViewingPlaylist] = useState<Playlist | null>(null);
+    const [newPlaylistName, setNewPlaylistName] = useState('');
+    const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+    const [isAddingToPlaylist, setIsAddingToPlaylist] = useState<string | null>(null); // track id to add
+    
+    const audioRef = useRef<HTMLAudioElement>(null);
+
+    // Initial Fetch
+    useEffect(() => { 
+        const fetchContent = async () => {
+             // Fetch Tracks
+             const { data: trackData } = await supabase.from('music_tracks').select('*'); 
+             if(trackData) setTracks(trackData as any);
+             
+             // Fetch Playlists
+             const { data: { user } } = await supabase.auth.getUser();
+             if(user) {
+                 const { data: playlistData } = await supabase.from('playlists').select('*').eq('user_id', user.id);
+                 if(playlistData) setPlaylists(playlistData as any);
+             }
+        }; 
+        fetchContent(); 
+    }, []);
+
+    // Audio Logic
+    useEffect(() => {
+        if(currentTrack && audioRef.current) {
+            audioRef.current.play().then(() => setIsPlaying(true)).catch(e => console.log("Auto-play prevented", e));
+        }
+    }, [currentTrack]);
+
+    const togglePlay = () => {
+        if(!audioRef.current || !currentTrack) return;
+        if(isPlaying) {
+            audioRef.current.pause();
+            setIsPlaying(false);
+        } else {
+            audioRef.current.play();
+            setIsPlaying(true);
+        }
+    };
+
+    const handleTimeUpdate = () => {
+        if(audioRef.current) {
+            setCurrentTime(audioRef.current.currentTime);
+            setDuration(audioRef.current.duration || 0);
+        }
+    };
+
+    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if(audioRef.current) {
+            const time = Number(e.target.value);
+            audioRef.current.currentTime = time;
+            setCurrentTime(time);
+        }
+    };
+
+    const formatTime = (time: number) => {
+        if(isNaN(time)) return "0:00";
+        const minutes = Math.floor(time / 60);
+        const seconds = Math.floor(time % 60);
+        return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
+    };
+
+    // Playlist Actions
+    const createPlaylist = async () => {
+        if(!newPlaylistName.trim()) return;
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+
+        const { data, error } = await supabase.from('playlists').insert({
+            title: newPlaylistName,
+            user_id: user.id,
+            tracks: []
+        }).select();
+
+        if(data) {
+            setPlaylists([...playlists, data[0] as any]);
+            setIsCreatingPlaylist(false);
+            setNewPlaylistName('');
+        }
+    };
+
+    const deletePlaylist = async (id: string) => {
+        if(!confirm("Are you sure you want to delete this playlist?")) return;
+        await supabase.from('playlists').delete().eq('id', id);
+        setPlaylists(playlists.filter(p => p.id !== id));
+        if(viewingPlaylist?.id === id) setViewingPlaylist(null);
+    };
+
+    const addTrackToPlaylist = async (playlistId: string, track: MusicTrack) => {
+        const playlist = playlists.find(p => p.id === playlistId);
+        if(!playlist) return;
+
+        const currentTracks = playlist.tracks || [];
+        // Avoid duplicates
+        if(currentTracks.find(t => t.id === track.id)) {
+            alert("Track already in playlist");
+            setIsAddingToPlaylist(null);
+            return;
+        }
+        
+        const updatedTracks = [...currentTracks, track];
+        
+        const { error } = await supabase.from('playlists')
+            .update({ tracks: updatedTracks })
+            .eq('id', playlistId);
+
+        if(!error) {
+            setPlaylists(playlists.map(p => p.id === playlistId ? { ...p, tracks: updatedTracks } : p));
+            alert("Added to playlist!");
+        }
+        setIsAddingToPlaylist(null);
+    };
+
+    const removeTrackFromPlaylist = async (playlistId: string, trackId: string) => {
+        const playlist = playlists.find(p => p.id === playlistId);
+        if(!playlist) return;
+        
+        const updatedTracks = (playlist.tracks || []).filter(t => t.id !== trackId);
+        
+        const { error } = await supabase.from('playlists')
+            .update({ tracks: updatedTracks })
+            .eq('id', playlistId);
+
+        if(!error) {
+            const updatedPlaylist = { ...playlist, tracks: updatedTracks };
+            setPlaylists(playlists.map(p => p.id === playlistId ? updatedPlaylist : p));
+            if(viewingPlaylist?.id === playlistId) setViewingPlaylist(updatedPlaylist);
+        }
+    };
+
+    // Filter Content
+    const libraryTracks = tracks.filter(t => t.type !== 'PODCAST'); // Default to music if null or 'MUSIC'
+    const podcastTracks = tracks.filter(t => t.type === 'PODCAST');
+
+    return (
+        <div className="flex flex-col min-h-full pb-20"> {/* pb-20 for fixed player + safe area */}
+            
+            {/* Header & Tabs */}
+            <div className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-30 pt-4 px-4 pb-2 border-b border-slate-200 dark:border-slate-800 shadow-sm">
+                <h1 className="text-2xl font-black mb-4 dark:text-white">Media</h1>
+                <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
+                    <button onClick={()=>{setActiveTab('library'); setViewingPlaylist(null);}} className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${activeTab==='library' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Music Library</button>
+                    <button onClick={()=>{setActiveTab('podcast'); setViewingPlaylist(null);}} className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${activeTab==='podcast' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Podcasts</button>
+                    <button onClick={()=>{setActiveTab('playlists');}} className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${activeTab==='playlists' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Playlists</button>
+                </div>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 p-4 pb-32"> {/* Extra padding bottom for player */}
+                
+                {activeTab === 'library' && (
+                    <div className="space-y-3">
+                        {libraryTracks.map(track => (
+                            <TrackItem 
+                                key={track.id} 
+                                track={track} 
+                                isPlaying={currentTrack?.id === track.id && isPlaying}
+                                onClick={() => setCurrentTrack(track)}
+                                onAddToPlaylist={() => setIsAddingToPlaylist(track.id)}
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {activeTab === 'podcast' && (
+                    <div className="space-y-3">
+                        {podcastTracks.map(track => (
+                            <TrackItem 
+                                key={track.id} 
+                                track={track} 
+                                isPlaying={currentTrack?.id === track.id && isPlaying}
+                                onClick={() => setCurrentTrack(track)}
+                                onAddToPlaylist={() => setIsAddingToPlaylist(track.id)}
+                                isPodcast
+                            />
+                        ))}
+                    </div>
+                )}
+
+                {activeTab === 'playlists' && !viewingPlaylist && (
+                    <div>
+                        <button 
+                            onClick={() => setIsCreatingPlaylist(true)}
+                            className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-slate-500 font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition mb-6"
+                        >
+                            <Plus size={20}/> Create New Playlist
+                        </button>
+                        
+                        <div className="grid grid-cols-2 gap-4">
+                            {playlists.map(playlist => (
+                                <div key={playlist.id} onClick={() => setViewingPlaylist(playlist)} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border dark:border-slate-700 cursor-pointer hover:scale-[1.02] transition">
+                                    <div className="aspect-square bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl mb-3 flex items-center justify-center text-white shadow-inner">
+                                        <ListMusic size={32}/>
+                                    </div>
+                                    <h3 className="font-bold text-slate-900 dark:text-white truncate">{playlist.title || playlist.name}</h3>
+                                    <p className="text-xs text-slate-500">{(playlist.tracks || []).length} Tracks</p>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {activeTab === 'playlists' && viewingPlaylist && (
+                    <div>
+                        <div className="flex items-center gap-3 mb-6">
+                            <button onClick={() => setViewingPlaylist(null)} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border dark:border-slate-700"><ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/></button>
+                            <div className="flex-1">
+                                <h2 className="text-xl font-black text-slate-900 dark:text-white">{viewingPlaylist.title || viewingPlaylist.name}</h2>
+                                <p className="text-xs text-slate-500">{(viewingPlaylist.tracks || []).length} Tracks</p>
+                            </div>
+                            <button onClick={() => deletePlaylist(viewingPlaylist.id)} className="p-2 bg-red-50 text-red-500 rounded-full"><Trash2 size={20}/></button>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            {(viewingPlaylist.tracks || []).length === 0 ? (
+                                <p className="text-center text-slate-400 py-10 italic">No tracks in this playlist yet.</p>
+                            ) : (
+                                (viewingPlaylist.tracks || []).map(track => (
+                                    <TrackItem 
+                                        key={track.id} 
+                                        track={track} 
+                                        isPlaying={currentTrack?.id === track.id && isPlaying}
+                                        onClick={() => setCurrentTrack(track)}
+                                        onRemoveFromPlaylist={() => removeTrackFromPlaylist(viewingPlaylist.id, track.id)}
+                                    />
+                                ))
+                            )}
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Modals */}
+            {isCreatingPlaylist && (
+                <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl w-full max-w-xs shadow-2xl animate-fade-in">
+                        <h3 className="font-bold text-lg mb-4 dark:text-white">New Playlist</h3>
+                        <input 
+                            autoFocus
+                            className="w-full bg-slate-100 dark:bg-slate-700 border-none rounded-xl p-3 mb-4 outline-none dark:text-white font-medium" 
+                            placeholder="Playlist Name"
+                            value={newPlaylistName}
+                            onChange={(e) => setNewPlaylistName(e.target.value)}
+                        />
+                        <div className="flex gap-2">
+                            <button onClick={() => setIsCreatingPlaylist(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-bold text-slate-500">Cancel</button>
+                            <button onClick={createPlaylist} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Create</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {isAddingToPlaylist && (
+                 <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl w-full max-w-xs shadow-2xl animate-fade-in max-h-[80vh] overflow-y-auto">
+                        <div className="flex justify-between items-center mb-4">
+                            <h3 className="font-bold text-lg dark:text-white">Add to Playlist</h3>
+                            <button onClick={() => setIsAddingToPlaylist(null)}><X size={20} className="text-slate-400"/></button>
+                        </div>
+                        <div className="space-y-2">
+                            {playlists.map(p => (
+                                <button 
+                                    key={p.id} 
+                                    onClick={() => {
+                                        const track = tracks.find(t => t.id === isAddingToPlaylist);
+                                        if(track) addTrackToPlaylist(p.id, track);
+                                    }}
+                                    className="w-full text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition flex items-center gap-3"
+                                >
+                                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600"><ListMusic size={16}/></div>
+                                    <span className="font-bold text-slate-700 dark:text-slate-200">{p.title || p.name}</span>
+                                </button>
+                            ))}
+                        </div>
+                        <button 
+                            onClick={() => { setIsAddingToPlaylist(null); setActiveTab('playlists'); setIsCreatingPlaylist(true); }}
+                            className="w-full mt-4 py-3 border border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 font-bold text-sm"
+                        >
+                            + Create New Playlist
+                        </button>
+                    </div>
+                </div>
+            )}
+
+            {/* Persistent Media Player */}
+            <div className={`fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-2 right-2 z-40 transition-all duration-300 transform ${currentTrack ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
+                {currentTrack && (
+                    <div className="bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl border border-white/20 dark:border-slate-700 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-2xl p-3 flex flex-col gap-2">
+                        {/* Progress Bar */}
+                        <div className="w-full h-1 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden cursor-pointer group">
+                             <div className="h-full bg-blue-500 rounded-full relative" style={{ width: `${(currentTime / duration) * 100}%` }}></div>
+                             <input 
+                                type="range" 
+                                min="0" 
+                                max={duration || 0} 
+                                value={currentTime} 
+                                onChange={handleSeek}
+                                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                             />
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                            {/* Cover Art */}
+                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
+                                {currentTrack.type === 'PODCAST' ? <Mic size={20}/> : <Music size={20}/>}
+                            </div>
+                            
+                            {/* Info */}
+                            <div className="flex-1 min-w-0">
+                                <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{currentTrack.title}</h4>
+                                <p className="text-xs text-slate-500 truncate">{currentTrack.artist}</p>
+                            </div>
+
+                            {/* Controls */}
+                            <div className="flex items-center gap-2">
+                                <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hidden sm:block"><SkipBack size={20} fill="currentColor" /></button>
+                                <button 
+                                    onClick={togglePlay}
+                                    className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-md hover:bg-blue-700 transition transform active:scale-95"
+                                >
+                                    {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1"/>}
+                                </button>
+                                <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hidden sm:block"><SkipForward size={20} fill="currentColor" /></button>
+                            </div>
+                        </div>
+                        
+                        {/* Mobile Time */}
+                        <div className="flex justify-between px-1">
+                             <span className="text-[10px] font-medium text-slate-400 font-mono">{formatTime(currentTime)}</span>
+                             <span className="text-[10px] font-medium text-slate-400 font-mono">-{formatTime(duration - currentTime)}</span>
+                        </div>
+
+                        <audio 
+                            ref={audioRef} 
+                            src={currentTrack.url} 
+                            onTimeUpdate={handleTimeUpdate}
+                            onEnded={() => setIsPlaying(false)}
+                        />
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Helper Component for Track Item
+const TrackItem = ({ track, isPlaying, onClick, onAddToPlaylist, onRemoveFromPlaylist, isPodcast }: any) => (
+    <div className="group flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all cursor-pointer relative overflow-hidden">
+        <div onClick={onClick} className="absolute inset-0 z-0"></div>
+        
+        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm z-10 relative transition-transform group-hover:scale-105 ${isPlaying ? 'bg-blue-500' : isPodcast ? 'bg-purple-500' : 'bg-indigo-500'}`}>
+            {isPlaying ? (
+                <div className="flex gap-0.5 items-end h-4">
+                    <div className="w-1 bg-white animate-[bounce_1s_infinite] h-2"></div>
+                    <div className="w-1 bg-white animate-[bounce_1.2s_infinite] h-4"></div>
+                    <div className="w-1 bg-white animate-[bounce_0.8s_infinite] h-3"></div>
+                </div>
+            ) : (
+                <Play size={18} fill="currentColor" />
+            )}
+        </div>
+        
+        <div className="flex-1 min-w-0 z-10 pointer-events-none">
+            <h4 className={`font-bold text-sm truncate ${isPlaying ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white'}`}>{track.title}</h4>
+            <p className="text-xs text-slate-500 truncate">{track.artist} • {track.duration}</p>
+        </div>
+
+        <div className="z-20 flex items-center gap-1">
+             {onAddToPlaylist && (
+                 <button onClick={(e) => { e.stopPropagation(); onAddToPlaylist(); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-full transition">
+                     <Plus size={18}/>
+                 </button>
+             )}
+             {onRemoveFromPlaylist && (
+                 <button onClick={(e) => { e.stopPropagation(); onRemoveFromPlaylist(); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded-full transition">
+                     <Trash2 size={18}/>
+                 </button>
+             )}
+        </div>
+    </div>
+);
 
 // --- GROUP CHAT (STANDALONE FULL SCREEN LAYOUT) ---
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
@@ -488,19 +883,6 @@ export const EventsView = ({ onBack }: any) => {
         <div className="p-4 space-y-4">
             <h1 className="text-2xl font-black mb-6 dark:text-white">Events</h1>
             {events.map(ev => (<div key={ev.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl mb-4 border dark:border-slate-700"><h3 className="font-bold dark:text-white">{ev.title}</h3><p className="text-sm text-slate-500">{ev.description}</p></div>))}
-        </div>
-    );
-};
-
-export const MusicView = () => {
-    const [tracks, setTracks] = useState<MusicTrack[]>([]);
-    const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
-    useEffect(() => { const fetchTracks = async () => { const { data } = await supabase.from('music_tracks').select('*'); if(data) setTracks(data as any); }; fetchTracks(); }, []);
-    return (
-        <div className="p-4 space-y-2">
-            <h1 className="text-2xl font-black mb-6 dark:text-white">Music</h1>
-            {tracks.map(track => (<div key={track.id} onClick={()=>setCurrentTrack(track)} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-2xl mb-2 cursor-pointer border dark:border-slate-700"><div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600"><Music size={18}/></div><div><h4 className="font-bold text-sm dark:text-white">{track.title}</h4></div></div>))}
-            {currentTrack && (<div className="fixed bottom-20 left-4 right-4 bg-slate-900 text-white p-4 rounded-2xl flex justify-between shadow-lg z-50"><div><p className="font-bold text-sm">{currentTrack.title}</p></div><audio src={currentTrack.url} controls autoPlay className="h-8 w-32"/></div>)}
         </div>
     );
 };

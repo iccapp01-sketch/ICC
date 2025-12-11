@@ -1,7 +1,6 @@
 
 import React from 'react';
 import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar, User, Menu } from 'lucide-react';
-import { Logo } from './Logo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,17 +33,12 @@ export const Layout: React.FC<LayoutProps> = ({
       {/* Top Navigation Bar */}
       <div className="fixed top-0 w-full z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm h-16 flex items-center justify-between px-4 transition-colors duration-300">
         
-        {/* Left: Branding */}
-        <div className="flex items-center gap-3 overflow-hidden">
-           <div className="w-8 h-8 flex-shrink-0">
-             <Logo className="w-full h-full" />
-           </div>
-           <div className="flex flex-col">
-             <span className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Isipingo</span>
-             <span className="text-sm font-black text-[#0c2d58] dark:text-white leading-none truncate max-w-[140px]">
-               Community Church
-             </span>
-           </div>
+        {/* Left: Personalized Greeting */}
+        <div className="flex flex-col justify-center">
+           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Welcome back,</span>
+           <span className="text-lg font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[200px]">
+             {userName}
+           </span>
         </div>
 
         {/* Right: Events, Notifications & Profile */}

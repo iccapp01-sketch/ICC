@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
   Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube
 } from 'lucide-react';
-import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel } from '../types';
+import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel, ReadingPlan } from '../types';
 import { supabase } from '../lib/supabaseClient';
 
 interface AdminProps {
@@ -928,9 +928,19 @@ const GroupManager = () => {
         const { error } = await supabase.from('community_groups').insert([form]);
         if(error) handleSupabaseError(error, 'Save Group'); else { fetchGroups(); setForm({ name: '', description: '', image_url: '' }); }
     }
-    const handleApproval = async (id: string, status: string) => {
-        const { error } = await supabase.from('community_group_members').update({ status }).eq('id', id);
-        if(error) handleSupabaseError(error, 'Update Request'); else fetchRequests();
+    
+    // Updated Logic for Approval/Rejection
+    const handleApproval = async (id: string, action: 'Approved' | 'Rejected') => {
+        if (action === 'Rejected') {
+            // Delete the record if rejected
+            if(!confirm("Reject this request? This will remove the pending entry.")) return;
+            const { error } = await supabase.from('community_group_members').delete().eq('id', id);
+            if(error) handleSupabaseError(error, 'Reject Request'); else fetchRequests();
+        } else {
+            // Update status to Approved
+            const { error } = await supabase.from('community_group_members').update({ status: 'Approved' }).eq('id', id);
+            if(error) handleSupabaseError(error, 'Approve Request'); else fetchRequests();
+        }
     }
 
     return (
@@ -957,18 +967,19 @@ const GroupManager = () => {
             </div>
             
             <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Pending Requests</h3>
-                {requests.length === 0 ? <p className="text-slate-500">No pending requests</p> : (
-                    <div className="space-y-2">
+                <h3 className="font-bold mb-4 text-[#0c2d58]">Pending Membership Requests</h3>
+                {requests.length === 0 ? <p className="text-slate-500 italic text-sm">No pending requests found.</p> : (
+                    <div className="space-y-3">
                         {requests.map(r => (
-                            <div key={r.id} className="flex justify-between items-center p-3 border rounded-lg">
+                            <div key={r.id} className="flex justify-between items-center p-4 border rounded-xl hover:bg-slate-50 transition">
                                 <div>
-                                    <p className="font-bold">{r.profiles?.first_name} {r.profiles?.last_name}</p>
-                                    <p className="text-xs text-slate-500">Wants to join: {r.community_groups?.name}</p>
+                                    <p className="font-bold text-slate-900">{r.profiles?.first_name} {r.profiles?.last_name}</p>
+                                    <p className="text-xs text-slate-500">Requested to join: <span className="text-blue-600 font-bold">{r.community_groups?.name}</span></p>
+                                    <p className="text-[10px] text-slate-400 mt-1">Date: {new Date(r.created_at).toLocaleDateString()}</p>
                                 </div>
                                 <div className="flex gap-2">
-                                    <button onClick={()=>handleApproval(r.id, 'Approved')} className="bg-green-100 text-green-700 px-3 py-1 rounded text-xs font-bold hover:bg-green-200">Approve</button>
-                                    <button onClick={()=>handleApproval(r.id, 'Rejected')} className="bg-red-100 text-red-700 px-3 py-1 rounded text-xs font-bold hover:bg-red-200">Reject</button>
+                                    <button onClick={()=>handleApproval(r.id, 'Approved')} className="bg-green-100 text-green-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-green-200 flex items-center gap-1"><Check size={14}/> Approve</button>
+                                    <button onClick={()=>handleApproval(r.id, 'Rejected')} className="bg-red-100 text-red-700 px-4 py-2 rounded-lg text-xs font-bold hover:bg-red-200 flex items-center gap-1"><X size={14}/> Reject</button>
                                 </div>
                             </div>
                         ))}
@@ -980,19 +991,74 @@ const GroupManager = () => {
 };
 
 const BibleManager = () => {
+    const [plans, setPlans] = useState<ReadingPlan[]>([]);
     const [text, setText] = useState('');
+    const [uploading, setUploading] = useState(false);
+
+    useEffect(() => { fetchPlans(); }, []);
+
+    const fetchPlans = async () => {
+        const { data } = await supabase.from('reading_plans').select('*').order('created_at', { ascending: false });
+        if(data) setPlans(data as any);
+    };
+
     const handleUpload = async () => {
+        if(!text.trim()) return;
+        setUploading(true);
         const lines = text.split('\n').filter(l => l.trim());
-        const plans = lines.map(line => ({ month: 'General', year: 2025, content: line }));
-        const { error } = await supabase.from('reading_plans').insert(plans);
-        if(error) handleSupabaseError(error, 'Bulk Upload'); else { alert('Uploaded!'); setText(''); }
-    }
+        const plansPayload = lines.map(line => ({ month: 'General', year: 2025, content: line }));
+        
+        const { error } = await supabase.from('reading_plans').insert(plansPayload);
+        
+        if(error) handleSupabaseError(error, 'Bulk Upload'); 
+        else { 
+            alert('Uploaded successfully!'); 
+            setText(''); 
+            fetchPlans(); 
+        }
+        setUploading(false);
+    };
+
+    const handleDelete = async (id: string) => {
+        if(!confirm("Delete this entry?")) return;
+        const { error } = await supabase.from('reading_plans').delete().eq('id', id);
+        if(!error) fetchPlans();
+        else handleSupabaseError(error, 'Delete Plan');
+    };
+
     return (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200">
-            <h3 className="font-bold mb-4">Bulk Upload Reading Plan</h3>
-            <p className="text-xs text-slate-500 mb-2">Format: One entry per line (e.g., "Day 1: Genesis 1-3")</p>
-            <textarea className="w-full border p-3 rounded h-64 text-slate-900" value={text} onChange={e=>setText(e.target.value)} />
-            <button onClick={handleUpload} className="mt-4 bg-blue-600 text-white px-4 py-2 rounded font-bold">Upload Plans</button>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4 text-[#0c2d58]">Bulk Upload Reading Plan</h3>
+                <p className="text-xs text-slate-500 mb-2">Format: One entry per line (e.g., "Day 1: Genesis 1-3")</p>
+                <textarea 
+                    className="w-full border p-3 rounded-xl h-64 text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                    value={text} 
+                    onChange={e=>setText(e.target.value)} 
+                    placeholder="Paste reading plan here..."
+                />
+                <button 
+                    onClick={handleUpload} 
+                    disabled={uploading}
+                    className="mt-4 w-full bg-blue-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-blue-700 transition disabled:opacity-50"
+                >
+                    {uploading ? 'Uploading...' : 'Upload Plans'}
+                </button>
+            </div>
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 h-[500px] overflow-y-auto">
+                <h3 className="font-bold mb-4 text-[#0c2d58]">Current Reading Plans</h3>
+                {plans.length === 0 ? <p className="text-slate-400 text-sm">No plans uploaded.</p> : (
+                    <div className="space-y-2">
+                        {plans.map(p => (
+                            <div key={p.id} className="flex justify-between items-center p-3 border rounded-xl hover:bg-slate-50">
+                                <span className="text-sm font-medium text-slate-700 line-clamp-1 flex-1">{p.content}</span>
+                                <button onClick={()=>handleDelete(p.id)} className="text-red-500 p-2 hover:bg-red-50 rounded-lg"><Trash2 size={16}/></button>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
         </div>
     )
 };
@@ -1063,4 +1129,3 @@ const EventManager = () => {
         </div>
     );
 };
-// Force update v1

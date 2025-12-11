@@ -71,16 +71,18 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </div>
 
-      {/* Content Area */}
+      {/* Content Area - Fixed Positioned between headers and footers for robust scrolling */}
       <div 
-        className="flex-1 overflow-y-auto no-scrollbar relative scroll-smooth"
+        className="fixed left-0 right-0 overflow-y-auto no-scrollbar scroll-smooth bg-slate-50 dark:bg-slate-900"
         style={{
-          paddingTop: 'calc(4rem + env(safe-area-inset-top))',
-          paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))',
+          top: 'calc(4rem + env(safe-area-inset-top))',
+          bottom: 'calc(4rem + env(safe-area-inset-bottom))',
           WebkitOverflowScrolling: 'touch'
         }}
       >
-        {children}
+        <div className="min-h-full">
+           {children}
+        </div>
       </div>
 
       {/* Bottom Navigation */}

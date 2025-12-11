@@ -97,7 +97,7 @@ export const Auth: React.FC<AuthProps> = () => {
 
   if (needsVerification) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#0c2d58] to-[#08182e] p-4 font-sans">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-gradient-to-b from-[#0c2d58] to-[#08182e] p-4 font-sans z-50">
         <div className="w-full max-w-sm bg-white/15 backdrop-blur-xl border border-white/10 rounded-[32px] p-8 shadow-2xl text-center">
             <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Mail className="text-green-400 w-10 h-10" />
@@ -113,14 +113,14 @@ export const Auth: React.FC<AuthProps> = () => {
 
   return (
     <div 
-        className="min-h-screen w-full bg-gradient-to-b from-[#0c2d58] to-[#08182e] font-sans overflow-y-auto overflow-x-hidden"
+        className="fixed inset-0 w-full bg-gradient-to-b from-[#0c2d58] to-[#08182e] font-sans overflow-y-auto overflow-x-hidden"
         style={{ WebkitOverflowScrolling: 'touch' }}
     >
       <div 
         className="min-h-full flex flex-col items-center justify-center p-4"
         style={{
-           paddingTop: 'calc(2.5rem + env(safe-area-inset-top))',
-           paddingBottom: 'calc(2.5rem + env(safe-area-inset-bottom))'
+           paddingTop: 'calc(2rem + env(safe-area-inset-top))',
+           paddingBottom: 'calc(2rem + env(safe-area-inset-bottom))'
         }}
       >
         <div className="w-full max-w-sm bg-[#112a4a] rounded-[32px] p-8 text-center shadow-2xl mb-6 border-t border-white/10 relative z-10">
@@ -135,7 +135,7 @@ export const Auth: React.FC<AuthProps> = () => {
             <p className="text-[#29C5F6] italic font-medium text-base">Where it’s all about Jesus</p>
         </div>
 
-        <div className="w-full max-w-sm bg-white/15 backdrop-blur-xl border border-white/10 rounded-[32px] p-6 shadow-2xl relative">
+        <div className="w-full max-w-sm bg-white/15 backdrop-blur-xl border border-white/10 rounded-[32px] p-6 shadow-2xl relative mb-8">
             <div className="text-center mb-6">
             <h2 className="text-lg text-slate-100 font-medium opacity-90">Welcome to ICC</h2>
             <p className="text-[#29C5F6] text-sm font-medium">Join our community of believers</p>

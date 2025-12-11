@@ -474,7 +474,7 @@ export const BibleView = () => {
     };
 
     return (
-        <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-900">
+        <div className="bg-slate-50 dark:bg-slate-900 min-h-full">
              <div className="px-4 py-3 bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 z-10 sticky top-0 shadow-sm">
                  <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
                      <button onClick={()=>setActiveTab('read')} className={`flex-1 py-2 text-sm font-bold rounded-lg ${activeTab==='read' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Scripture</button>
@@ -482,7 +482,7 @@ export const BibleView = () => {
                  </div>
              </div>
              {activeTab === 'read' && (
-                 <div className="flex-1 overflow-y-auto p-6 pb-24">
+                 <div className="p-6 pb-24">
                      <h2 className="text-xl font-bold text-center mb-6 text-slate-400 uppercase">{book} {chapter}</h2>
                      {loading ? <div className="text-center">Loading...</div> : <p className="text-lg leading-loose font-serif whitespace-pre-wrap text-slate-800 dark:text-slate-200">{text}</p>}
                      <div className="mt-8 flex justify-center">{!explanation && <button onClick={handleExplain} className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2"><Sparkles size={16}/> AI Insight</button>}</div>

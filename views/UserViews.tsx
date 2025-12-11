@@ -280,7 +280,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     const rootPosts = posts.filter(p => !p.parent_id);
 
     return (
-        <div className="flex flex-col h-full bg-slate-100 dark:bg-slate-900 absolute inset-0 z-50">
+        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 absolute inset-0 z-50">
             {/* Header */}
             <div className="bg-white dark:bg-slate-800 px-4 py-3 border-b dark:border-slate-700 flex items-center gap-3 shadow-sm z-10 sticky top-0">
                 <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/></button>
@@ -298,7 +298,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
             </div>
 
             {/* Posts Feed */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 scroll-smooth">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 scroll-smooth bg-slate-100 dark:bg-slate-900/50">
                 {rootPosts.length === 0 && (
                     <div className="text-center py-20 opacity-60">
                         <MessageSquare size={48} className="mx-auto mb-4 text-slate-300"/>
@@ -312,10 +312,10 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                     const replies = posts.filter(p => p.parent_id === post.id);
 
                     return (
-                        <div key={post.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700">
+                        <div key={post.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
                             {/* Main Post Header */}
-                            <div className="flex items-start gap-3 mb-2">
-                                <div className="w-9 h-9 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 font-bold text-xs overflow-hidden">
+                            <div className="flex items-start gap-3 mb-3">
+                                <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 font-bold text-sm overflow-hidden shadow-inner">
                                     {post.profiles?.avatar_url ? (
                                         <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />
                                     ) : (
@@ -323,60 +323,72 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                                     )}
                                 </div>
                                 <div className="flex-1">
-                                    <p className="font-bold text-sm text-slate-900 dark:text-white">{post.profiles?.first_name} {post.profiles?.last_name}</p>
-                                    <p className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</p>
+                                    <p className="font-bold text-base text-slate-900 dark:text-white">{post.profiles?.first_name} {post.profiles?.last_name}</p>
+                                    <p className="text-xs text-slate-400">{new Date(post.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</p>
                                 </div>
                             </div>
 
                             {/* Main Post Content */}
-                            <div className="pl-12 mb-3">
+                            <div className="mb-4">
                                 <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
                             </div>
 
-                            {/* Actions Bar */}
-                            <div className="pl-12 flex items-center gap-4 border-t border-slate-100 dark:border-slate-700 pt-2 mb-2">
+                            {/* Actions Bar - IMPROVED UI */}
+                            <div className="flex items-center gap-4 border-t border-slate-100 dark:border-slate-700 pt-3">
                                 <button 
                                     onClick={() => handleLike(post.id, isLiked)}
-                                    className={`flex items-center gap-1.5 text-xs font-bold transition ${isLiked ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                                    className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${
+                                        isLiked 
+                                          ? 'text-red-500 bg-red-50 dark:bg-red-900/20' 
+                                          : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'
+                                    }`}
                                 >
-                                    <ThumbsUp size={14} className={isLiked ? "fill-current" : ""} />
-                                    {likes.length > 0 ? `${likes.length} ${likes.length === 1 ? 'Like' : 'Likes'}` : 'Like'}
+                                    <Heart size={18} className={isLiked ? "fill-current" : ""} />
+                                    <span>{likes.length > 0 ? likes.length : 'Like'}</span>
                                 </button>
+                                
                                 <button 
                                     onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)}
-                                    className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 transition"
+                                    className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${
+                                        replyingTo === post.id
+                                        ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
+                                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'
+                                    }`}
                                 >
-                                    <MessageSquare size={14} />
-                                    Reply
+                                    <MessageSquare size={18} />
+                                    <span>Reply</span>
                                 </button>
                             </div>
 
-                            {/* Replies Area */}
+                            {/* Replies Area - INDENTED */}
                             {(replies.length > 0 || replyingTo === post.id) && (
-                                <div className="pl-12 space-y-3 mt-3">
+                                <div className="mt-4 pl-4 border-l-2 border-slate-100 dark:border-slate-700 space-y-4">
                                     {replies.map(reply => (
-                                        <div key={reply.id} className="flex gap-2">
-                                            <div className="w-6 h-6 bg-slate-200 dark:bg-slate-700 rounded-full flex-shrink-0 flex items-center justify-center text-[10px] font-bold text-slate-500">
+                                        <div key={reply.id} className="flex gap-3">
+                                            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-slate-500 overflow-hidden">
                                                 {reply.profiles?.first_name?.[0]}
                                             </div>
-                                            <div className="bg-slate-100 dark:bg-slate-700/50 rounded-2xl px-3 py-2 flex-1">
-                                                <div className="flex justify-between items-baseline mb-0.5">
+                                            <div className="flex-1 bg-slate-50 dark:bg-slate-700/30 rounded-r-xl rounded-bl-xl p-3 border border-slate-100 dark:border-slate-700/50">
+                                                <div className="flex justify-between items-baseline mb-1">
                                                     <span className="font-bold text-xs text-slate-900 dark:text-white">{reply.profiles?.first_name} {reply.profiles?.last_name}</span>
+                                                    <span className="text-[10px] text-slate-400">{new Date(reply.created_at).toLocaleString([], {hour: '2-digit', minute:'2-digit'})}</span>
                                                 </div>
-                                                <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed">{reply.content}</p>
+                                                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{reply.content}</p>
                                             </div>
                                         </div>
                                     ))}
 
                                     {/* Nested Reply Input */}
                                     {replyingTo === post.id && (
-                                        <div className="flex gap-2 items-center animate-fade-in pt-1">
-                                            <div className="w-6 h-6 bg-slate-200 rounded-full flex-shrink-0"></div>
+                                        <div className="flex gap-3 items-start animate-fade-in mt-3 bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-slate-700">
+                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300">
+                                                Me
+                                            </div>
                                             <div className="flex-1 relative">
                                                 <input 
                                                     autoFocus
-                                                    className="w-full bg-slate-100 dark:bg-slate-700 border-none rounded-full px-3 py-1.5 text-xs dark:text-white focus:ring-1 focus:ring-blue-500 outline-none pr-8"
-                                                    placeholder="Write a reply..."
+                                                    className="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full px-4 py-2 text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none pr-12 shadow-sm"
+                                                    placeholder={`Reply to ${post.profiles?.first_name}...`}
                                                     value={replyText}
                                                     onChange={e => setReplyText(e.target.value)}
                                                     onKeyDown={e => e.key === 'Enter' && handleSend(post.id)}
@@ -384,9 +396,9 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                                                 <button 
                                                     onClick={() => handleSend(post.id)}
                                                     disabled={!replyText.trim()}
-                                                    className="absolute right-1 top-0.5 p-1 text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                                                    className="absolute right-1 top-1 p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-full disabled:opacity-50 transition"
                                                 >
-                                                    <Send size={14}/>
+                                                    <Send size={16}/>
                                                 </button>
                                             </div>
                                         </div>
@@ -399,26 +411,29 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Bottom Fixed Input for Main Thread */}
-            <div className="bg-white dark:bg-slate-800 border-t dark:border-slate-700 p-3 fixed bottom-0 left-0 right-0 z-50">
-                <div className="flex gap-2 items-end max-w-3xl mx-auto">
-                    <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-2xl px-4 py-2">
-                        <input 
-                            ref={inputRef}
-                            className="w-full bg-transparent border-none text-sm dark:text-white focus:outline-none"
-                            placeholder="Write a public comment..."
-                            value={newPostText}
-                            onChange={e => setNewPostText(e.target.value)}
-                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                        />
+            {/* Bottom Fixed Input for Main Thread - VISUALLY PROMINENT */}
+            <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 fixed bottom-0 left-0 right-0 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] pb-8 md:pb-4">
+                <div className="max-w-3xl mx-auto">
+                    <label className="block text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2 ml-1">Add a comment:</label>
+                    <div className="flex gap-3 items-end">
+                        <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all shadow-inner">
+                            <input 
+                                ref={inputRef}
+                                className="w-full bg-transparent border-none text-base dark:text-white focus:outline-none placeholder-slate-400"
+                                placeholder="Type your message here..."
+                                value={newPostText}
+                                onChange={e => setNewPostText(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                            />
+                        </div>
+                        <button 
+                            onClick={() => handleSend()} 
+                            disabled={!newPostText.trim()}
+                            className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex-shrink-0"
+                        >
+                            <Send size={22}/>
+                        </button>
                     </div>
-                    <button 
-                        onClick={() => handleSend()} 
-                        disabled={!newPostText.trim()}
-                        className="bg-blue-600 text-white p-2.5 rounded-full shadow-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-transform active:scale-95 flex-shrink-0"
-                    >
-                        <Send size={18}/>
-                    </button>
                 </div>
             </div>
         </div>

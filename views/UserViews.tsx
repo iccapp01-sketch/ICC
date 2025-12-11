@@ -167,128 +167,6 @@ export const HomeView = ({ onNavigate }: any) => {
   );
 };
 
-// --- BLOG VIEW ---
-export const BlogView = () => {
-    const [blogs, setBlogs] = useState<BlogPost[]>([]);
-    const [selectedBlog, setSelectedBlog] = useState<BlogPost | null>(null);
-
-    useEffect(() => {
-        const fetchBlogs = async () => {
-            const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-            if(data) setBlogs(data.map((b: any) => ({...b, image: b.image_url})));
-        };
-        fetchBlogs();
-    }, []);
-
-    if (selectedBlog) {
-        return (
-            <div className="p-4 pb-24 bg-white dark:bg-slate-900 min-h-full">
-                <button onClick={() => setSelectedBlog(null)} className="mb-4 flex items-center gap-2 text-slate-500 font-bold text-sm"><ArrowLeft size={16}/> Back to Blogs</button>
-                {selectedBlog.image && <div className="w-full h-48 bg-cover bg-center rounded-2xl mb-6 shadow-sm" style={{backgroundImage: `url(${selectedBlog.image})`}}></div>}
-                <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2">{selectedBlog.title}</h1>
-                <div className="flex items-center gap-2 text-xs text-slate-500 mb-6">
-                    <span className="font-bold text-blue-600">{selectedBlog.category || 'General'}</span>
-                    <span>•</span>
-                    <span>{new Date(selectedBlog.date || new Date().toISOString()).toLocaleDateString()}</span>
-                    <span>•</span>
-                    <span>{selectedBlog.author}</span>
-                </div>
-                {selectedBlog.videoUrl && getYouTubeID(selectedBlog.videoUrl) && (
-                     <div className="mb-6 rounded-2xl overflow-hidden shadow-lg aspect-video">
-                        <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${getYouTubeID(selectedBlog.videoUrl ?? "")}`} title="Video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
-                     </div>
-                )}
-                <div className="prose dark:prose-invert max-w-none text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
-                    {selectedBlog.content}
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="p-4 pb-24">
-            <h1 className="text-2xl font-black mb-6 dark:text-white">Latest Articles</h1>
-            <div className="space-y-4">
-                {blogs.map(blog => (
-                    <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer hover:shadow-md transition">
-                        <div className="flex gap-4">
-                             {blog.image && <div className="w-24 h-24 bg-cover bg-center rounded-xl flex-shrink-0" style={{backgroundImage: `url(${blog.image})`}}></div>}
-                             <div className="flex-1 min-w-0">
-                                 <span className="text-[10px] font-bold text-blue-600 uppercase tracking-wide mb-1 block">{blog.category || 'Article'}</span>
-                                 <h3 className="font-bold text-slate-900 dark:text-white line-clamp-2 leading-tight mb-2">{blog.title}</h3>
-                                 <p className="text-xs text-slate-500 line-clamp-2">{blog.excerpt}</p>
-                             </div>
-                        </div>
-                    </div>
-                ))}
-            </div>
-        </div>
-    );
-};
-
-// --- SERMONS VIEW ---
-export const SermonsView = () => {
-    const [sermons, setSermons] = useState<Sermon[]>([]);
-    const [playingSermon, setPlayingSermon] = useState<Sermon | null>(null);
-
-    useEffect(() => {
-        const fetchSermons = async () => {
-             const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false });
-             if(data) setSermons(data as any);
-        };
-        fetchSermons();
-    }, []);
-
-    return (
-        <div className="p-4 pb-24">
-            <h1 className="text-2xl font-black mb-6 dark:text-white">Sermons & Messages</h1>
-            
-            {playingSermon && (
-                <div className="fixed inset-0 bg-black z-[100] flex flex-col justify-center animate-in fade-in zoom-in duration-300">
-                    <button onClick={() => setPlayingSermon(null)} className="absolute top-8 right-6 text-white p-2 bg-white/20 rounded-full hover:bg-white/30 transition"><X/></button>
-                    <div className="w-full aspect-video bg-black">
-                         <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${getYouTubeID(playingSermon.videoUrl ?? "")}?autoplay=1`} title={playingSermon.title} frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
-                    </div>
-                    <div className="p-6 text-white">
-                        <h2 className="text-xl font-bold mb-1">{playingSermon.title}</h2>
-                        <p className="text-slate-400">{playingSermon.preacher}</p>
-                    </div>
-                </div>
-            )}
-
-            <div className="grid gap-6">
-                {sermons.map(sermon => {
-                    const videoId = getYouTubeID(sermon.videoUrl ?? "");
-                    const thumb = sermon.thumbnail || (videoId ? `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg` : '');
-
-                    return (
-                        <div key={sermon.id} className="group cursor-pointer" onClick={() => setPlayingSermon(sermon)}>
-                            <div className="relative aspect-video bg-slate-200 rounded-2xl overflow-hidden mb-3 shadow-sm">
-                                {thumb && <img src={thumb} alt={sermon.title} className="w-full h-full object-cover transition duration-500 group-hover:scale-105"/>}
-                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center group-hover:bg-black/30 transition">
-                                    <div className="w-12 h-12 bg-white/90 rounded-full flex items-center justify-center shadow-lg backdrop-blur-sm">
-                                        <Play fill="black" size={20} className="ml-1"/>
-                                    </div>
-                                </div>
-                                <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-bold px-2 py-1 rounded backdrop-blur-md">
-                                    {sermon.duration || '00:00'}
-                                </div>
-                            </div>
-                            <div>
-                                <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-1">{sermon.title}</h3>
-                                <div className="flex justify-between items-center text-xs text-slate-500">
-                                    <span>{sermon.preacher}</span>
-                                    <span>{new Date(sermon.date).toLocaleDateString()}</span>
-                                </div>
-                            </div>
-                        </div>
-                    );
-                })}
-            </div>
-        </div>
-    );
-};
-
 // --- BIBLE VIEW ---
 const BIBLE_BOOKS = [
   "Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi",
@@ -563,7 +441,6 @@ export const EventsView = ({ onBack }: any) => {
 
 // --- MUSIC VIEW ---
 export const MusicView = () => {
-    // ... logic same as before, condensed for brevity
     const [activeTab, setActiveTab] = useState<'MUSIC' | 'PODCAST' | 'MY_PLAYLISTS'>('MUSIC');
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
     const [playlists, setPlaylists] = useState<Playlist[]>([]);
@@ -698,73 +575,199 @@ export const MusicView = () => {
 };
 
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
-    const [messages, setMessages] = useState<GroupPost[]>([]);
-    const [newMessage, setNewMessage] = useState('');
+    const [posts, setPosts] = useState<GroupPost[]>([]);
+    const [newPostText, setNewPostText] = useState('');
+    const [replyingTo, setReplyingTo] = useState<string | null>(null); // postId
+    const [replyText, setReplyText] = useState('');
+    const [userId, setUserId] = useState<string | null>(null);
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
 
     useEffect(() => {
-        const fetchMessages = async () => {
+        const getUser = async () => {
+            const { data: { user } } = await supabase.auth.getUser();
+            setUserId(user?.id || null);
+        };
+        getUser();
+
+        const fetchPosts = async () => {
             const { data } = await supabase
                 .from('group_posts')
-                .select('*, profiles(first_name, last_name, avatar_url)')
+                .select('*, profiles(first_name, last_name, avatar_url), group_post_likes(user_id)')
                 .eq('group_id', group.id)
                 .order('created_at', { ascending: true });
-            if(data) setMessages(data as any);
+            
+            if (data) {
+                setPosts(data as any);
+            }
         };
         
-        fetchMessages();
+        fetchPosts();
         
-        const channel = supabase.channel('group_chat')
-        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'group_posts', filter: `group_id=eq.${group.id}` }, payload => {
-            fetchMessages(); 
+        const channel = supabase.channel('group_chat_realtime')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'group_posts', filter: `group_id=eq.${group.id}` }, () => {
+            fetchPosts(); 
+        })
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'group_post_likes' }, () => {
+            fetchPosts(); 
         })
         .subscribe();
 
         return () => { supabase.removeChannel(channel); };
     }, [group.id]);
 
-    useEffect(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }, [messages]);
-
-    const handleSend = async () => {
-        if (!newMessage.trim()) return;
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-
-        await supabase.from('group_posts').insert({
-            group_id: group.id,
-            user_id: user.id,
-            content: newMessage
-        });
-        setNewMessage('');
+    const handleLike = async (postId: string, isLiked: boolean) => {
+        if (!userId) return;
+        
+        if (isLiked) {
+            await supabase.from('group_post_likes').delete().match({ post_id: postId, user_id: userId });
+        } else {
+            await supabase.from('group_post_likes').insert({ post_id: postId, user_id: userId });
+        }
     };
+
+    const handleSend = async (parentId: string | null = null) => {
+        const content = parentId ? replyText : newPostText;
+        if (!content.trim() || !userId) return;
+
+        const { error } = await supabase.from('group_posts').insert({
+            group_id: group.id,
+            user_id: userId,
+            content: content,
+            parent_id: parentId
+        });
+
+        if (!error) {
+            if (parentId) {
+                setReplyText('');
+                setReplyingTo(null);
+            } else {
+                setNewPostText('');
+                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+            }
+        }
+    };
+
+    const rootPosts = posts.filter(p => !p.parent_id);
 
     return (
         <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 absolute inset-0 z-50">
-            <div className="bg-white dark:bg-slate-800 p-4 border-b dark:border-slate-700 flex items-center gap-3 shadow-sm">
-                <button onClick={onBack}><ArrowLeft/></button>
-                <h2 className="font-bold dark:text-white">{group.name}</h2>
+            {/* Header */}
+            <div className="bg-white dark:bg-slate-800 p-4 border-b dark:border-slate-700 flex items-center gap-3 shadow-sm z-10">
+                <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/></button>
+                <div>
+                    <h2 className="font-bold text-lg dark:text-white leading-none">{group.name}</h2>
+                    <p className="text-xs text-slate-500 mt-1">{group.membersCount || 0} Members</p>
+                </div>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-20">
-                {messages.map(msg => (
-                    <div key={msg.id} className="bg-white dark:bg-slate-800 p-3 rounded-xl shadow-sm max-w-[85%]">
-                        <p className="text-xs font-bold text-blue-600 mb-1">{msg.profiles?.first_name} {msg.profiles?.last_name}</p>
-                        <p className="text-sm dark:text-white">{msg.content}</p>
-                        <p className="text-[10px] text-slate-400 mt-1 text-right">{new Date(msg.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</p>
+
+            {/* Posts List */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+                {rootPosts.length === 0 && (
+                    <div className="text-center py-10 opacity-50">
+                        <MessageSquare size={48} className="mx-auto mb-2"/>
+                        <p>No posts yet. Start the conversation!</p>
                     </div>
-                ))}
+                )}
+                
+                {rootPosts.map(post => {
+                    const likes = post.group_post_likes || [];
+                    const isLiked = userId ? likes.some((l: any) => l.user_id === userId) : false;
+                    const replies = posts.filter(p => p.parent_id === post.id);
+
+                    return (
+                        <div key={post.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                            {/* Author Header */}
+                            <div className="flex items-center gap-3 mb-3">
+                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                                    {post.profiles?.first_name?.[0] || 'U'}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm text-slate-900 dark:text-white">{post.profiles?.first_name} {post.profiles?.last_name}</p>
+                                    <p className="text-[10px] text-slate-400">{new Date(post.created_at).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' })}</p>
+                                </div>
+                            </div>
+
+                            {/* Content */}
+                            <p className="text-slate-800 dark:text-slate-200 text-sm mb-4 leading-relaxed whitespace-pre-wrap">{post.content}</p>
+
+                            {/* Actions */}
+                            <div className="flex items-center gap-4 border-t border-slate-100 dark:border-slate-700 pt-3">
+                                <button 
+                                    onClick={() => handleLike(post.id, isLiked)}
+                                    className={`flex items-center gap-1.5 text-xs font-bold transition ${isLiked ? 'text-blue-600' : 'text-slate-500 hover:text-slate-700 dark:text-slate-400'}`}
+                                >
+                                    <ThumbsUp size={16} fill={isLiked ? "currentColor" : "none"} />
+                                    {likes.length > 0 ? likes.length : 'Like'}
+                                </button>
+                                <button 
+                                    onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)}
+                                    className="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-700 dark:text-slate-400 transition"
+                                >
+                                    <MessageSquare size={16} />
+                                    Reply
+                                </button>
+                            </div>
+
+                            {/* Replies Section */}
+                            {(replies.length > 0 || replyingTo === post.id) && (
+                                <div className="mt-4 pl-4 border-l-2 border-slate-100 dark:border-slate-700 space-y-4">
+                                    {replies.map(reply => (
+                                        <div key={reply.id} className="bg-slate-50 dark:bg-slate-700/30 p-3 rounded-xl">
+                                            <div className="flex items-center gap-2 mb-1">
+                                                <span className="font-bold text-xs text-slate-900 dark:text-white">{reply.profiles?.first_name} {reply.profiles?.last_name}</span>
+                                                <span className="text-[10px] text-slate-400">• {new Date(reply.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                            </div>
+                                            <p className="text-xs text-slate-700 dark:text-slate-300">{reply.content}</p>
+                                        </div>
+                                    ))}
+
+                                    {/* Reply Input */}
+                                    {replyingTo === post.id && (
+                                        <div className="flex gap-2 animate-fade-in mt-2">
+                                            <input 
+                                                autoFocus
+                                                className="flex-1 bg-slate-100 dark:bg-slate-700 border-none rounded-xl px-3 py-2 text-xs dark:text-white focus:ring-2 focus:ring-blue-500 outline-none"
+                                                placeholder="Write a reply..."
+                                                value={replyText}
+                                                onChange={e => setReplyText(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && handleSend(post.id)}
+                                            />
+                                            <button 
+                                                onClick={() => handleSend(post.id)}
+                                                className="bg-blue-600 text-white p-2 rounded-xl hover:bg-blue-700"
+                                            >
+                                                <Send size={14}/>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
                 <div ref={messagesEndRef} />
             </div>
-            <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-700 fixed bottom-0 w-full flex gap-2">
-                <input 
-                    className="flex-1 bg-slate-100 dark:bg-slate-700 border-none rounded-xl px-4 py-3 dark:text-white"
-                    placeholder="Type a message..."
-                    value={newMessage}
-                    onChange={e => setNewMessage(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleSend()}
-                />
-                <button onClick={handleSend} className="bg-blue-600 text-white p-3 rounded-xl"><Send size={20}/></button>
+
+            {/* Main Input Area */}
+            <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-700 fixed bottom-0 w-full z-20">
+                <div className="flex gap-2 items-end">
+                    <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-2xl px-4 py-3 flex items-center">
+                        <input 
+                            className="w-full bg-transparent border-none text-sm dark:text-white focus:outline-none max-h-24"
+                            placeholder="Share something with the group..."
+                            value={newPostText}
+                            onChange={e => setNewPostText(e.target.value)}
+                            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
+                        />
+                    </div>
+                    <button 
+                        onClick={() => handleSend()} 
+                        disabled={!newPostText.trim()}
+                        className="bg-blue-600 text-white p-3 rounded-2xl shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition transform active:scale-95"
+                    >
+                        <Send size={20}/>
+                    </button>
+                </div>
             </div>
         </div>
     );
@@ -923,6 +926,151 @@ export const NotificationsView = () => {
                     </div>
                 ))}
                 {notifications.length === 0 && <p className="text-center text-slate-500 py-10">No new notifications.</p>}
+            </div>
+        </div>
+    );
+};
+
+// --- BLOG VIEW ---
+export const BlogView = () => {
+    const [blogs, setBlogs] = useState<BlogPost[]>([]);
+    const [selectedBlog, setSelectedBlog] = useState<BlogPost | null>(null);
+
+    useEffect(() => {
+        const fetchBlogs = async () => {
+             const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
+             if(data) setBlogs(data.map((b: any) => ({...b, image: b.image_url})));
+        };
+        fetchBlogs();
+    }, []);
+
+    if (selectedBlog) {
+        return (
+            <div className="bg-white dark:bg-slate-900 min-h-full pb-24">
+                <div className="relative h-64 md:h-80 w-full">
+                    <div className="absolute inset-0 bg-cover bg-center" style={{backgroundImage: `url(${selectedBlog.image})`}}></div>
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent"></div>
+                    <button onClick={()=>setSelectedBlog(null)} className="absolute top-4 left-4 p-2 bg-black/30 rounded-full text-white backdrop-blur-md"><ArrowLeft size={20}/></button>
+                </div>
+                <div className="px-5 -mt-10 relative z-10">
+                    <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-xl border border-slate-100 dark:border-slate-700">
+                        <div className="flex items-center gap-2 mb-3">
+                            <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[10px] font-bold px-2 py-1 rounded uppercase tracking-wider">{selectedBlog.category}</span>
+                            <span className="text-[10px] text-slate-400">• {new Date(selectedBlog.date).toLocaleDateString()}</span>
+                        </div>
+                        <h1 className="text-2xl font-black text-slate-900 dark:text-white mb-2 leading-tight">{selectedBlog.title}</h1>
+                        <p className="text-xs text-slate-500 font-bold mb-6">By {selectedBlog.author}</p>
+                        
+                        <div className="prose dark:prose-invert text-sm text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                            {selectedBlog.content}
+                        </div>
+
+                         {selectedBlog.videoUrl && (
+                             <div className="mt-8 rounded-2xl overflow-hidden shadow-lg">
+                                  <iframe width="100%" height="200" src={`https://www.youtube.com/embed/${getYouTubeID(selectedBlog.videoUrl)}`} title="Video" frameBorder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen></iframe>
+                             </div>
+                         )}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-4 pb-24">
+            <h1 className="text-2xl font-black mb-6 dark:text-white">Articles & Devotionals</h1>
+            <div className="grid gap-6">
+                {blogs.map(blog => (
+                    <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="group cursor-pointer">
+                        <div className="h-48 w-full bg-cover bg-center rounded-2xl mb-3 shadow-sm relative overflow-hidden" style={{backgroundImage: `url(${blog.image})`}}>
+                            <div className="absolute inset-0 bg-black/20 group-hover:bg-black/10 transition"></div>
+                        </div>
+                        <h3 className="font-bold text-lg dark:text-white leading-tight mb-1 group-hover:text-blue-600 transition">{blog.title}</h3>
+                        <p className="text-xs text-slate-500 line-clamp-2 mb-2">{blog.excerpt}</p>
+                        <div className="flex items-center gap-2 text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                            <span>{blog.category}</span>
+                            <span>•</span>
+                            <span>{new Date(blog.date).toLocaleDateString()}</span>
+                        </div>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// --- SERMONS VIEW ---
+export const SermonsView = () => {
+    const [sermons, setSermons] = useState<Sermon[]>([]);
+    const [playingSermon, setPlayingSermon] = useState<Sermon | null>(null);
+
+    useEffect(() => {
+         const fetchSermons = async () => {
+             const { data } = await supabase.from('sermons').select('*').order('created_at', { ascending: false });
+             if(data) setSermons(data as any);
+         };
+         fetchSermons();
+    }, []);
+
+    if (playingSermon) {
+        return (
+             <div className="flex flex-col h-full bg-black">
+                 <div className="relative w-full aspect-video bg-black">
+                     <iframe 
+                        src={`https://www.youtube.com/embed/${getYouTubeID(playingSermon.videoUrl || "")}?autoplay=1`} 
+                        className="w-full h-full" 
+                        allowFullScreen 
+                        allow="autoplay"
+                     ></iframe>
+                     <button onClick={()=>setPlayingSermon(null)} className="absolute top-4 left-4 p-2 bg-black/50 text-white rounded-full"><ChevronDown size={24} className="rotate-90"/></button>
+                 </div>
+                 <div className="flex-1 bg-white dark:bg-slate-900 p-6 overflow-y-auto">
+                     <h1 className="text-xl font-bold text-slate-900 dark:text-white mb-1">{playingSermon.title}</h1>
+                     <p className="text-sm text-slate-500 mb-6">{playingSermon.preacher} • {playingSermon.date}</p>
+                     
+                     <div className="flex items-center gap-4 border-b border-slate-100 dark:border-slate-800 pb-6 mb-6">
+                         <button className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs flex flex-col items-center gap-2"><ThumbsUp size={20}/> Like</button>
+                         <button className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs flex flex-col items-center gap-2"><Share2 size={20}/> Share</button>
+                         <button className="flex-1 py-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-white font-bold text-xs flex flex-col items-center gap-2"><Download size={20}/> Download</button>
+                     </div>
+
+                     <h3 className="font-bold dark:text-white mb-4">More Sermons</h3>
+                     <div className="space-y-4 pb-24">
+                         {sermons.filter(s=>s.id!==playingSermon.id).map(s => (
+                             <div key={s.id} onClick={() => setPlayingSermon(s)} className="flex gap-3 cursor-pointer">
+                                 <div className="w-24 h-16 bg-slate-200 rounded-lg bg-cover bg-center relative flex-shrink-0" style={{ backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(s.videoUrl ?? "")}/default.jpg)` : 'none' }}></div>
+                                 <div>
+                                     <h4 className="font-bold text-sm text-slate-900 dark:text-white line-clamp-2">{s.title}</h4>
+                                     <p className="text-xs text-slate-500">{s.preacher}</p>
+                                 </div>
+                             </div>
+                         ))}
+                     </div>
+                 </div>
+             </div>
+        );
+    }
+
+    return (
+        <div className="p-4 pb-24">
+            <h1 className="text-2xl font-black mb-6 dark:text-white">Sermons</h1>
+            <div className="grid gap-6">
+                {sermons.map(s => (
+                    <div key={s.id} onClick={() => setPlayingSermon(s)} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer group">
+                        <div className="h-48 bg-slate-200 bg-cover bg-center relative" style={{ backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(s.videoUrl ?? "")}/mqdefault.jpg)` : 'none' }}>
+                            <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 transition flex items-center justify-center">
+                                <div className="w-12 h-12 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                                    <Play fill="white" className="text-white ml-1"/>
+                                </div>
+                            </div>
+                            <div className="absolute bottom-2 right-2 bg-black/70 text-white text-[10px] font-bold px-1.5 py-0.5 rounded">{s.duration}</div>
+                        </div>
+                        <div className="p-4">
+                            <h3 className="font-bold text-slate-900 dark:text-white mb-1 line-clamp-1">{s.title}</h3>
+                            <p className="text-xs text-slate-500">{s.preacher} • {s.date}</p>
+                        </div>
+                    </div>
+                ))}
             </div>
         </div>
     );

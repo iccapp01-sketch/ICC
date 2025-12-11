@@ -85,7 +85,6 @@ export const HomeView = ({ onNavigate }: any) => {
       <div className="p-4 space-y-6 pb-24">
           <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] rounded-[32px] p-6 text-white shadow-xl relative overflow-hidden">
              <div className="absolute top-0 right-0 p-4 opacity-10"><BookOpen size={120} /></div>
-             {/* Added Logo overlay for branding */}
              <div className="absolute bottom-4 right-4 opacity-10"><Logo className="w-16 h-16"/></div>
              <div className="relative z-10">
                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 inline-block">Verse of the Day</span>
@@ -167,7 +166,7 @@ export const HomeView = ({ onNavigate }: any) => {
   );
 };
 
-// --- GROUP CHAT (THREAD SYSTEM RE-IMPLEMENTATION) ---
+// --- GROUP CHAT (FIXED REALTIME & INTERACTIONS) ---
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
     const [posts, setPosts] = useState<GroupPost[]>([]);
     const [newPostText, setNewPostText] = useState('');
@@ -177,7 +176,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Moved fetchPosts out of useEffect to allow manual calling
+    // Fetch posts function
     const fetchPosts = useCallback(async () => {
         const { data } = await supabase
             .from('group_posts')
@@ -199,13 +198,12 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
 
         fetchPosts();
         
-        const channel = supabase.channel('group_chat_realtime')
+        // Setup Realtime Subscription
+        const channel = supabase.channel(`group_${group.id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'group_posts', filter: `group_id=eq.${group.id}` }, () => {
             fetchPosts(); 
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'group_post_likes' }, () => {
-            // Note: Likes might not trigger nicely with filter if the table structure is complex, 
-            // but manual fetch in handleLike ensures UI updates for the actor.
             fetchPosts(); 
         })
         .subscribe();
@@ -216,7 +214,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     const handleLike = async (postId: string, isLiked: boolean) => {
         if (!userId) return;
         
-        // Optimistic UI update
+        // 1. Optimistic Update (Immediate UI Change)
         setPosts(currentPosts => currentPosts.map(p => {
              if (p.id === postId) {
                  const likes = p.group_post_likes || [];
@@ -229,20 +227,25 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
              return p;
         }));
         
-        if (isLiked) {
-            await supabase.from('group_post_likes').delete().match({ post_id: postId, user_id: userId });
-        } else {
-            await supabase.from('group_post_likes').insert({ post_id: postId, user_id: userId });
+        // 2. Database Update
+        try {
+            if (isLiked) {
+                await supabase.from('group_post_likes').delete().match({ post_id: postId, user_id: userId });
+            } else {
+                await supabase.from('group_post_likes').insert({ post_id: postId, user_id: userId });
+            }
+        } catch (error) {
+            console.error("Like error:", error);
+            // Revert on error could be added here
+            fetchPosts();
         }
-
-        // Sync with server to be sure
-        fetchPosts();
     };
 
     const handleSend = async (parentId: string | null = null) => {
         const content = parentId ? replyText : newPostText;
         if (!content.trim() || !userId) return;
 
+        // 1. Send to DB
         const { error } = await supabase.from('group_posts').insert({
             group_id: group.id,
             user_id: userId,
@@ -251,6 +254,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
         });
 
         if (!error) {
+            // 2. Clear Inputs
             if (parentId) {
                 setReplyText('');
                 setReplyingTo(null);
@@ -259,16 +263,16 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                 // Scroll to bottom only for main posts
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
             }
-            // Manually fetch to ensure it appears immediately even if realtime is slow
+            
+            // 3. Force Fetch (Ensures your post appears immediately even if realtime is delayed)
             await fetchPosts();
         } else {
             console.error("Post Error:", error);
             if (error.code === '42P01') {
-                alert("Error: The 'group_posts' table is missing. Please go to Admin Dashboard > Overview and use the SQL Generator.");
+                alert("Database Error: The 'group_posts' table is missing. Please ask Admin to run SQL Fix.");
             } else {
-                alert(`Failed to post: ${error.message || "You might have been removed from this group."}`);
+                alert(`Failed to post: ${error.message}`);
             }
-            onBack(); 
         }
     };
 
@@ -293,7 +297,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                 </div>
             </div>
 
-            {/* Posts Feed - Facebook Style Thread */}
+            {/* Posts Feed */}
             <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24 scroll-smooth">
                 {rootPosts.length === 0 && (
                     <div className="text-center py-20 opacity-60">

@@ -1,8 +1,7 @@
 
 import React, { useState } from 'react';
-import { Lock, Mail, User as UserIcon, Calendar, Phone, ChevronDown, Eye, EyeOff, Plus, Check, ArrowLeft } from 'lucide-react';
+import { Lock, Mail, User as UserIcon, Calendar, Phone, ChevronDown, Eye, EyeOff, Plus, Check, ArrowLeft, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { Logo } from '../components/Logo';
 
 interface AuthProps {
   onLogin: (role: any) => void;
@@ -115,9 +114,12 @@ export const Auth: React.FC<AuthProps> = () => {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-[#0c2d58] to-[#08182e] p-4 font-sans overflow-y-auto py-10">
       <div className="w-full max-w-sm bg-[#112a4a] rounded-[32px] p-8 text-center shadow-2xl mb-6 border-t border-white/10 relative z-10">
-         <div className="w-24 h-24 bg-white/10 rounded-full mx-auto mb-4 flex items-center justify-center shadow-lg relative backdrop-blur-sm border border-white/20">
-             <Logo className="w-16 h-16" />
+         {/* Logo Placeholder */}
+         <div className="w-24 h-24 bg-slate-200/90 rounded-full mx-auto mb-4 flex flex-col items-center justify-center shadow-lg relative border-2 border-dashed border-slate-400 cursor-pointer hover:bg-white transition-all group" title="Placeholder: Upload Your Logo Here">
+             <ImageIcon className="text-slate-500 w-8 h-8 mb-1 group-hover:scale-110 transition-transform" />
+             <span className="text-[9px] font-extrabold text-slate-600 uppercase tracking-widest">Logo</span>
          </div>
+
          <h1 className="text-2xl font-bold text-white mb-1 leading-tight tracking-tight">Isipingo Community Church</h1>
          <p className="text-[#29C5F6] italic font-medium text-base">Where it’s all about Jesus</p>
       </div>

@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Bell, User, ChevronRight, Heart, MessageCircle, Share2, 
   Play, Download, Search, CheckCircle, ArrowLeft, Bookmark,
@@ -168,7 +168,6 @@ export const HomeView = ({ onNavigate }: any) => {
 };
 
 // --- GROUP CHAT (THREAD SYSTEM RE-IMPLEMENTATION) ---
-// Note: This component strictly implements Comments (Top level), Likes, and Replies (Nested).
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
     const [posts, setPosts] = useState<GroupPost[]>([]);
     const [newPostText, setNewPostText] = useState('');
@@ -178,6 +177,19 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
+    // Moved fetchPosts out of useEffect to allow manual calling
+    const fetchPosts = useCallback(async () => {
+        const { data } = await supabase
+            .from('group_posts')
+            .select('*, profiles(first_name, last_name, avatar_url), group_post_likes(user_id)')
+            .eq('group_id', group.id)
+            .order('created_at', { ascending: true });
+        
+        if (data) {
+            setPosts(data as any);
+        }
+    }, [group.id]);
+
     useEffect(() => {
         const getUser = async () => {
             const { data: { user } } = await supabase.auth.getUser();
@@ -185,19 +197,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
         };
         getUser();
 
-        const fetchPosts = async () => {
-            // Ensure we fetch likes relation
-            const { data, error } = await supabase
-                .from('group_posts')
-                .select('*, profiles(first_name, last_name, avatar_url), group_post_likes(user_id)')
-                .eq('group_id', group.id)
-                .order('created_at', { ascending: true });
-            
-            if (data) {
-                setPosts(data as any);
-            }
-        };
-        
         fetchPosts();
         
         const channel = supabase.channel('group_chat_realtime')
@@ -205,22 +204,39 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
             fetchPosts(); 
         })
         .on('postgres_changes', { event: '*', schema: 'public', table: 'group_post_likes' }, () => {
+            // Note: Likes might not trigger nicely with filter if the table structure is complex, 
+            // but manual fetch in handleLike ensures UI updates for the actor.
             fetchPosts(); 
         })
         .subscribe();
 
         return () => { supabase.removeChannel(channel); };
-    }, [group.id]);
+    }, [group.id, fetchPosts]);
 
     const handleLike = async (postId: string, isLiked: boolean) => {
         if (!userId) return;
         
-        // Optimistic UI update could be added here, but relying on realtime for now
+        // Optimistic UI update
+        setPosts(currentPosts => currentPosts.map(p => {
+             if (p.id === postId) {
+                 const likes = p.group_post_likes || [];
+                 if (isLiked) {
+                     return { ...p, group_post_likes: likes.filter(l => l.user_id !== userId) };
+                 } else {
+                     return { ...p, group_post_likes: [...likes, { user_id: userId }] };
+                 }
+             }
+             return p;
+        }));
+        
         if (isLiked) {
             await supabase.from('group_post_likes').delete().match({ post_id: postId, user_id: userId });
         } else {
             await supabase.from('group_post_likes').insert({ post_id: postId, user_id: userId });
         }
+
+        // Sync with server to be sure
+        fetchPosts();
     };
 
     const handleSend = async (parentId: string | null = null) => {
@@ -243,8 +259,15 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                 // Scroll to bottom only for main posts
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
             }
+            // Manually fetch to ensure it appears immediately even if realtime is slow
+            await fetchPosts();
         } else {
-            alert("Failed to post. You might have been removed from this group.");
+            console.error("Post Error:", error);
+            if (error.code === '42P01') {
+                alert("Error: The 'group_posts' table is missing. Please go to Admin Dashboard > Overview and use the SQL Generator.");
+            } else {
+                alert(`Failed to post: ${error.message || "You might have been removed from this group."}`);
+            }
             onBack(); 
         }
     };
@@ -397,10 +420,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
         </div>
     );
 };
-
-// ... (Other components remain unchanged - keeping them for file completeness)
-// I will output the standard placeholders for other views to ensure file integrity, 
-// assuming the user has the previous code, but to be safe I will include the critical ones.
 
 export const BibleView = () => {
     const [book, setBook] = useState('John');

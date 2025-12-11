@@ -31,55 +31,63 @@ export const Layout: React.FC<LayoutProps> = ({
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
       
       {/* Top Navigation Bar */}
-      <div className="fixed top-0 w-full z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm h-16 flex items-center justify-between px-4 transition-colors duration-300">
-        
-        {/* Left: Personalized Greeting */}
-        <div className="flex flex-col justify-center">
-           <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Welcome back,</span>
-           <span className="text-lg font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[200px]">
-             {userName}
-           </span>
-        </div>
-
-        {/* Right: Events, Notifications & Profile */}
-        <div className="flex items-center gap-2">
-          <button 
-            onClick={() => onTabChange('events')}
-            className={`p-2 rounded-full transition ${activeTab === 'events' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-          >
-            <Calendar size={20} />
-          </button>
-
-          <button 
-            onClick={() => onTabChange('notifications')}
-            className={`p-2 rounded-full transition relative ${activeTab === 'notifications' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-          >
-            <Bell size={20} />
-            <span className="absolute top-2 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white dark:border-slate-900"></span>
-          </button>
+      <div className="fixed top-0 w-full z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)]">
+        <div className="h-16 flex items-center justify-between px-4">
           
-          <button 
-             onClick={() => onTabChange('profile')}
-             className={`p-0.5 rounded-full border-2 transition ${activeTab === 'profile' ? 'border-blue-500' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-          >
-            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold uppercase overflow-hidden shadow-md">
-              {userName ? userName.substring(0,2) : <User size={14}/>}
-            </div>
-          </button>
+          {/* Left: Personalized Greeting */}
+          <div className="flex flex-col justify-center">
+             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Welcome back,</span>
+             <span className="text-lg font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[200px]">
+               {userName}
+             </span>
+          </div>
+
+          {/* Right: Events, Notifications & Profile */}
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => onTabChange('events')}
+              className={`p-2 rounded-full transition ${activeTab === 'events' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              <Calendar size={20} />
+            </button>
+
+            <button 
+              onClick={() => onTabChange('notifications')}
+              className={`p-2 rounded-full transition relative ${activeTab === 'notifications' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              <Bell size={20} />
+              <span className="absolute top-2 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border border-white dark:border-slate-900"></span>
+            </button>
+            
+            <button 
+               onClick={() => onTabChange('profile')}
+               className={`p-0.5 rounded-full border-2 transition ${activeTab === 'profile' ? 'border-blue-500' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+            >
+              <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-xs font-bold uppercase overflow-hidden shadow-md">
+                {userName ? userName.substring(0,2) : <User size={14}/>}
+              </div>
+            </button>
+          </div>
         </div>
       </div>
 
       {/* Content Area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar pb-24 pt-16 relative">
+      <div 
+        className="flex-1 overflow-y-auto no-scrollbar relative scroll-smooth"
+        style={{
+          paddingTop: 'calc(4rem + env(safe-area-inset-top))',
+          paddingBottom: 'calc(5.5rem + env(safe-area-inset-bottom))',
+          WebkitOverflowScrolling: 'touch'
+        }}
+      >
         {children}
       </div>
 
       {/* Bottom Navigation */}
       <div 
-        className="fixed bottom-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] transition-colors duration-300"
-        style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+        className="fixed bottom-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] transition-colors duration-300 pb-[env(safe-area-inset-bottom)]"
       >
-        <div className="flex justify-between items-end px-1 py-3">
+        <div className="flex justify-between items-end px-1 py-3 h-16">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;

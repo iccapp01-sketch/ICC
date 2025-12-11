@@ -28,11 +28,11 @@ export const Layout: React.FC<LayoutProps> = ({
   ];
 
   return (
-    <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300">
+    <div className="fixed inset-0 flex flex-col w-full h-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300 overflow-hidden">
       
-      {/* Top Navigation Bar */}
-      <div className="fixed top-0 w-full z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)]">
-        <div className="h-16 flex items-center justify-between px-4">
+      {/* Top Navigation Bar - Fixed visual overlay */}
+      <div className="absolute top-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)] pointer-events-none">
+        <div className="h-16 flex items-center justify-between px-4 pointer-events-auto">
           
           {/* Left: Personalized Greeting */}
           <div className="flex flex-col justify-center">
@@ -71,12 +71,12 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </div>
 
-      {/* Content Area - Fixed Positioned between headers and footers for robust scrolling */}
+      {/* Main Content Area - Single Scrollable Container */}
       <div 
-        className="fixed left-0 right-0 overflow-y-auto no-scrollbar scroll-smooth bg-slate-50 dark:bg-slate-900"
+        className="flex-1 overflow-y-auto w-full scroll-smooth bg-slate-50 dark:bg-slate-900"
         style={{
-          top: 'calc(4rem + env(safe-area-inset-top))',
-          bottom: 'calc(4rem + env(safe-area-inset-bottom))',
+          paddingTop: 'calc(4rem + env(safe-area-inset-top))', // h-16 + safe area
+          paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))', // h-16 + safe area + extra padding
           WebkitOverflowScrolling: 'touch'
         }}
       >
@@ -85,11 +85,11 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </div>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation - Fixed visual overlay */}
       <div 
-        className="fixed bottom-0 w-full bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] transition-colors duration-300 pb-[env(safe-area-inset-bottom)]"
+        className="absolute bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] dark:shadow-[0_-4px_20px_rgba(0,0,0,0.3)] transition-colors duration-300 pb-[env(safe-area-inset-bottom)] pointer-events-none"
       >
-        <div className="flex justify-between items-end px-1 py-3 h-16">
+        <div className="flex justify-between items-end px-1 py-3 h-16 pointer-events-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;

@@ -82,7 +82,7 @@ export const HomeView = ({ onNavigate }: any) => {
   };
 
   return (
-      <div className="p-4 space-y-6 pb-24">
+      <div className="p-4 space-y-6">
           <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] rounded-[32px] p-6 text-white shadow-xl relative overflow-hidden">
              <div className="absolute top-0 right-0 p-4 opacity-10"><BookOpen size={120} /></div>
              <div className="absolute bottom-4 right-4 opacity-10"><Logo className="w-16 h-16"/></div>
@@ -166,7 +166,7 @@ export const HomeView = ({ onNavigate }: any) => {
   );
 };
 
-// --- GROUP CHAT (FIXED LAYOUT & VISIBILITY) ---
+// --- GROUP CHAT (STANDALONE FULL SCREEN LAYOUT) ---
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
     const [posts, setPosts] = useState<GroupPost[]>([]);
     const [newPostText, setNewPostText] = useState('');
@@ -214,7 +214,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     const handleLike = async (postId: string, isLiked: boolean) => {
         if (!userId) return;
         
-        // 1. Optimistic Update (Immediate UI Change)
+        // 1. Optimistic Update
         setPosts(currentPosts => currentPosts.map(p => {
              if (p.id === postId) {
                  const likes = p.group_post_likes || [];
@@ -227,7 +227,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
              return p;
         }));
         
-        // 2. Database Update
         try {
             if (isLiked) {
                 await supabase.from('group_post_likes').delete().match({ post_id: postId, user_id: userId });
@@ -236,7 +235,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
             }
         } catch (error) {
             console.error("Like error:", error);
-            // Revert on error could be added here
             fetchPosts();
         }
     };
@@ -245,7 +243,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
         const content = parentId ? replyText : newPostText;
         if (!content.trim() || !userId) return;
 
-        // 1. Send to DB
         const { error } = await supabase.from('group_posts').insert({
             group_id: group.id,
             user_id: userId,
@@ -254,33 +251,24 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
         });
 
         if (!error) {
-            // 2. Clear Inputs
             if (parentId) {
                 setReplyText('');
                 setReplyingTo(null);
             } else {
                 setNewPostText('');
-                // Scroll to bottom only for main posts
                 setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
             }
-            
-            // 3. Force Fetch (Ensures your post appears immediately even if realtime is delayed)
             await fetchPosts();
         } else {
             console.error("Post Error:", error);
-            if (error.code === '42P01') {
-                alert("Database Error: The 'group_posts' table is missing. Please ask Admin to run SQL Fix.");
-            } else {
-                alert(`Failed to post: ${error.message}`);
-            }
+            alert(`Failed to post: ${error.message}`);
         }
     };
 
-    // Filter root posts (comments)
     const rootPosts = posts.filter(p => !p.parent_id);
 
     return (
-        <div className="fixed inset-0 z-[60] flex flex-col bg-slate-100 dark:bg-slate-900">
+        <div className="fixed inset-0 z-[60] flex flex-col bg-slate-100 dark:bg-slate-900 h-full overflow-hidden">
             {/* Header */}
             <div className="flex-none bg-white dark:bg-slate-800 border-b dark:border-slate-700 shadow-sm z-10 pt-[env(safe-area-inset-top)]">
                 <div className="px-4 py-4 flex items-center gap-3">
@@ -301,7 +289,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
 
             {/* Posts Feed */}
             <div 
-                className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth bg-slate-100 dark:bg-slate-900/50"
+                className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth bg-slate-100 dark:bg-slate-900/50 pb-4"
                 style={{ WebkitOverflowScrolling: 'touch' }}
             >
                 {rootPosts.length === 0 && (
@@ -333,12 +321,12 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                                 </div>
                             </div>
 
-                            {/* Main Post Content */}
+                            {/* Content */}
                             <div className="mb-4">
                                 <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
                             </div>
 
-                            {/* Actions Bar - IMPROVED UI */}
+                            {/* Actions */}
                             <div className="flex items-center gap-4 border-t border-slate-100 dark:border-slate-700 pt-3">
                                 <button 
                                     onClick={() => handleLike(post.id, isLiked)}
@@ -365,7 +353,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                                 </button>
                             </div>
 
-                            {/* Replies Area - INDENTED */}
+                            {/* Replies */}
                             {(replies.length > 0 || replyingTo === post.id) && (
                                 <div className="mt-4 pl-4 border-l-2 border-slate-100 dark:border-slate-700 space-y-4">
                                     {replies.map(reply => (
@@ -383,7 +371,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                                         </div>
                                     ))}
 
-                                    {/* Nested Reply Input */}
                                     {replyingTo === post.id && (
                                         <div className="flex gap-3 items-start animate-fade-in mt-3 bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-slate-700">
                                             <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300">
@@ -482,7 +469,7 @@ export const BibleView = () => {
                  </div>
              </div>
              {activeTab === 'read' && (
-                 <div className="p-6 pb-24">
+                 <div className="p-6">
                      <h2 className="text-xl font-bold text-center mb-6 text-slate-400 uppercase">{book} {chapter}</h2>
                      {loading ? <div className="text-center">Loading...</div> : <p className="text-lg leading-loose font-serif whitespace-pre-wrap text-slate-800 dark:text-slate-200">{text}</p>}
                      <div className="mt-8 flex justify-center">{!explanation && <button onClick={handleExplain} className="bg-blue-600 text-white px-6 py-2 rounded-full text-sm font-bold flex items-center gap-2"><Sparkles size={16}/> AI Insight</button>}</div>
@@ -498,7 +485,7 @@ export const EventsView = ({ onBack }: any) => {
     const [events, setEvents] = useState<Event[]>([]);
     useEffect(() => { const fetchEvents = async () => { const { data } = await supabase.from('events').select('*').order('date', { ascending: true }); if(data) setEvents(data as any); }; fetchEvents(); }, []);
     return (
-        <div className="p-4 pb-24">
+        <div className="p-4 space-y-4">
             <h1 className="text-2xl font-black mb-6 dark:text-white">Events</h1>
             {events.map(ev => (<div key={ev.id} className="bg-white dark:bg-slate-800 p-5 rounded-3xl mb-4 border dark:border-slate-700"><h3 className="font-bold dark:text-white">{ev.title}</h3><p className="text-sm text-slate-500">{ev.description}</p></div>))}
         </div>
@@ -510,7 +497,7 @@ export const MusicView = () => {
     const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
     useEffect(() => { const fetchTracks = async () => { const { data } = await supabase.from('music_tracks').select('*'); if(data) setTracks(data as any); }; fetchTracks(); }, []);
     return (
-        <div className="p-4 pb-24">
+        <div className="p-4 space-y-2">
             <h1 className="text-2xl font-black mb-6 dark:text-white">Music</h1>
             {tracks.map(track => (<div key={track.id} onClick={()=>setCurrentTrack(track)} className="flex items-center gap-4 p-3 bg-white dark:bg-slate-800 rounded-2xl mb-2 cursor-pointer border dark:border-slate-700"><div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center text-blue-600"><Music size={18}/></div><div><h4 className="font-bold text-sm dark:text-white">{track.title}</h4></div></div>))}
             {currentTrack && (<div className="fixed bottom-20 left-4 right-4 bg-slate-900 text-white p-4 rounded-2xl flex justify-between shadow-lg z-50"><div><p className="font-bold text-sm">{currentTrack.title}</p></div><audio src={currentTrack.url} controls autoPlay className="h-8 w-32"/></div>)}
@@ -522,7 +509,7 @@ export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
     useEffect(() => { const fetchSermons = async () => { const { data } = await supabase.from('sermons').select('*'); if(data) setSermons(data as any); }; fetchSermons(); }, []);
     return (
-        <div className="p-4 pb-24">
+        <div className="p-4">
             <h1 className="text-2xl font-black mb-6 dark:text-white">Sermons</h1>
             <div className="grid gap-6">{sermons.map(s => (<div key={s.id} className="bg-white dark:bg-slate-800 rounded-2xl overflow-hidden shadow-sm border dark:border-slate-700"><div className="h-48 bg-slate-200 bg-cover bg-center" style={{ backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(s.videoUrl ?? "")}/mqdefault.jpg)` : 'none' }}></div><div className="p-4"><h3 className="font-bold dark:text-white">{s.title}</h3></div></div>))}</div>
         </div>
@@ -533,21 +520,21 @@ export const BlogView = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
     const [selectedBlog, setSelectedBlog] = useState<BlogPost | null>(null);
     useEffect(() => { const fetchBlogs = async () => { const { data } = await supabase.from('blog_posts').select('*'); if(data) setBlogs(data.map((b: any) => ({...b, image: b.image_url}))); }; fetchBlogs(); }, []);
-    if (selectedBlog) return <div className="p-4 pb-24"><button onClick={()=>setSelectedBlog(null)} className="mb-4 flex items-center gap-2"><ArrowLeft size={16}/> Back</button><h1 className="text-2xl font-bold dark:text-white">{selectedBlog.title}</h1><p className="dark:text-white mt-4">{selectedBlog.content}</p></div>;
+    if (selectedBlog) return <div className="p-4"><button onClick={()=>setSelectedBlog(null)} className="mb-4 flex items-center gap-2"><ArrowLeft size={16}/> Back</button><h1 className="text-2xl font-bold dark:text-white">{selectedBlog.title}</h1><p className="dark:text-white mt-4">{selectedBlog.content}</p></div>;
     return (
-        <div className="p-4 pb-24">
+        <div className="p-4">
             <h1 className="text-2xl font-black mb-6 dark:text-white">Articles</h1>
             <div className="grid gap-6">{blogs.map(blog => (<div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-2xl border dark:border-slate-700"><h3 className="font-bold dark:text-white">{blog.title}</h3><p className="text-xs text-slate-500">{blog.excerpt}</p></div>))}</div>
         </div>
     );
 };
 
-export const ContactView = ({ onBack }: { onBack: () => void }) => (<div className="p-4 pb-24"><button onClick={onBack} className="mb-6 flex items-center gap-2"><ArrowLeft size={16}/> Back</button><h1 className="text-2xl font-black dark:text-white">Contact</h1><p className="dark:text-white">info@isipingochurch.com</p></div>);
+export const ContactView = ({ onBack }: { onBack: () => void }) => (<div className="p-4"><button onClick={onBack} className="mb-6 flex items-center gap-2"><ArrowLeft size={16}/> Back</button><h1 className="text-2xl font-black dark:text-white">Contact</h1><p className="dark:text-white">info@isipingochurch.com</p></div>);
 
 export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
     if(!user) return <div className="p-4 text-center">Please log in.</div>;
     return (
-        <div className="p-4 pb-24">
+        <div className="p-4">
             <div className="flex justify-between items-center mb-6"><h1 className="text-2xl font-black dark:text-white">My Profile</h1><button onClick={onLogout} className="text-red-500 font-bold text-sm bg-red-50 px-3 py-1 rounded">Logout</button></div>
             <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 mb-6 flex flex-col items-center">
                 <div className="w-20 h-20 bg-slate-100 rounded-full flex items-center justify-center text-3xl font-bold text-slate-400 mb-3">{user.firstName[0]}{user.lastName[0]}</div>
@@ -559,7 +546,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
     );
 };
 
-export const NotificationsView = () => <div className="p-4 pb-24"><h1 className="text-2xl font-black dark:text-white">Notifications</h1><p className="text-center text-slate-500">No new notifications.</p></div>;
+export const NotificationsView = () => <div className="p-4"><h1 className="text-2xl font-black dark:text-white">Notifications</h1><p className="text-center text-slate-500">No new notifications.</p></div>;
 
 export const CommunityView = () => {
     const [groups, setGroups] = useState<CommunityGroup[]>([]);
@@ -587,7 +574,7 @@ export const CommunityView = () => {
     if (selectedGroup) return <GroupChat group={selectedGroup} onBack={() => setSelectedGroup(null)} />;
 
     return (
-        <div className="p-4 pb-24 space-y-6">
+        <div className="p-4 space-y-6">
             <h1 className="text-2xl font-black dark:text-white">Groups</h1>
              {groups.map(group => {
                  const status = myMemberships[group.id];

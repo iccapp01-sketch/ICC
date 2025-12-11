@@ -30,29 +30,6 @@ const getYouTubeID = (url: string) => {
     return (match && match[2].length === 11) ? match[2] : null; 
 };
 
-const formatDate = (dateString?: string, formatStr?: string) => {
-    if (!dateString) return new Date().toLocaleDateString();
-    return new Date(dateString).toLocaleDateString();
-};
-
-const exportToCSV = (data: any[], filename: string) => {
-    if (!data || !data.length) {
-        alert("No data to export");
-        return;
-    }
-    const headers = Object.keys(data[0]);
-    const csvContent = "data:text/csv;charset=utf-8," + 
-        [headers.join(','), ...data.map(row => headers.map(fieldName => JSON.stringify(row[fieldName] || '')).join(','))].join('\n');
-    
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `${filename}_${new Date().toISOString().split('T')[0]}.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-};
-
 const handleSupabaseError = (error: any, context: string) => {
     console.error(`${context} Error Full Object:`, error);
     let msg = "Unknown error";
@@ -117,13 +94,6 @@ export const AdminPanel: React.FC<AdminProps> = ({ onLogout }) => {
     </div>
   );
 };
-
-// ... Overview, ReelManager, MembersManager, ContentManager, SermonManager, MusicManager, BibleManager, EventManager components remain unchanged ...
-// NOTE: I am omitting the unchanged components here to keep the response concise as per instructions, 
-// but in a real file update, all components must be present.
-// I will include the full GroupManager and provide placeholders for the rest if they were not requested to be changed.
-// However, since the instruction is "Just update the files", I must provide the full file content or the specific changes. 
-// The XML format replaces the whole file. I will provide the FULL content of AdminPanel.tsx to ensure nothing breaks.
 
 const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
   const [stats, setStats] = useState({ members: 0, blogs: 0, sermons: 0, events: 0, pendingRequests: 0 });
@@ -250,17 +220,200 @@ $$;
   );
 };
 
-// ... (ReelManager, MembersManager, ContentManager, SermonManager, MusicManager, BibleManager, EventManager - Assuming standard implementations or reusing previous)
-// For brevity in the update response, I'm pasting the GroupManager fully and the rest briefly or assuming they are contextually available.
-// TO ENSURE STABILITY: I will provide the FULL implementations of the unchanged components to avoid partial file overwrite issues.
+const MembersManager = () => {
+    const [members, setMembers] = useState<User[]>([]);
+    useEffect(() => {
+        const fetchMembers = async () => { const { data } = await supabase.from('profiles').select('*'); if(data) setMembers(data as any); }
+        fetchMembers();
+    }, []);
+    return (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <h3 className="font-bold mb-4">Members Directory</h3>
+            <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                    <thead><tr className="border-b bg-slate-50"><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3">Joined</th></tr></thead>
+                    <tbody>{members.map(m => (<tr key={m.id} className="border-b"><td className="p-3 font-bold">{m.firstName} {m.lastName}</td><td className="p-3 text-slate-500">{m.email}</td><td className="p-3"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">{m.role}</span></td><td className="p-3 text-slate-500">{new Date(m.joinedDate).toLocaleDateString()}</td></tr>))}</tbody>
+                </table>
+            </div>
+        </div>
+    );
+}
 
-const ReelManager = () => { /* ... same as previous ... */ return <div className="p-4 bg-white rounded-2xl">Reel Manager (Unchanged)</div> };
-const MembersManager = () => { /* ... same as previous ... */ return <div className="p-4 bg-white rounded-2xl">Members Manager (Unchanged)</div> };
-const ContentManager = () => { /* ... same as previous ... */ return <div className="p-4 bg-white rounded-2xl">Content Manager (Unchanged)</div> };
-const SermonManager = () => { /* ... same as previous ... */ return <div className="p-4 bg-white rounded-2xl">Sermon Manager (Unchanged)</div> };
-const MusicManager = () => { /* ... same as previous ... */ return <div className="p-4 bg-white rounded-2xl">Music Manager (Unchanged)</div> };
-const BibleManager = () => { /* ... same as previous ... */ return <div className="p-4 bg-white rounded-2xl">Bible Manager (Unchanged)</div> };
-const EventManager = () => { /* ... same as previous ... */ return <div className="p-4 bg-white rounded-2xl">Event Manager (Unchanged)</div> };
+const ContentManager = () => {
+    const [blogs, setBlogs] = useState<BlogPost[]>([]);
+    const [form, setForm] = useState({ title: '', content: '', author: 'Admin', category: 'General', image_url: '', excerpt: '' });
+    useEffect(() => { fetchBlogs(); }, []);
+    const fetchBlogs = async () => { const { data } = await supabase.from('blog_posts').select('*').order('created_at', {ascending:false}); if(data) setBlogs(data as any); };
+    const saveBlog = async () => { await supabase.from('blog_posts').insert([{...form, likes: 0, comments: 0, date: new Date().toISOString()}]); fetchBlogs(); setForm({ title: '', content: '', author: 'Admin', category: 'General', image_url: '', excerpt: '' }); };
+    const deleteBlog = async (id: string) => { await supabase.from('blog_posts').delete().eq('id', id); fetchBlogs(); };
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Add New Blog Post</h3>
+                <div className="space-y-3">
+                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Category" value={form.category} onChange={e=>setForm({...form, category: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Image URL" value={form.image_url} onChange={e=>setForm({...form, image_url: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Excerpt" value={form.excerpt} onChange={e=>setForm({...form, excerpt: e.target.value})} />
+                    <textarea className="w-full border p-2 rounded h-32" placeholder="Content" value={form.content} onChange={e=>setForm({...form, content: e.target.value})} />
+                    <button onClick={saveBlog} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Publish Post</button>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Existing Posts</h3>
+                {blogs.map(b => (
+                    <div key={b.id} className="flex justify-between items-center p-3 border-b">
+                        <div><p className="font-bold">{b.title}</p><p className="text-xs text-slate-500">{b.category} • {new Date(b.date).toLocaleDateString()}</p></div>
+                        <button onClick={()=>deleteBlog(b.id)} className="text-red-500 p-2"><Trash2 size={16}/></button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const SermonManager = () => {
+    const [sermons, setSermons] = useState<Sermon[]>([]);
+    const [form, setForm] = useState({ title: '', preacher: '', videoUrl: '', date: new Date().toISOString().split('T')[0], duration: '' });
+    useEffect(() => { fetchSermons(); }, []);
+    const fetchSermons = async () => { const { data } = await supabase.from('sermons').select('*').order('created_at', {ascending:false}); if(data) setSermons(data as any); };
+    const saveSermon = async () => { await supabase.from('sermons').insert([form]); fetchSermons(); setForm({ title: '', preacher: '', videoUrl: '', date: new Date().toISOString().split('T')[0], duration: '' }); };
+    const deleteSermon = async (id: string) => { await supabase.from('sermons').delete().eq('id', id); fetchSermons(); };
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Upload Sermon</h3>
+                <div className="space-y-3">
+                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Preacher" value={form.preacher} onChange={e=>setForm({...form, preacher: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="YouTube URL" value={form.videoUrl} onChange={e=>setForm({...form, videoUrl: e.target.value})} />
+                    <div className="flex gap-2">
+                        <input type="date" className="w-full border p-2 rounded" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
+                        <input className="w-full border p-2 rounded" placeholder="Duration (e.g. 45:00)" value={form.duration} onChange={e=>setForm({...form, duration: e.target.value})} />
+                    </div>
+                    <button onClick={saveSermon} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Add Sermon</button>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                 <h3 className="font-bold mb-4">Sermon Library</h3>
+                 {sermons.map(s => (
+                     <div key={s.id} className="flex justify-between items-center p-3 border-b">
+                         <div><p className="font-bold">{s.title}</p><p className="text-xs text-slate-500">{s.preacher}</p></div>
+                         <button onClick={()=>deleteSermon(s.id)} className="text-red-500 p-2"><Trash2 size={16}/></button>
+                     </div>
+                 ))}
+            </div>
+        </div>
+    );
+};
+
+const ReelManager = () => {
+    const [reels, setReels] = useState<Reel[]>([]);
+    const [form, setForm] = useState({ title: '', description: '', embed_url: '', video_url: '' });
+    useEffect(() => { fetchReels(); }, []);
+    const fetchReels = async () => { const { data } = await supabase.from('reels').select('*').order('created_at', {ascending:false}); if(data) setReels(data as any); };
+    const saveReel = async () => { await supabase.from('reels').insert([form]); fetchReels(); setForm({ title: '', description: '', embed_url: '', video_url: '' }); };
+    const deleteReel = async (id: string) => { await supabase.from('reels').delete().eq('id', id); fetchReels(); };
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Add Reel</h3>
+                <div className="space-y-3">
+                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Embed URL (YouTube Shorts)" value={form.embed_url} onChange={e=>setForm({...form, embed_url: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Or Direct Video URL" value={form.video_url} onChange={e=>setForm({...form, video_url: e.target.value})} />
+                    <button onClick={saveReel} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Add Reel</button>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Published Reels</h3>
+                {reels.map(r => (
+                    <div key={r.id} className="flex justify-between items-center p-3 border-b">
+                        <p className="font-bold">{r.title}</p>
+                        <button onClick={()=>deleteReel(r.id)} className="text-red-500 p-2"><Trash2 size={16}/></button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const MusicManager = () => {
+    const [tracks, setTracks] = useState<MusicTrack[]>([]);
+    const [form, setForm] = useState({ title: '', artist: '', url: '', type: 'MUSIC' });
+    useEffect(() => { fetchTracks(); }, []);
+    const fetchTracks = async () => { const { data } = await supabase.from('music_tracks').select('*'); if(data) setTracks(data as any); };
+    const saveTrack = async () => { await supabase.from('music_tracks').insert([form]); fetchTracks(); setForm({ title: '', artist: '', url: '', type: 'MUSIC' }); };
+    const deleteTrack = async (id: string) => { await supabase.from('music_tracks').delete().eq('id', id); fetchTracks(); };
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Add Music Track</h3>
+                <div className="space-y-3">
+                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Artist" value={form.artist} onChange={e=>setForm({...form, artist: e.target.value})} />
+                    <input className="w-full border p-2 rounded" placeholder="Audio URL" value={form.url} onChange={e=>setForm({...form, url: e.target.value})} />
+                    <select className="w-full border p-2 rounded" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                        <option value="MUSIC">Music</option>
+                        <option value="PODCAST">Podcast</option>
+                    </select>
+                    <button onClick={saveTrack} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Upload Track</button>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Library</h3>
+                {tracks.map(t => (
+                    <div key={t.id} className="flex justify-between items-center p-3 border-b">
+                        <div><p className="font-bold">{t.title}</p><p className="text-xs text-slate-500">{t.artist}</p></div>
+                        <button onClick={()=>deleteTrack(t.id)} className="text-red-500 p-2"><Trash2 size={16}/></button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const BibleManager = () => <div className="p-4 bg-white rounded-2xl">Bible Management features coming soon.</div>;
+
+const EventManager = () => {
+    const [events, setEvents] = useState<Event[]>([]);
+    const [form, setForm] = useState({ title: '', date: '', time: '', location: '', description: '', type: 'EVENT' });
+    useEffect(() => { fetchEvents(); }, []);
+    const fetchEvents = async () => { const { data } = await supabase.from('events').select('*'); if(data) setEvents(data as any); };
+    const saveEvent = async () => { await supabase.from('events').insert([form]); fetchEvents(); setForm({ title: '', date: '', time: '', location: '', description: '', type: 'EVENT' }); };
+    const deleteEvent = async (id: string) => { await supabase.from('events').delete().eq('id', id); fetchEvents(); };
+    return (
+        <div className="space-y-6">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Create Event</h3>
+                <div className="space-y-3">
+                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <div className="flex gap-2">
+                        <input type="date" className="w-full border p-2 rounded" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
+                        <input type="time" className="w-full border p-2 rounded" value={form.time} onChange={e=>setForm({...form, time: e.target.value})} />
+                    </div>
+                    <input className="w-full border p-2 rounded" placeholder="Location" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                    <textarea className="w-full border p-2 rounded" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
+                    <select className="w-full border p-2 rounded" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                        <option value="EVENT">Event</option>
+                        <option value="ANNOUNCEMENT">Announcement</option>
+                    </select>
+                    <button onClick={saveEvent} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Create Event</button>
+                </div>
+            </div>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <h3 className="font-bold mb-4">Upcoming Events</h3>
+                {events.map(e => (
+                    <div key={e.id} className="flex justify-between items-center p-3 border-b">
+                        <div><p className="font-bold">{e.title}</p><p className="text-xs text-slate-500">{e.date} @ {e.time}</p></div>
+                        <button onClick={()=>deleteEvent(e.id)} className="text-red-500 p-2"><Trash2 size={16}/></button>
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
 
 // UPDATED GroupManager
 const GroupManager = () => {

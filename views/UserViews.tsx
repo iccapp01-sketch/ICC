@@ -166,7 +166,7 @@ export const HomeView = ({ onNavigate }: any) => {
   );
 };
 
-// --- GROUP CHAT (FIXED REALTIME & INTERACTIONS) ---
+// --- GROUP CHAT (FIXED LAYOUT & VISIBILITY) ---
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
     const [posts, setPosts] = useState<GroupPost[]>([]);
     const [newPostText, setNewPostText] = useState('');
@@ -280,25 +280,25 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     const rootPosts = posts.filter(p => !p.parent_id);
 
     return (
-        <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 absolute inset-0 z-50">
+        <div className="fixed inset-0 z-[60] flex flex-col bg-slate-100 dark:bg-slate-900">
             {/* Header */}
-            <div className="bg-white dark:bg-slate-800 px-4 py-3 border-b dark:border-slate-700 flex items-center gap-3 shadow-sm z-10 sticky top-0">
+            <div className="flex-none bg-white dark:bg-slate-800 px-4 py-4 border-b dark:border-slate-700 flex items-center gap-3 shadow-sm z-10">
                 <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/></button>
                 <div className="flex items-center gap-3">
                     {group.image ? (
-                        <div className="w-9 h-9 rounded-full bg-cover bg-center" style={{backgroundImage: `url(${group.image})`}}></div>
+                        <div className="w-10 h-10 rounded-full bg-cover bg-center" style={{backgroundImage: `url(${group.image})`}}></div>
                     ) : (
-                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">{group.name.substring(0,1)}</div>
+                        <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">{group.name.substring(0,1)}</div>
                     )}
                     <div>
-                        <h2 className="font-bold text-sm dark:text-white leading-none">{group.name}</h2>
-                        <p className="text-xs text-slate-500 mt-0.5">{group.membersCount || 0} Members</p>
+                        <h2 className="font-bold text-base dark:text-white leading-none">{group.name}</h2>
+                        <p className="text-xs text-slate-500 mt-1">{group.membersCount || 0} Members</p>
                     </div>
                 </div>
             </div>
 
             {/* Posts Feed */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-32 scroll-smooth bg-slate-100 dark:bg-slate-900/50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth bg-slate-100 dark:bg-slate-900/50">
                 {rootPosts.length === 0 && (
                     <div className="text-center py-20 opacity-60">
                         <MessageSquare size={48} className="mx-auto mb-4 text-slate-300"/>
@@ -411,8 +411,8 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Bottom Fixed Input for Main Thread - VISUALLY PROMINENT */}
-            <div className="bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 fixed bottom-0 left-0 right-0 z-50 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] pb-8 md:pb-4">
+            {/* Input Area */}
+            <div className="flex-none bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] pb-8 md:pb-6 z-20">
                 <div className="max-w-3xl mx-auto">
                     <label className="block text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2 ml-1">Add a comment:</label>
                     <div className="flex gap-3 items-end">

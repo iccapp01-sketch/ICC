@@ -420,6 +420,7 @@ const ContentManager = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [publishOption, setPublishOption] = useState<'now' | 'schedule'>('now');
     
     // UI Toggles
     const [imageInputType, setImageInputType] = useState<'url' | 'upload'>('url');
@@ -456,7 +457,8 @@ const ContentManager = () => {
         try {
             const fileExt = file.name.split('.').pop();
             const fileName = `${type}_${Date.now()}.${fileExt}`;
-            const bucket = 'files'; // Using a generic bucket name, assumes it exists or user created it
+            const bucket = 'blog-images'; 
+            
             const { error: uploadError, data } = await supabase.storage
                 .from(bucket) 
                 .upload(fileName, file);
@@ -469,7 +471,7 @@ const ContentManager = () => {
             else setForm({...form, video_url: publicUrl});
             
         } catch (error: any) {
-            alert(`Upload failed: ${error.message}. Please ensure a storage bucket named 'files' exists and is public.`);
+            alert(`Upload failed: ${error.message}. Please ensure a storage bucket named 'blog-images' exists and is public.`);
         } finally {
             setUploading(false);
         }
@@ -477,7 +479,11 @@ const ContentManager = () => {
 
     const handleSubmit = async () => {
         setIsLoading(true);
-        const combinedDateTime = new Date(`${form.scheduledDate}T${form.scheduledTime}`).toISOString();
+        let combinedDateTime = new Date().toISOString();
+        
+        if (publishOption === 'schedule') {
+             combinedDateTime = new Date(`${form.scheduledDate}T${form.scheduledTime}`).toISOString();
+        }
         
         const payload = {
             title: form.title,
@@ -520,6 +526,9 @@ const ContentManager = () => {
     const startEdit = (blog: any) => {
         setEditingId(blog.id);
         const dateObj = new Date(blog.date);
+        const isFuture = dateObj > new Date();
+        setPublishOption(isFuture ? 'schedule' : 'now');
+        
         setForm({
             title: blog.title,
             content: blog.content,
@@ -540,6 +549,7 @@ const ContentManager = () => {
         setForm({ title: '', content: '', author: 'Admin', category: 'General', image_url: '', video_url: '', excerpt: '', scheduledDate: new Date().toISOString().split('T')[0], scheduledTime: '09:00' });
         setImageInputType('url');
         setVideoInputType('url');
+        setPublishOption('now');
         setEditingId(null);
     };
 
@@ -582,17 +592,24 @@ const ContentManager = () => {
                          </div>
 
                          <div>
-                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Schedule Publication</label>
-                             <div className="flex gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100">
-                                 <div className="flex-1">
-                                     <span className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Date (Max 7 Days)</span>
-                                     <input type="date" min={minDateStr} max={maxDateStr} className="w-full border p-2 rounded-lg text-sm" value={form.scheduledDate} onChange={e=>setForm({...form, scheduledDate: e.target.value})} />
-                                 </div>
-                                 <div className="flex-1">
-                                     <span className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Time</span>
-                                     <input type="time" className="w-full border p-2 rounded-lg text-sm" value={form.scheduledTime} onChange={e=>setForm({...form, scheduledTime: e.target.value})} />
-                                 </div>
+                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Publishing Options</label>
+                             <div className="flex gap-2 mb-3">
+                                <button onClick={() => setPublishOption('now')} className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${publishOption === 'now' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Publish Now</button>
+                                <button onClick={() => setPublishOption('schedule')} className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${publishOption === 'schedule' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Schedule</button>
                              </div>
+                             
+                             {publishOption === 'schedule' && (
+                                 <div className="flex gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100 animate-fade-in">
+                                     <div className="flex-1">
+                                         <span className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Date (Max 7 Days)</span>
+                                         <input type="date" min={minDateStr} max={maxDateStr} className="w-full border p-2 rounded-lg text-sm" value={form.scheduledDate} onChange={e=>setForm({...form, scheduledDate: e.target.value})} />
+                                     </div>
+                                     <div className="flex-1">
+                                         <span className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Time</span>
+                                         <input type="time" className="w-full border p-2 rounded-lg text-sm" value={form.scheduledTime} onChange={e=>setForm({...form, scheduledTime: e.target.value})} />
+                                     </div>
+                                 </div>
+                             )}
                          </div>
                     </div>
 

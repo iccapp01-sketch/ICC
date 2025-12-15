@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube, ArrowLeft, ShieldOff
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube, ArrowLeft, ShieldOff, Phone
 } from 'lucide-react';
 import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel, ReadingPlan } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -259,17 +259,156 @@ $$;
 
 const MembersManager = () => {
     const [members, setMembers] = useState<User[]>([]);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [editForm, setEditForm] = useState<Partial<User>>({});
+
     useEffect(() => {
-        const fetchMembers = async () => { const { data } = await supabase.from('profiles').select('*'); if(data) setMembers(data as any); }
         fetchMembers();
     }, []);
+
+    const fetchMembers = async () => {
+        const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false });
+        if(data) {
+             const mappedMembers = data.map((m: any) => ({
+                 id: m.id,
+                 firstName: m.first_name || '',
+                 lastName: m.last_name || '',
+                 email: m.email || '',
+                 phone: m.phone || '',
+                 dob: m.dob || '',
+                 gender: m.gender || '',
+                 role: m.role || 'MEMBER',
+                 joinedDate: m.created_at
+             }));
+             setMembers(mappedMembers);
+        }
+    }
+
+    const deleteMember = async (id: string) => {
+        if(!confirm("Are you sure you want to delete this member?")) return;
+        const { error } = await supabase.from('profiles').delete().eq('id', id);
+        if(error) handleSupabaseError(error, 'Delete Member');
+        else fetchMembers();
+    }
+
+    const startEdit = (member: User) => {
+        setEditingId(member.id);
+        setEditForm(member);
+    }
+
+    const saveEdit = async () => {
+        if(!editingId) return;
+        const updates = {
+            first_name: editForm.firstName,
+            last_name: editForm.lastName,
+            phone: editForm.phone,
+            dob: editForm.dob,
+            gender: editForm.gender,
+            role: editForm.role
+        };
+        const { error } = await supabase.from('profiles').update(updates).eq('id', editingId);
+        if(error) handleSupabaseError(error, 'Update Member');
+        else {
+            setEditingId(null);
+            fetchMembers();
+        }
+    }
+
     return (
         <div className="bg-white p-6 rounded-2xl border border-slate-200">
             <h3 className="font-bold mb-4">Members Directory</h3>
+            
+            {editingId && (
+                <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm">
+                    <div className="bg-white p-6 rounded-2xl w-full max-w-lg shadow-2xl">
+                        <h3 className="text-xl font-bold mb-4 text-[#0c2d58]">Edit Member</h3>
+                        <div className="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">First Name</label>
+                                <input className="w-full border p-2 rounded-lg" value={editForm.firstName} onChange={e => setEditForm({...editForm, firstName: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Last Name</label>
+                                <input className="w-full border p-2 rounded-lg" value={editForm.lastName} onChange={e => setEditForm({...editForm, lastName: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Phone</label>
+                                <input className="w-full border p-2 rounded-lg" value={editForm.phone} onChange={e => setEditForm({...editForm, phone: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">DOB</label>
+                                <input type="date" className="w-full border p-2 rounded-lg" value={editForm.dob} onChange={e => setEditForm({...editForm, dob: e.target.value})} />
+                            </div>
+                            <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Gender</label>
+                                <select className="w-full border p-2 rounded-lg" value={editForm.gender} onChange={e => setEditForm({...editForm, gender: e.target.value})}>
+                                    <option value="Female">Female</option>
+                                    <option value="Male">Male</option>
+                                </select>
+                            </div>
+                             <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Role</label>
+                                <select className="w-full border p-2 rounded-lg" value={editForm.role} onChange={e => setEditForm({...editForm, role: e.target.value as any})}>
+                                    <option value="MEMBER">Member</option>
+                                    <option value="MODERATOR">Moderator</option>
+                                    <option value="ADMIN">Admin</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2">
+                            <button onClick={() => setEditingId(null)} className="px-4 py-2 text-slate-600 font-bold hover:bg-slate-100 rounded-lg">Cancel</button>
+                            <button onClick={saveEdit} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-lg hover:bg-blue-700">Save Changes</button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="overflow-x-auto">
-                <table className="w-full text-left text-sm">
-                    <thead><tr className="border-b bg-slate-50"><th className="p-3">Name</th><th className="p-3">Email</th><th className="p-3">Role</th><th className="p-3">Joined</th></tr></thead>
-                    <tbody>{members.map(m => (<tr key={m.id} className="border-b"><td className="p-3 font-bold">{m.firstName} {m.lastName}</td><td className="p-3 text-slate-500">{m.email}</td><td className="p-3"><span className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs font-bold">{m.role}</span></td><td className="p-3 text-slate-500">{new Date(m.joinedDate).toLocaleDateString()}</td></tr>))}</tbody>
+                <table className="w-full text-left text-sm border-collapse">
+                    <thead>
+                        <tr className="border-b bg-slate-50 text-slate-500">
+                            <th className="p-4 font-bold rounded-tl-xl">Name</th>
+                            <th className="p-4 font-bold">Details</th>
+                            <th className="p-4 font-bold">Role</th>
+                            <th className="p-4 font-bold rounded-tr-xl text-right">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {members.map(m => (
+                            <tr key={m.id} className="border-b hover:bg-slate-50 transition">
+                                <td className="p-4">
+                                    <div className="font-bold text-slate-900">{m.firstName} {m.lastName}</div>
+                                    <div className="text-xs text-slate-500">{m.email}</div>
+                                </td>
+                                <td className="p-4">
+                                    <div className="flex flex-col gap-1">
+                                        <span className="text-xs text-slate-600 flex items-center gap-1"><Phone size={12}/> {m.phone || 'N/A'}</span>
+                                        <span className="text-xs text-slate-600 flex items-center gap-1"><Calendar size={12}/> {m.dob || 'N/A'}</span>
+                                        <span className="text-xs text-slate-600 flex items-center gap-1"><UserPlus size={12}/> {m.gender || 'N/A'}</span>
+                                    </div>
+                                </td>
+                                <td className="p-4">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold uppercase ${
+                                        m.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' :
+                                        m.role === 'MODERATOR' ? 'bg-orange-100 text-orange-700' :
+                                        'bg-blue-100 text-blue-700'
+                                    }`}>
+                                        {m.role}
+                                    </span>
+                                </td>
+                                <td className="p-4 text-right">
+                                    <div className="flex justify-end gap-2">
+                                        <button onClick={() => startEdit(m)} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                                            <Edit size={16}/>
+                                        </button>
+                                        <button onClick={() => deleteMember(m.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                            <Trash2 size={16}/>
+                                        </button>
+                                    </div>
+                                </td>
+                            </tr>
+                        ))}
+                    </tbody>
                 </table>
             </div>
         </div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube, ArrowLeft, ShieldOff, Phone
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube, ArrowLeft, ShieldOff, Phone, Monitor, Clock
 } from 'lucide-react';
 import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel, ReadingPlan } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -417,32 +417,266 @@ const MembersManager = () => {
 
 const ContentManager = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
-    const [form, setForm] = useState({ title: '', content: '', author: 'Admin', category: 'General', image_url: '', excerpt: '' });
+    const [isLoading, setIsLoading] = useState(false);
+    const [uploading, setUploading] = useState(false);
+    const [editingId, setEditingId] = useState<string | null>(null);
+    
+    // UI Toggles
+    const [imageInputType, setImageInputType] = useState<'url' | 'upload'>('url');
+    const [videoInputType, setVideoInputType] = useState<'url' | 'upload'>('url');
+
+    const [form, setForm] = useState({ 
+        title: '', 
+        content: '', 
+        author: 'Admin', 
+        category: 'General', 
+        image_url: '', 
+        video_url: '',
+        excerpt: '',
+        scheduledDate: new Date().toISOString().split('T')[0],
+        scheduledTime: '09:00'
+    });
+
     useEffect(() => { fetchBlogs(); }, []);
-    const fetchBlogs = async () => { const { data } = await supabase.from('blog_posts').select('*').order('created_at', {ascending:false}); if(data) setBlogs(data as any); };
-    const saveBlog = async () => { await supabase.from('blog_posts').insert([{...form, likes: 0, comments: 0, date: new Date().toISOString()}]); fetchBlogs(); setForm({ title: '', content: '', author: 'Admin', category: 'General', image_url: '', excerpt: '' }); };
-    const deleteBlog = async (id: string) => { await supabase.from('blog_posts').delete().eq('id', id); fetchBlogs(); };
+
+    const fetchBlogs = async () => { 
+        const { data } = await supabase.from('blog_posts').select('*').order('date', {ascending:false}); 
+        if(data) setBlogs(data.map((b: any) => ({
+            ...b, 
+            image: b.image_url, 
+            videoUrl: b.video_url
+        }))); 
+    };
+
+    const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
+        if (!e.target.files || !e.target.files[0]) return;
+        const file = e.target.files[0];
+        setUploading(true);
+
+        try {
+            const fileExt = file.name.split('.').pop();
+            const fileName = `${type}_${Date.now()}.${fileExt}`;
+            const bucket = 'files'; // Using a generic bucket name, assumes it exists or user created it
+            const { error: uploadError, data } = await supabase.storage
+                .from(bucket) 
+                .upload(fileName, file);
+
+            if (uploadError) throw uploadError;
+
+            const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(fileName);
+            
+            if (type === 'image') setForm({...form, image_url: publicUrl});
+            else setForm({...form, video_url: publicUrl});
+            
+        } catch (error: any) {
+            alert(`Upload failed: ${error.message}. Please ensure a storage bucket named 'files' exists and is public.`);
+        } finally {
+            setUploading(false);
+        }
+    };
+
+    const handleSubmit = async () => {
+        setIsLoading(true);
+        const combinedDateTime = new Date(`${form.scheduledDate}T${form.scheduledTime}`).toISOString();
+        
+        const payload = {
+            title: form.title,
+            content: form.content,
+            category: form.category,
+            image_url: form.image_url,
+            video_url: form.video_url,
+            excerpt: form.excerpt,
+            author: form.author,
+            date: combinedDateTime,
+            // default stats for new posts
+            ...(editingId ? {} : { likes: 0, comments: 0 })
+        };
+
+        let error;
+        if (editingId) {
+            const { error: updateError } = await supabase.from('blog_posts').update(payload).eq('id', editingId);
+            error = updateError;
+        } else {
+            const { error: insertError } = await supabase.from('blog_posts').insert([payload]);
+            error = insertError;
+        }
+
+        if (error) {
+            alert("Error saving post: " + error.message);
+        } else {
+            setEditingId(null);
+            resetForm();
+            fetchBlogs();
+        }
+        setIsLoading(false);
+    };
+
+    const deleteBlog = async (id: string) => { 
+        if(!confirm("Are you sure?")) return;
+        await supabase.from('blog_posts').delete().eq('id', id); 
+        fetchBlogs(); 
+    };
+
+    const startEdit = (blog: any) => {
+        setEditingId(blog.id);
+        const dateObj = new Date(blog.date);
+        setForm({
+            title: blog.title,
+            content: blog.content,
+            category: blog.category,
+            image_url: blog.image || '',
+            video_url: blog.videoUrl || '',
+            excerpt: blog.excerpt,
+            author: blog.author,
+            scheduledDate: dateObj.toISOString().split('T')[0],
+            scheduledTime: dateObj.toTimeString().slice(0,5)
+        });
+        setImageInputType(blog.image ? 'url' : 'upload');
+        setVideoInputType(blog.videoUrl ? 'url' : 'upload');
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const resetForm = () => {
+        setForm({ title: '', content: '', author: 'Admin', category: 'General', image_url: '', video_url: '', excerpt: '', scheduledDate: new Date().toISOString().split('T')[0], scheduledTime: '09:00' });
+        setImageInputType('url');
+        setVideoInputType('url');
+        setEditingId(null);
+    };
+
+    // Date constraints
+    const minDateStr = new Date().toISOString().split('T')[0];
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + 7);
+    const maxDateStr = maxDate.toISOString().split('T')[0];
+
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Add New Blog Post</h3>
-                <div className="space-y-3">
-                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Category" value={form.category} onChange={e=>setForm({...form, category: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Image URL" value={form.image_url} onChange={e=>setForm({...form, image_url: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Excerpt" value={form.excerpt} onChange={e=>setForm({...form, excerpt: e.target.value})} />
-                    <textarea className="w-full border p-2 rounded h-32" placeholder="Content" value={form.content} onChange={e=>setForm({...form, content: e.target.value})} />
-                    <button onClick={saveBlog} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Publish Post</button>
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-lg text-[#0c2d58]">{editingId ? 'Edit Post' : 'Create New Post'}</h3>
+                    {editingId && <button onClick={resetForm} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1"><X size={14}/> Cancel Edit</button>}
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Left Column: Details */}
+                    <div className="space-y-4">
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Title</label>
+                            <input className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition" placeholder="Enter title..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                         </div>
+                         
+                         <div className="grid grid-cols-2 gap-4">
+                             <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Category</label>
+                                <input className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition" placeholder="e.g. Devotional" value={form.category} onChange={e=>setForm({...form, category: e.target.value})} />
+                             </div>
+                             <div>
+                                <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Author</label>
+                                <input className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition" placeholder="Author Name" value={form.author} onChange={e=>setForm({...form, author: e.target.value})} />
+                             </div>
+                         </div>
+
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Excerpt</label>
+                            <textarea className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition h-20" placeholder="Short summary..." value={form.excerpt} onChange={e=>setForm({...form, excerpt: e.target.value})} />
+                         </div>
+
+                         <div>
+                             <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Schedule Publication</label>
+                             <div className="flex gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100">
+                                 <div className="flex-1">
+                                     <span className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Date (Max 7 Days)</span>
+                                     <input type="date" min={minDateStr} max={maxDateStr} className="w-full border p-2 rounded-lg text-sm" value={form.scheduledDate} onChange={e=>setForm({...form, scheduledDate: e.target.value})} />
+                                 </div>
+                                 <div className="flex-1">
+                                     <span className="text-[10px] font-bold text-blue-600 uppercase block mb-1">Time</span>
+                                     <input type="time" className="w-full border p-2 rounded-lg text-sm" value={form.scheduledTime} onChange={e=>setForm({...form, scheduledTime: e.target.value})} />
+                                 </div>
+                             </div>
+                         </div>
+                    </div>
+
+                    {/* Right Column: Media & Content */}
+                    <div className="space-y-4">
+                        {/* Image Input */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><ImageIcon size={14}/> Cover Image</label>
+                                <div className="flex bg-white rounded-lg p-0.5 shadow-sm">
+                                    <button onClick={() => setImageInputType('url')} className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition ${imageInputType==='url' ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}`}>URL</button>
+                                    <button onClick={() => setImageInputType('upload')} className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition ${imageInputType==='upload' ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}`}>Upload</button>
+                                </div>
+                            </div>
+                            {imageInputType === 'url' ? (
+                                <input className="w-full border p-2 rounded-lg text-sm" placeholder="https://..." value={form.image_url} onChange={e=>setForm({...form, image_url: e.target.value})} />
+                            ) : (
+                                <div className="flex gap-2">
+                                    <input type="file" accept="image/*" className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={(e) => handleFileUpload(e, 'image')} />
+                                    {uploading && <Loader2 size={20} className="animate-spin text-blue-500"/>}
+                                </div>
+                            )}
+                             {form.image_url && <img src={form.image_url} alt="Preview" className="mt-2 h-20 w-full object-cover rounded-lg border" />}
+                        </div>
+
+                        {/* Video Input */}
+                        <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
+                            <div className="flex justify-between items-center mb-2">
+                                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Film size={14}/> Video Content</label>
+                                <div className="flex bg-white rounded-lg p-0.5 shadow-sm">
+                                    <button onClick={() => setVideoInputType('url')} className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition ${videoInputType==='url' ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}`}>Link</button>
+                                    <button onClick={() => setVideoInputType('upload')} className={`px-2 py-0.5 text-[10px] font-bold rounded-md transition ${videoInputType==='upload' ? 'bg-blue-100 text-blue-600' : 'text-slate-400'}`}>Upload</button>
+                                </div>
+                            </div>
+                            {videoInputType === 'url' ? (
+                                <input className="w-full border p-2 rounded-lg text-sm" placeholder="YouTube URL or MP4 Link" value={form.video_url} onChange={e=>setForm({...form, video_url: e.target.value})} />
+                            ) : (
+                                <div className="flex gap-2">
+                                    <input type="file" accept="video/*" className="w-full text-xs text-slate-500 file:mr-2 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" onChange={(e) => handleFileUpload(e, 'video')} />
+                                    {uploading && <Loader2 size={20} className="animate-spin text-blue-500"/>}
+                                </div>
+                            )}
+                        </div>
+
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Content</label>
+                            <textarea className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition h-32" placeholder="Write your post here..." value={form.content} onChange={e=>setForm({...form, content: e.target.value})} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="mt-6 flex justify-end">
+                    <button onClick={handleSubmit} disabled={isLoading || uploading} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center gap-2 shadow-lg shadow-blue-200">
+                        {isLoading ? <Loader2 className="animate-spin"/> : <Save size={20}/>}
+                        {editingId ? 'Update Post' : 'Publish Post'}
+                    </button>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Existing Posts</h3>
-                {blogs.map(b => (
-                    <div key={b.id} className="flex justify-between items-center p-3 border-b">
-                        <div><p className="font-bold">{b.title}</p><p className="text-xs text-slate-500">{b.category} • {new Date(b.date).toLocaleDateString()}</p></div>
-                        <button onClick={()=>deleteBlog(b.id)} className="text-red-500 p-2"><Trash2 size={16}/></button>
-                    </div>
-                ))}
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold mb-4 text-[#0c2d58]">Manage Posts</h3>
+                <div className="space-y-3">
+                    {blogs.length === 0 && <p className="text-slate-400 italic text-center py-4">No posts found.</p>}
+                    {blogs.map(b => (
+                        <div key={b.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition gap-4 group">
+                            <div className="flex items-center gap-4">
+                                <div className="w-16 h-16 bg-slate-200 rounded-lg bg-cover bg-center flex-shrink-0" style={{backgroundImage: `url(${b.image || 'https://via.placeholder.com/150'})`}}></div>
+                                <div>
+                                    <p className="font-bold text-slate-900 line-clamp-1">{b.title}</p>
+                                    <p className="text-xs text-slate-500">{b.category} • <span className={new Date(b.date) > new Date() ? "text-orange-500 font-bold" : ""}>{new Date(b.date).toLocaleDateString()} {new Date(b.date).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span></p>
+                                    {b.videoUrl && <span className="inline-flex items-center gap-1 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded mt-1"><Youtube size={10}/> Video</span>}
+                                </div>
+                            </div>
+                            <div className="flex gap-2 self-end sm:self-center">
+                                <button onClick={() => startEdit(b)} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                                    <Edit size={18}/>
+                                </button>
+                                <button onClick={()=>deleteBlog(b.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                    <Trash2 size={18}/>
+                                </button>
+                            </div>
+                        </div>
+                    ))}
+                </div>
             </div>
         </div>
     );

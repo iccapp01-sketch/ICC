@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube, ArrowLeft, ShieldOff, Phone, Monitor, Clock
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube, ArrowLeft, ShieldOff, Phone, Monitor, Clock, Tag, Settings
 } from 'lucide-react';
 import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel, ReadingPlan } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -134,7 +134,14 @@ const Overview = ({ onNavigate }: { onNavigate: (v: string) => void }) => {
   }, []);
 
   const SQL_CODE = `
--- 1. GROUP CHAT TABLES
+-- 1. BLOG CATEGORIES TABLE
+create table if not exists public.blog_categories (
+  id uuid default gen_random_uuid() primary key,
+  name text not null unique,
+  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+);
+
+-- 2. GROUP CHAT TABLES
 create table if not exists public.group_posts (
   id uuid default gen_random_uuid() primary key,
   group_id uuid references public.community_groups(id) on delete cascade not null,
@@ -152,9 +159,16 @@ create table if not exists public.group_post_likes (
   unique(post_id, user_id)
 );
 
--- 2. SECURITY POLICIES (RLS)
+-- 3. SECURITY POLICIES (RLS)
 alter table public.group_posts enable row level security;
 alter table public.group_post_likes enable row level security;
+alter table public.blog_categories enable row level security;
+
+-- Categories Policies
+create policy "Public read categories" on public.blog_categories for select using (true);
+create policy "Admin only modify categories" on public.blog_categories for all using (
+  exists (select 1 from public.profiles where id = auth.uid() and role = 'ADMIN')
+);
 
 -- Posts Policies
 create policy "Public read posts" on public.group_posts for select using (true);
@@ -166,7 +180,7 @@ create policy "Public read likes" on public.group_post_likes for select using (t
 create policy "Authenticated insert likes" on public.group_post_likes for insert with check (auth.uid() = user_id);
 create policy "Authenticated delete likes" on public.group_post_likes for delete using (auth.uid() = user_id);
 
--- 3. ADMIN FUNCTION (If missing)
+-- 4. ADMIN FUNCTION (If missing)
 create or replace function public.is_admin()
 returns boolean
 language sql
@@ -417,11 +431,17 @@ const MembersManager = () => {
 
 const ContentManager = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
+    const [categories, setCategories] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [uploading, setUploading] = useState(false);
     const [editingId, setEditingId] = useState<string | null>(null);
     const [publishOption, setPublishOption] = useState<'now' | 'schedule'>('now');
+    const [showCategoryManager, setShowCategoryManager] = useState(false);
     
+    // Category Form State
+    const [newCatName, setNewCatName] = useState('');
+    const [editingCat, setEditingCat] = useState<{id: string, name: string} | null>(null);
+
     // UI Toggles
     const [imageInputType, setImageInputType] = useState<'url' | 'upload'>('url');
     const [videoInputType, setVideoInputType] = useState<'url' | 'upload'>('url');
@@ -430,7 +450,7 @@ const ContentManager = () => {
         title: '', 
         content: '', 
         author: 'Admin', 
-        category: 'General', 
+        category: '', 
         image_url: '', 
         video_url: '',
         excerpt: '',
@@ -438,7 +458,10 @@ const ContentManager = () => {
         scheduledTime: '09:00'
     });
 
-    useEffect(() => { fetchBlogs(); }, []);
+    useEffect(() => { 
+        fetchBlogs(); 
+        fetchCategories();
+    }, []);
 
     const fetchBlogs = async () => { 
         const { data } = await supabase.from('blog_posts').select('*').order('date', {ascending:false}); 
@@ -447,6 +470,12 @@ const ContentManager = () => {
             image: b.image_url, 
             videoUrl: b.video_url
         }))); 
+    };
+
+    const fetchCategories = async () => {
+        const { data } = await supabase.from('blog_categories').select('*').order('name');
+        if(data) setCategories(data);
+        if(data && data.length > 0 && !form.category) setForm(prev => ({...prev, category: data[0].name}));
     };
 
     const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, type: 'image' | 'video') => {
@@ -459,7 +488,7 @@ const ContentManager = () => {
             const fileName = `${type}_${Date.now()}.${fileExt}`;
             const bucket = 'blog-images'; 
             
-            const { error: uploadError, data } = await supabase.storage
+            const { error: uploadError } = await supabase.storage
                 .from(bucket) 
                 .upload(fileName, file);
 
@@ -478,23 +507,44 @@ const ContentManager = () => {
     };
 
     const handleSubmit = async () => {
+        if (!form.title.trim() || !form.content.trim()) {
+            alert("Please fill in title and content");
+            return;
+        }
+
         setIsLoading(true);
-        let combinedDateTime = new Date().toISOString();
+        let combinedDateTime;
         
-        if (publishOption === 'schedule') {
-             combinedDateTime = new Date(`${form.scheduledDate}T${form.scheduledTime}`).toISOString();
+        try {
+            if (publishOption === 'schedule') {
+                const dateParts = form.scheduledDate.split('-');
+                const timeParts = form.scheduledTime.split(':');
+                const dt = new Date(
+                    parseInt(dateParts[0]), 
+                    parseInt(dateParts[1]) - 1, 
+                    parseInt(dateParts[2]), 
+                    parseInt(timeParts[0]), 
+                    parseInt(timeParts[1])
+                );
+                combinedDateTime = dt.toISOString();
+            } else {
+                combinedDateTime = new Date().toISOString();
+            }
+        } catch (e) {
+            alert("Invalid date or time selected.");
+            setIsLoading(false);
+            return;
         }
         
         const payload = {
             title: form.title,
             content: form.content,
-            category: form.category,
+            category: form.category || 'General',
             image_url: form.image_url,
             video_url: form.video_url,
             excerpt: form.excerpt,
             author: form.author,
             date: combinedDateTime,
-            // default stats for new posts
             ...(editingId ? {} : { likes: 0, comments: 0 })
         };
 
@@ -546,11 +596,49 @@ const ContentManager = () => {
     };
 
     const resetForm = () => {
-        setForm({ title: '', content: '', author: 'Admin', category: 'General', image_url: '', video_url: '', excerpt: '', scheduledDate: new Date().toISOString().split('T')[0], scheduledTime: '09:00' });
+        setForm({ 
+            title: '', 
+            content: '', 
+            author: 'Admin', 
+            category: categories[0]?.name || '', 
+            image_url: '', 
+            video_url: '', 
+            excerpt: '', 
+            scheduledDate: new Date().toISOString().split('T')[0], 
+            scheduledTime: '09:00' 
+        });
         setImageInputType('url');
         setVideoInputType('url');
         setPublishOption('now');
         setEditingId(null);
+    };
+
+    // Category Management Logic
+    const handleAddCategory = async () => {
+        if(!newCatName.trim()) return;
+        const { error } = await supabase.from('blog_categories').insert({ name: newCatName });
+        if(error) alert(error.message);
+        else {
+            setNewCatName('');
+            fetchCategories();
+        }
+    };
+
+    const handleUpdateCategory = async () => {
+        if(!editingCat || !editingCat.name.trim()) return;
+        const { error } = await supabase.from('blog_categories').update({ name: editingCat.name }).eq('id', editingCat.id);
+        if(error) alert(error.message);
+        else {
+            setEditingCat(null);
+            fetchCategories();
+        }
+    };
+
+    const handleDeleteCategory = async (id: string) => {
+        if(!confirm("Delete this category? Posts using it will keep their label but it won't appear in the list.")) return;
+        const { error } = await supabase.from('blog_categories').delete().eq('id', id);
+        if(error) alert(error.message);
+        else fetchCategories();
     };
 
     // Date constraints
@@ -561,14 +649,55 @@ const ContentManager = () => {
 
     return (
         <div className="space-y-6">
+            {/* Category Manager Modal */}
+            {showCategoryManager && (
+                <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white p-6 rounded-[2rem] w-full max-w-md shadow-2xl animate-fade-in">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="text-xl font-black text-[#0c2d58] flex items-center gap-2"><Tag/> Manage Categories</h3>
+                            <button onClick={() => setShowCategoryManager(false)} className="p-2 hover:bg-slate-100 rounded-full transition"><X/></button>
+                        </div>
+                        
+                        <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+                             {/* Add Form */}
+                             <div className="flex gap-2 mb-6">
+                                <input className="flex-1 border p-2 rounded-xl text-sm" placeholder="New category name..." value={newCatName} onChange={e=>setNewCatName(e.target.value)} />
+                                <button onClick={handleAddCategory} className="bg-blue-600 text-white p-2 rounded-xl"><Plus/></button>
+                             </div>
+
+                             {/* List */}
+                             {categories.map(cat => (
+                                 <div key={cat.id} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border group">
+                                     {editingCat?.id === cat.id ? (
+                                         <input autoFocus className="flex-1 bg-white border rounded px-2 py-1 text-sm" value={editingCat.name} onChange={e=>setEditingCat({...editingCat, name: e.target.value})} />
+                                     ) : (
+                                         <span className="flex-1 font-bold text-slate-700">{cat.name}</span>
+                                     )}
+                                     <div className="flex gap-1">
+                                         {editingCat?.id === cat.id ? (
+                                             <button onClick={handleUpdateCategory} className="text-green-600 p-1"><Check size={18}/></button>
+                                         ) : (
+                                             <button onClick={() => setEditingCat(cat)} className="text-slate-400 hover:text-blue-600 p-1"><Edit size={18}/></button>
+                                         )}
+                                         <button onClick={() => handleDeleteCategory(cat.id)} className="text-slate-400 hover:text-red-600 p-1"><Trash2 size={18}/></button>
+                                     </div>
+                                 </div>
+                             ))}
+                        </div>
+                    </div>
+                </div>
+            )}
+
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-lg text-[#0c2d58]">{editingId ? 'Edit Post' : 'Create New Post'}</h3>
-                    {editingId && <button onClick={resetForm} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1"><X size={14}/> Cancel Edit</button>}
+                    <div className="flex gap-2">
+                         <button onClick={() => setShowCategoryManager(true)} className="text-sm font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-xl hover:bg-blue-100 transition flex items-center gap-1"><Tag size={16}/> Categories</button>
+                         {editingId && <button onClick={resetForm} className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1"><X size={14}/> Cancel Edit</button>}
+                    </div>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    {/* Left Column: Details */}
                     <div className="space-y-4">
                          <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Title</label>
@@ -578,7 +707,11 @@ const ContentManager = () => {
                          <div className="grid grid-cols-2 gap-4">
                              <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Category</label>
-                                <input className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition" placeholder="e.g. Devotional" value={form.category} onChange={e=>setForm({...form, category: e.target.value})} />
+                                <select className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition" value={form.category} onChange={e=>setForm({...form, category: e.target.value})}>
+                                    <option value="">Select Category</option>
+                                    {categories.map(c => <option key={c.id} value={c.name}>{c.name}</option>)}
+                                    <option value="General">General</option>
+                                </select>
                              </div>
                              <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Author</label>
@@ -613,9 +746,7 @@ const ContentManager = () => {
                          </div>
                     </div>
 
-                    {/* Right Column: Media & Content */}
                     <div className="space-y-4">
-                        {/* Image Input */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><ImageIcon size={14}/> Cover Image</label>
@@ -635,7 +766,6 @@ const ContentManager = () => {
                              {form.image_url && <img src={form.image_url} alt="Preview" className="mt-2 h-20 w-full object-cover rounded-lg border" />}
                         </div>
 
-                        {/* Video Input */}
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Film size={14}/> Video Content</label>
@@ -842,13 +972,11 @@ const EventManager = () => {
     );
 };
 
-// UPDATED GroupManager
 const GroupManager = () => {
     const [groups, setGroups] = useState<CommunityGroup[]>([]);
     const [requests, setRequests] = useState<any[]>([]);
     const [form, setForm] = useState({ name: '', description: '', image_url: '' });
     
-    // Member Management State
     const [selectedGroupForMembers, setSelectedGroupForMembers] = useState<CommunityGroup | null>(null);
     const [groupMembers, setGroupMembers] = useState<any[]>([]);
 

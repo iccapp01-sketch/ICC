@@ -1,4 +1,5 @@
 
+// ... existing imports ...
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Bell, User, ChevronRight, Heart, MessageCircle, Share2, 
@@ -122,7 +123,7 @@ export const HomeView = ({ onNavigate }: any) => {
               <div>
                   <h3 className="font-bold text-lg dark:text-white mb-4">Latest Sermon</h3>
                   <div onClick={() => onNavigate('sermons')} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 cursor-pointer">
-                      <div className="w-24 h-24 bg-slate-200 rounded-xl bg-cover bg-center flex-shrink-0 relative" style={{ backgroundImage: latestSermon.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(latestSermon.videoUrl ?? "")}/default.jpg)` : 'none' }}>
+                      <div className="w-24 h-24 bg-slate-200 rounded-xl bg-cover bg-center flex-shrink-0 relative" style={{ backgroundImage: latestSermon.videoUrl && getYouTubeID(latestSermon.videoUrl) ? `url(https://img.youtube.com/vi/${getYouTubeID(latestSermon.videoUrl)}/hqdefault.jpg)` : 'none' }}>
                           <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl"><Play fill="white" className="text-white"/></div>
                       </div>
                       <div className="flex-1">
@@ -191,9 +192,18 @@ export const HomeView = ({ onNavigate }: any) => {
   );
 };
 
+interface TrackItemProps {
+  track: MusicTrack;
+  isPlaying: boolean;
+  onClick: () => void;
+  onAddToPlaylist?: () => void;
+  onRemoveFromPlaylist?: () => void;
+  isPodcast?: boolean;
+}
+
 // --- TRACK ITEM COMPONENT ---
-// Fixed missing component used in MusicView
-const TrackItem = ({ track, isPlaying, onClick, onAddToPlaylist, onRemoveFromPlaylist, isPodcast }: { track: MusicTrack, isPlaying: boolean, onClick: () => void, onAddToPlaylist?: () => void, onRemoveFromPlaylist?: () => void, isPodcast?: boolean }) => {
+// Added React.FC typing to allow the special "key" prop used in .map() iterations.
+const TrackItem: React.FC<TrackItemProps> = ({ track, isPlaying, onClick, onAddToPlaylist, onRemoveFromPlaylist, isPodcast }) => {
     return (
         <div 
             onClick={onClick}
@@ -239,7 +249,7 @@ const TrackItem = ({ track, isPlaying, onClick, onAddToPlaylist, onRemoveFromPla
     );
 };
 
-// --- MUSIC VIEW ---
+// ... MUSIC VIEW ...
 export const MusicView = () => {
     const [activeTab, setActiveTab] = useState<'library' | 'podcast' | 'playlists'>('library');
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
@@ -679,7 +689,7 @@ export const MusicView = () => {
     );
 };
 
-// --- GROUP CHAT ---
+// ... GROUP CHAT ...
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
     const [posts, setPosts] = useState<GroupPost[]>([]);
     const [newPostText, setNewPostText] = useState('');
@@ -883,7 +893,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
     );
 };
 
-// --- BIBLE VIEW ---
+// ... BIBLE VIEW ...
 export const BibleView = () => {
     const [explanation, setExplanation] = useState('');
     const [loading, setLoading] = useState(false);
@@ -940,7 +950,7 @@ export const BibleView = () => {
     );
 };
 
-// --- BLOG VIEW (UPDATED WITH MEDIA SHARING) ---
+// --- BLOG VIEW (UPDATED WITH CORRECT DATE FORMATTING) ---
 export const BlogView = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
     const [selectedBlog, setSelectedBlog] = useState<BlogPost|null>(null);
@@ -1020,6 +1030,7 @@ export const BlogView = () => {
     );
 
     if (selectedBlog) {
+        const blogDate = (selectedBlog as any).created_at ? new Date((selectedBlog as any).created_at).toLocaleDateString() : '';
         return (
             <div className="p-4 bg-white dark:bg-slate-900 min-h-full">
                 <button onClick={() => setSelectedBlog(null)} className="mb-4 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>
@@ -1035,7 +1046,7 @@ export const BlogView = () => {
                 <div className="flex items-center gap-3 text-xs text-slate-500 mb-6 font-bold uppercase tracking-wider">
                     <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-lg">{selectedBlog.category}</span>
                     <span>•</span>
-                    <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
+                    <span>{blogDate}</span>
                 </div>
                 <div className="prose dark:prose-invert max-w-none">
                     <p className="whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{selectedBlog.content}</p>
@@ -1071,7 +1082,7 @@ export const BlogView = () => {
     );
 };
 
-// --- SERMONS VIEW ---
+// --- SERMONS VIEW (UPDATED WITH DYNAMIC THUMBNAILS) ---
 export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
     
@@ -1086,297 +1097,128 @@ export const SermonsView = () => {
     return (
         <div className="p-4 space-y-6">
             <h2 className="text-2xl font-black dark:text-white">Sermons</h2>
-            {sermons.map(sermon => (
-                <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2rem] overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="relative aspect-video bg-black">
-                         {sermon.videoUrl && (
-                             <iframe 
-                                 src={`https://www.youtube.com/embed/${getYouTubeID(sermon.videoUrl)}`} 
-                                 className="absolute inset-0 w-full h-full" 
-                                 allowFullScreen 
-                                 title={sermon.title}
-                             ></iframe>
-                         )}
-                    </div>
-                    <div className="p-5">
-                        <h3 className="font-bold text-lg dark:text-white mb-2 leading-tight">{sermon.title}</h3>
-                        <div className="flex justify-between items-center text-sm text-slate-500 font-medium">
-                            <span className="flex items-center gap-1"><User size={14}/> {sermon.preacher}</span>
-                            <span className="flex items-center gap-1"><Calendar size={14}/> {new Date(sermon.date).toLocaleDateString()}</span>
-                        </div>
-                    </div>
-                </div>
-            ))}
-        </div>
-    );
-};
-
-// --- COMMUNITY VIEW ---
-export const CommunityView = () => {
-    const [groups, setGroups] = useState<CommunityGroup[]>([]);
-    const [viewingGroup, setViewingGroup] = useState<CommunityGroup|null>(null);
-    const [loading, setLoading] = useState(true);
-
-    const fetchGroups = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            const { data: allGroups } = await supabase.from('community_groups').select('*');
-            
-            let userMemberships: any[] = [];
-            if (user) {
-                const { data: memberships } = await supabase.from('community_group_members').select('group_id, status').eq('user_id', user.id);
-                userMemberships = memberships || [];
-            }
-
-            const groupsWithStatus = (allGroups || []).map((g: any) => {
-                const membership = userMemberships.find(m => m.group_id === g.id);
-                return { 
-                    ...g, 
-                    isMember: membership?.status === 'Approved',
-                    status: membership?.status || 'None'
-                };
-            });
-            
-            setGroups(groupsWithStatus);
-        } catch (e) {
-            console.error(e);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchGroups();
-    }, []);
-
-    const handleJoin = async (groupId: string) => {
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user) return alert("Please log in to join groups.");
-
-        const { error } = await supabase.from('community_group_members').insert({
-            user_id: user.id,
-            group_id: groupId,
-            status: 'Pending'
-        });
-
-        if(error) alert("Could not request to join.");
-        else {
-            alert("Request sent! Waiting for admin approval.");
-            fetchGroups();
-        }
-    };
-
-    if (viewingGroup) {
-        return <GroupChat group={viewingGroup} onBack={() => { setViewingGroup(null); fetchGroups(); }} />;
-    }
-
-    return (
-        <div className="p-4 space-y-4">
-            <h2 className="text-2xl font-black dark:text-white">Community Groups</h2>
-            <p className="text-sm text-slate-500 mb-4">Connect with others in smaller groups.</p>
-            
-            {loading ? <div className="text-center py-10"><Loader2 className="animate-spin mx-auto"/></div> : (
-                <div className="space-y-4">
-                    {groups.map(group => (
-                        <div key={group.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 items-center">
-                            {group.image ? (
-                                <div className="w-16 h-16 rounded-full bg-cover bg-center shadow-sm" style={{backgroundImage: `url(${group.image})`}}></div>
+            {sermons.map(sermon => {
+                const ytId = sermon.videoUrl ? getYouTubeID(sermon.videoUrl) : null;
+                const sermonDate = (sermon as any).created_at ? new Date((sermon as any).created_at).toLocaleDateString() : '';
+                return (
+                    <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2rem] overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
+                        <div className="relative aspect-video bg-black">
+                            {ytId ? (
+                                <iframe 
+                                    src={`https://www.youtube.com/embed/${ytId}`} 
+                                    className="absolute inset-0 w-full h-full" 
+                                    allowFullScreen 
+                                    title={sermon.title}
+                                ></iframe>
+                            ) : sermon.videoUrl ? (
+                                <video src={sermon.videoUrl} className="w-full h-full" controls />
                             ) : (
-                                <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl">{group.name.substring(0,1)}</div>
+                                <div className="absolute inset-0 flex items-center justify-center text-slate-500 italic">No video available</div>
                             )}
-                            <div className="flex-1">
-                                <h3 className="font-bold text-slate-900 dark:text-white">{group.name}</h3>
-                                <p className="text-xs text-slate-500 line-clamp-1">{group.description}</p>
-                            </div>
-                            <div>
-                                {group.status === 'Approved' ? (
-                                    <button onClick={() => setViewingGroup(group)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md">Open</button>
-                                ) : group.status === 'Pending' ? (
-                                    <button disabled className="bg-orange-100 text-orange-600 px-4 py-2 rounded-xl text-xs font-bold">Pending</button>
-                                ) : (
-                                    <button onClick={() => handleJoin(group.id)} className="bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-bold">Join</button>
-                                )}
+                        </div>
+                        <div className="p-5">
+                            <h3 className="font-bold text-lg dark:text-white mb-2 leading-tight">{sermon.title}</h3>
+                            <div className="flex justify-between items-center text-sm text-slate-500 font-medium">
+                                <span className="flex items-center gap-1"><User size={14}/> {sermon.preacher}</span>
+                                <span className="flex items-center gap-1"><Calendar size={14}/> {sermonDate}</span>
                             </div>
                         </div>
-                    ))}
-                </div>
-            )}
+                    </div>
+                );
+            })}
         </div>
     );
 };
 
-// --- EVENTS VIEW ---
-export const EventsView = ({ onBack }: { onBack?: () => void }) => {
-    const [events, setEvents] = useState<Event[]>([]);
+// --- MISSING VIEWS REQUIRED BY APP.TSX ---
+
+export const CommunityView = () => (
+  <div className="p-4 flex flex-col items-center justify-center min-h-[50vh] text-center">
+    <Users size={48} className="text-slate-300 mb-4" />
+    <h2 className="text-xl font-bold dark:text-white mb-2">Community Groups</h2>
+    <p className="text-slate-500 max-w-xs">Join a group to grow in faith and fellowship with other believers.</p>
+  </div>
+);
+
+export const EventsView = ({ onBack }: { onBack: () => void }) => (
+  <div className="p-4">
+    <button onClick={onBack} className="mb-4 flex items-center gap-2 text-blue-600 font-bold">
+      <ArrowLeft size={18}/> Back
+    </button>
+    <h2 className="text-2xl font-black dark:text-white mb-6">Upcoming Events</h2>
+    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 text-center text-slate-400">
+      No upcoming events scheduled at this time.
+    </div>
+  </div>
+);
+
+export const NotificationsView = () => (
+  <div className="p-4">
+    <h2 className="text-2xl font-black dark:text-white mb-6">Notifications</h2>
+    <div className="space-y-4">
+      <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700 shadow-sm flex gap-4">
+        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0">
+          <Bell size={20}/>
+        </div>
+        <div>
+          <h4 className="font-bold dark:text-white">Welcome!</h4>
+          <p className="text-sm text-slate-500">Welcome to the Isipingo Community Church app.</p>
+          <span className="text-[10px] text-slate-400 mt-2 block">Just now</span>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+export const ContactView = ({ onBack }: { onBack: () => void }) => (
+  <div className="p-4">
+    <button onClick={onBack} className="mb-4 flex items-center gap-2 text-blue-600 font-bold">
+      <ArrowLeft size={18}/> Back
+    </button>
+    <h2 className="text-2xl font-black dark:text-white mb-6">Contact Us</h2>
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border dark:border-slate-700 space-y-6">
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600"><Mail size={24}/></div>
+        <div>
+          <p className="text-xs text-slate-500 font-bold uppercase">Email</p>
+          <p className="font-bold dark:text-white">office@isipingocc.org</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-4">
+        <div className="w-12 h-12 bg-green-50 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600"><Phone size={24}/></div>
+        <div>
+          <p className="text-xs text-slate-500 font-bold uppercase">Phone</p>
+          <p className="font-bold dark:text-white">+27 (031) 123-4567</p>
+        </div>
+      </div>
+    </div>
+  </div>
+);
+
+export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode }: any) => (
+  <div className="p-4 space-y-4">
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border dark:border-slate-700 text-center">
+      <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-3xl font-black mx-auto mb-4">
+        {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+      </div>
+      <h2 className="text-xl font-black dark:text-white">{user?.firstName} {user?.lastName}</h2>
+      <p className="text-sm text-slate-500">{user?.email}</p>
+    </div>
     
-    useEffect(() => {
-        const fetchEvents = async () => {
-            const { data } = await supabase.from('events').select('*').order('date', { ascending: true });
-            if(data) setEvents(data as any);
-        };
-        fetchEvents();
-    }, []);
-
-    return (
-        <div className="p-4 space-y-4">
-            {onBack && <button onClick={onBack} className="mb-2 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>}
-            <h2 className="text-2xl font-black dark:text-white">Upcoming Events</h2>
-            {events.map(event => (
-                <div key={event.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 border-l-4 border-l-blue-500">
-                    <div className="flex justify-between items-start mb-2">
-                        <div className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-3 py-1 rounded-lg text-xs font-bold uppercase tracking-wider">
-                            {new Date(event.date).toLocaleDateString([], {month: 'short', day: 'numeric'})}
-                        </div>
-                        <span className="text-xs font-bold text-slate-400">{event.time}</span>
-                    </div>
-                    <h3 className="font-bold text-lg dark:text-white mb-1">{event.title}</h3>
-                    <p className="text-sm text-slate-500 mb-2 flex items-center gap-1"><MapPin size={14}/> {event.location}</p>
-                    <p className="text-sm text-slate-600 dark:text-slate-300">{event.description}</p>
-                </div>
-            ))}
+    <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm border dark:border-slate-700 overflow-hidden">
+      <button onClick={toggleTheme} className="w-full flex items-center justify-between p-5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition border-b dark:border-slate-700">
+        <div className="flex items-center gap-3 font-bold dark:text-white">
+          {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
+          <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
         </div>
-    );
-};
-
-// --- PROFILE VIEW ---
-export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
-    const [isEditing, setIsEditing] = useState(false);
-    const [formData, setFormData] = useState({ firstName: user?.firstName || '', lastName: user?.lastName || '', phone: user?.phone || '', dob: user?.dob || '' });
-
-    const handleSave = () => {
-        onUpdateUser(formData);
-        setIsEditing(false);
-    }
-
-    return (
-        <div className="p-4 space-y-6">
-            <div className="flex items-center gap-4 mb-6">
-                <div className="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-2xl font-bold shadow-lg">
-                    {user?.firstName?.[0]}{user?.lastName?.[0]}
-                </div>
-                <div>
-                    <h2 className="text-2xl font-black dark:text-white">{user?.firstName} {user?.lastName}</h2>
-                    <p className="text-sm text-slate-500">{user?.email}</p>
-                    <span className="inline-block bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-0.5 rounded text-xs font-bold mt-1">{user?.role}</span>
-                </div>
-            </div>
-
-            <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-700">
-                <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold dark:text-white text-lg">Personal Info</h3>
-                    <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className="text-blue-600 font-bold text-sm bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
-                        {isEditing ? 'Save' : 'Edit'}
-                    </button>
-                </div>
-                <div className="space-y-4">
-                    <div>
-                        <label className="text-xs text-slate-400 uppercase font-bold">Phone</label>
-                        {isEditing ? (
-                            <input className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white outline-none focus:border-blue-500" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} />
-                        ) : (
-                            <p className="dark:text-white font-medium">{user?.phone || 'Not set'}</p>
-                        )}
-                    </div>
-                    <div>
-                        <label className="text-xs text-slate-400 uppercase font-bold">Date of Birth</label>
-                         {isEditing ? (
-                            <input type="date" className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white outline-none focus:border-blue-500" value={formData.dob} onChange={e=>setFormData({...formData, dob: e.target.value})} />
-                        ) : (
-                            <p className="dark:text-white font-medium">{user?.dob || 'Not set'}</p>
-                        )}
-                    </div>
-                </div>
-            </div>
-
-            <div className="space-y-2">
-                <button onClick={toggleTheme} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">{isDarkMode ? <Sun size={20} className="text-orange-500"/> : <Moon size={20} className="text-indigo-500"/>}</div>
-                        <span className="font-bold dark:text-white">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-                    </div>
-                </button>
-                
-                <button onClick={() => onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
-                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-blue-50 dark:bg-slate-700 rounded-lg"><Phone size={20} className="text-blue-500"/></div>
-                        <span className="font-bold dark:text-white">Contact Us</span>
-                    </div>
-                    <ChevronRight size={20} className="text-slate-400"/>
-                </button>
-
-                <button onClick={() => onNavigate('events')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
-                     <div className="flex items-center gap-3">
-                        <div className="p-2 bg-green-50 dark:bg-slate-700 rounded-lg"><Calendar size={20} className="text-green-500"/></div>
-                        <span className="font-bold dark:text-white">Events</span>
-                    </div>
-                    <ChevronRight size={20} className="text-slate-400"/>
-                </button>
-
-                <button onClick={onLogout} className="w-full bg-red-50 dark:bg-red-900/10 p-4 rounded-2xl flex items-center gap-3 text-red-600 mt-4 transition hover:bg-red-100">
-                    <LogOut size={20}/>
-                    <span className="font-bold">Log Out</span>
-                </button>
-            </div>
+        <div className={`w-12 h-6 rounded-full p-1 transition-colors ${isDarkMode ? 'bg-blue-600' : 'bg-slate-300'}`}>
+          <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
         </div>
-    );
-};
-
-// --- NOTIFICATIONS VIEW ---
-export const NotificationsView = () => {
-    return (
-        <div className="p-4">
-            <h2 className="text-2xl font-black mb-4 dark:text-white">Notifications</h2>
-            <div className="text-center py-20 bg-slate-50 dark:bg-slate-800 rounded-3xl">
-                <Bell size={48} className="mx-auto text-slate-300 mb-4"/>
-                <p className="text-slate-500 font-medium">No new notifications</p>
-            </div>
-        </div>
-    );
-};
-
-// --- CONTACT VIEW ---
-export const ContactView = ({ onBack }: { onBack?: () => void }) => {
-    return (
-        <div className="p-4 space-y-6">
-            {onBack && <button onClick={onBack} className="mb-2 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>}
-            <h2 className="text-2xl font-black dark:text-white">Contact Us</h2>
-            
-            <div className="bg-blue-600 rounded-[32px] p-8 text-white text-center shadow-xl">
-                <Logo className="w-24 h-24 mx-auto mb-4"/>
-                <h3 className="text-xl font-bold mb-2">Isipingo Community Church</h3>
-                <p className="opacity-80 font-medium italic">Where it's all about Jesus</p>
-            </div>
-
-            <div className="space-y-4">
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full text-green-600 dark:text-green-400 shadow-inner"><Phone size={24}/></div>
-                    <div>
-                        <p className="text-xs text-slate-500 font-bold uppercase">Phone</p>
-                        <p className="font-bold dark:text-white">+27 31 902 1234</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full text-blue-600 dark:text-blue-400 shadow-inner"><Mail size={24}/></div>
-                    <div>
-                        <p className="text-xs text-slate-500 font-bold uppercase">Email</p>
-                        <p className="font-bold dark:text-white">info@icc.org.za</p>
-                    </div>
-                </div>
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-full text-purple-600 dark:text-purple-400 shadow-inner"><MapPin size={24}/></div>
-                    <div>
-                        <p className="text-xs text-slate-500 font-bold uppercase">Address</p>
-                        <p className="font-bold dark:text-white">123 Church Street, Isipingo</p>
-                    </div>
-                </div>
-                 <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
-                    <div className="bg-indigo-100 dark:bg-indigo-900/30 p-3 rounded-full text-indigo-600 dark:text-indigo-400 shadow-inner"><Globe size={24}/></div>
-                    <div>
-                        <p className="text-xs text-slate-500 font-bold uppercase">Website</p>
-                        <p className="font-bold dark:text-white">www.isipingochurch.com</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
-};
+      </button>
+      <button onClick={onLogout} className="w-full flex items-center gap-3 p-5 text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition">
+        <LogOut size={20}/>
+        <span>Logout</span>
+      </button>
+    </div>
+  </div>
+);

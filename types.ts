@@ -29,7 +29,7 @@ export interface BlogPost {
   content: string;
   likes: number;
   comments: number;
-  image: string;
+  image_url: string;
   video_url?: string; 
   created_at: string;
 }
@@ -52,7 +52,7 @@ export interface CommunityGroup {
   image?: string;
   membersCount: number;
   isMember: boolean;
-  status?: 'Joined' | 'Pending' | 'None' | 'Approved';
+  status?: 'Approved' | 'Pending' | 'None';
 }
 
 export interface GroupPost {
@@ -84,27 +84,22 @@ export interface Event {
   location: string;
   description: string;
   type: 'EVENT' | 'ANNOUNCEMENT';
-  rsvpCount?: number;
-  image?: string;
-  videoUrl?: string;
+  rsvpStatus?: 'Yes' | 'No' | 'Maybe' | 'None';
 }
 
 export interface MusicTrack {
   id: string;
   title: string;
   artist: string;
-  date: string;
-  duration: string;
   url: string;
-  isOffline: boolean;
+  duration?: string;
   type: 'MUSIC' | 'PODCAST';
 }
 
 export interface Playlist {
   id: string;
   title: string; 
-  name?: string; 
-  user_id?: string;
+  user_id: string;
   tracks: MusicTrack[];
 }
 
@@ -112,15 +107,12 @@ export interface Reel {
   id: string;
   title: string;
   description: string;
-  thumbnail?: string;
-  embed_url?: string; 
-  video_url?: string; 
+  video_url: string; 
   created_at: string;
 }
 
-export interface ReadingPlan {
-  id: string;
-  month: string;
-  year: number;
-  content: string;
+export interface ReadingPlanDay {
+  day: number;
+  reading: string;
+  completed?: boolean;
 }

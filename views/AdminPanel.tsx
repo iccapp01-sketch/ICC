@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
   Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, BookOpen, Bell, Upload, RefreshCw, Play, Database, AlertTriangle, Copy, Loader2, ListMusic, Plus, UserPlus, Download, FolderPlus, FileAudio, Image as ImageIcon, Film, Link as LinkIcon, Youtube, ArrowLeft, ShieldOff, Phone, Monitor, Clock, Tag, Settings
 } from 'lucide-react';
-import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel, ReadingPlan } from '../types';
+import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, Playlist, Reel, ReadingPlanDay } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { Logo } from '../components/Logo';
 

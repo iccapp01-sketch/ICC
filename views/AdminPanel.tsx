@@ -613,7 +613,6 @@ const ContentManager = () => {
         setEditingId(null);
     };
 
-    // Category Management Logic
     const handleAddCategory = async () => {
         if(!newCatName.trim()) return;
         const { error } = await supabase.from('blog_categories').insert({ name: newCatName });
@@ -641,7 +640,6 @@ const ContentManager = () => {
         else fetchCategories();
     };
 
-    // Date constraints
     const minDateStr = new Date().toISOString().split('T')[0];
     const maxDate = new Date();
     maxDate.setDate(maxDate.getDate() + 7);
@@ -649,7 +647,6 @@ const ContentManager = () => {
 
     return (
         <div className="space-y-6">
-            {/* Category Manager Modal */}
             {showCategoryManager && (
                 <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white p-6 rounded-[2rem] w-full max-w-md shadow-2xl animate-fade-in">
@@ -657,15 +654,11 @@ const ContentManager = () => {
                             <h3 className="text-xl font-black text-[#0c2d58] flex items-center gap-2"><Tag/> Manage Categories</h3>
                             <button onClick={() => setShowCategoryManager(false)} className="p-2 hover:bg-slate-100 rounded-full transition"><X/></button>
                         </div>
-                        
                         <div className="space-y-4 max-h-[60vh] overflow-y-auto pr-2">
-                             {/* Add Form */}
                              <div className="flex gap-2 mb-6">
                                 <input className="flex-1 border p-2 rounded-xl text-sm" placeholder="New category name..." value={newCatName} onChange={e=>setNewCatName(e.target.value)} />
                                 <button onClick={handleAddCategory} className="bg-blue-600 text-white p-2 rounded-xl"><Plus/></button>
                              </div>
-
-                             {/* List */}
                              {categories.map(cat => (
                                  <div key={cat.id} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border group">
                                      {editingCat?.id === cat.id ? (
@@ -703,7 +696,6 @@ const ContentManager = () => {
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Title</label>
                             <input className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition" placeholder="Enter title..." value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
                          </div>
-                         
                          <div className="grid grid-cols-2 gap-4">
                              <div>
                                 <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Category</label>
@@ -718,19 +710,16 @@ const ContentManager = () => {
                                 <input className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition" placeholder="Author Name" value={form.author} onChange={e=>setForm({...form, author: e.target.value})} />
                              </div>
                          </div>
-
                          <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Excerpt</label>
                             <textarea className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition h-20" placeholder="Short summary..." value={form.excerpt} onChange={e=>setForm({...form, excerpt: e.target.value})} />
                          </div>
-
                          <div>
                              <label className="block text-xs font-bold text-slate-500 uppercase mb-2">Publishing Options</label>
                              <div className="flex gap-2 mb-3">
                                 <button onClick={() => setPublishOption('now')} className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${publishOption === 'now' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Publish Now</button>
                                 <button onClick={() => setPublishOption('schedule')} className={`flex-1 py-2 rounded-xl text-xs font-bold border transition ${publishOption === 'schedule' ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-50'}`}>Schedule</button>
                              </div>
-                             
                              {publishOption === 'schedule' && (
                                  <div className="flex gap-3 bg-blue-50 p-3 rounded-xl border border-blue-100 animate-fade-in">
                                      <div className="flex-1">
@@ -745,7 +734,6 @@ const ContentManager = () => {
                              )}
                          </div>
                     </div>
-
                     <div className="space-y-4">
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <div className="flex justify-between items-center mb-2">
@@ -765,7 +753,6 @@ const ContentManager = () => {
                             )}
                              {form.image_url && <img src={form.image_url} alt="Preview" className="mt-2 h-20 w-full object-cover rounded-lg border" />}
                         </div>
-
                         <div className="bg-slate-50 p-3 rounded-xl border border-slate-100">
                             <div className="flex justify-between items-center mb-2">
                                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-1"><Film size={14}/> Video Content</label>
@@ -783,14 +770,12 @@ const ContentManager = () => {
                                 </div>
                             )}
                         </div>
-
                         <div>
                             <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Content</label>
                             <textarea className="w-full border p-2.5 rounded-xl bg-slate-50 focus:bg-white transition h-32" placeholder="Write your post here..." value={form.content} onChange={e=>setForm({...form, content: e.target.value})} />
                         </div>
                     </div>
                 </div>
-
                 <div className="mt-6 flex justify-end">
                     <button onClick={handleSubmit} disabled={isLoading || uploading} className="bg-blue-600 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-700 disabled:opacity-50 transition flex items-center gap-2 shadow-lg shadow-blue-200">
                         {isLoading ? <Loader2 className="animate-spin"/> : <Save size={20}/>}
@@ -831,34 +816,144 @@ const ContentManager = () => {
 
 const SermonManager = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
-    const [form, setForm] = useState({ title: '', preacher: '', videoUrl: '', date: new Date().toISOString().split('T')[0], duration: '' });
+    const [editingId, setEditingId] = useState<string | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+    const [form, setForm] = useState({ 
+        title: '', 
+        preacher: '', 
+        videoUrl: '', 
+        date: new Date().toISOString().split('T')[0], 
+        duration: '' 
+    });
+
     useEffect(() => { fetchSermons(); }, []);
-    const fetchSermons = async () => { const { data } = await supabase.from('sermons').select('*').order('created_at', {ascending:false}); if(data) setSermons(data as any); };
-    const saveSermon = async () => { await supabase.from('sermons').insert([form]); fetchSermons(); setForm({ title: '', preacher: '', videoUrl: '', date: new Date().toISOString().split('T')[0], duration: '' }); };
-    const deleteSermon = async (id: string) => { await supabase.from('sermons').delete().eq('id', id); fetchSermons(); };
+
+    const fetchSermons = async () => { 
+        const { data } = await supabase.from('sermons').select('*').order('date', {ascending:false}); 
+        if(data) setSermons(data as any); 
+    };
+
+    const saveSermon = async () => {
+        if (!form.title || !form.videoUrl) return alert("Title and Video URL are required.");
+        setIsLoading(true);
+
+        const ytId = getYouTubeID(form.videoUrl);
+        const thumbnail = ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` : '';
+
+        const payload = {
+            title: form.title,
+            preacher: form.preacher,
+            videoUrl: form.videoUrl,
+            date: form.date,
+            duration: form.duration,
+            thumbnail: thumbnail,
+            views: 0
+        };
+
+        let error;
+        if (editingId) {
+            const { error: updateError } = await supabase.from('sermons').update(payload).eq('id', editingId);
+            error = updateError;
+        } else {
+            const { error: insertError } = await supabase.from('sermons').insert([payload]);
+            error = insertError;
+        }
+
+        if (error) {
+            alert("Error: " + error.message);
+        } else {
+            setForm({ title: '', preacher: '', videoUrl: '', date: new Date().toISOString().split('T')[0], duration: '' });
+            setEditingId(null);
+            fetchSermons();
+        }
+        setIsLoading(false);
+    };
+
+    const startEdit = (sermon: Sermon) => {
+        setEditingId(sermon.id);
+        setForm({
+            title: sermon.title,
+            preacher: sermon.preacher,
+            videoUrl: sermon.videoUrl || '',
+            date: sermon.date,
+            duration: sermon.duration
+        });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const deleteSermon = async (id: string) => { 
+        if(!confirm("Delete this sermon?")) return;
+        await supabase.from('sermons').delete().eq('id', id); 
+        fetchSermons(); 
+    };
+
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                <h3 className="font-bold mb-4">Upload Sermon</h3>
-                <div className="space-y-3">
-                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Preacher" value={form.preacher} onChange={e=>setForm({...form, preacher: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="YouTube URL" value={form.videoUrl} onChange={e=>setForm({...form, videoUrl: e.target.value})} />
-                    <div className="flex gap-2">
-                        <input type="date" className="w-full border p-2 rounded" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
-                        <input className="w-full border p-2 rounded" placeholder="Duration (e.g. 45:00)" value={form.duration} onChange={e=>setForm({...form, duration: e.target.value})} />
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                <h3 className="font-bold mb-4 text-[#0c2d58] text-lg">{editingId ? 'Edit Sermon' : 'Upload Sermon'}</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Title</label>
+                            <input className="w-full border p-2.5 rounded-xl bg-slate-50" placeholder="e.g. The Power of Grace" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Preacher</label>
+                            <input className="w-full border p-2.5 rounded-xl bg-slate-50" placeholder="Speaker Name" value={form.preacher} onChange={e=>setForm({...form, preacher: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">YouTube Video URL</label>
+                            <input className="w-full border p-2.5 rounded-xl bg-slate-50" placeholder="https://www.youtube.com/watch?v=..." value={form.videoUrl} onChange={e=>setForm({...form, videoUrl: e.target.value})} />
+                        </div>
                     </div>
-                    <button onClick={saveSermon} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Add Sermon</button>
+                    <div className="space-y-3">
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Date Preached</label>
+                            <input type="date" className="w-full border p-2.5 rounded-xl bg-slate-50" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Duration</label>
+                            <input className="w-full border p-2.5 rounded-xl bg-slate-50" placeholder="e.g. 45:00" value={form.duration} onChange={e=>setForm({...form, duration: e.target.value})} />
+                        </div>
+                        <div className="pt-5 flex gap-2">
+                            <button onClick={saveSermon} disabled={isLoading} className="flex-1 bg-blue-600 text-white px-4 py-2.5 rounded-xl font-bold hover:bg-blue-700 transition flex items-center justify-center gap-2">
+                                {isLoading ? <Loader2 className="animate-spin" size={18}/> : editingId ? <Save size={18}/> : <Plus size={18}/>}
+                                {editingId ? 'Update Sermon' : 'Add Sermon'}
+                            </button>
+                            {editingId && (
+                                <button onClick={() => {setEditingId(null); setForm({title:'', preacher:'', videoUrl:'', date: new Date().toISOString().split('T')[0], duration: ''})}} className="p-2.5 border rounded-xl hover:bg-slate-50"><X size={20}/></button>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
-                 <h3 className="font-bold mb-4">Sermon Library</h3>
-                 {sermons.map(s => (
-                     <div key={s.id} className="flex justify-between items-center p-3 border-b">
-                         <div><p className="font-bold">{s.title}</p><p className="text-xs text-slate-500">{s.preacher}</p></div>
-                         <button onClick={()=>deleteSermon(s.id)} className="text-red-500 p-2"><Trash2 size={16}/></button>
-                     </div>
-                 ))}
+
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+                 <h3 className="font-bold mb-4 text-[#0c2d58] text-lg">Sermon Library</h3>
+                 <div className="space-y-3">
+                     {sermons.length === 0 && <p className="text-slate-400 italic text-center py-4">No sermons found.</p>}
+                     {sermons.map(s => (
+                         <div key={s.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 border rounded-xl hover:bg-slate-50 transition gap-4 group">
+                             <div className="flex items-center gap-4">
+                                 <div className="w-20 h-12 bg-slate-200 rounded-lg bg-cover bg-center flex-shrink-0 relative overflow-hidden" style={{backgroundImage: s.videoUrl ? `url(https://img.youtube.com/vi/${getYouTubeID(s.videoUrl)}/default.jpg)` : 'none'}}>
+                                     <div className="absolute inset-0 bg-black/20 flex items-center justify-center"><Play size={12} fill="white" className="text-white"/></div>
+                                 </div>
+                                 <div>
+                                     <p className="font-bold text-slate-900 line-clamp-1">{s.title}</p>
+                                     <p className="text-xs text-slate-500">{s.preacher} • {new Date(s.date).toLocaleDateString()} • {s.duration}</p>
+                                 </div>
+                             </div>
+                             <div className="flex gap-2 self-end sm:self-center">
+                                 <button onClick={() => startEdit(s)} className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition" title="Edit">
+                                     <Edit size={18}/>
+                                 </button>
+                                 <button onClick={()=>deleteSermon(s.id)} className="p-2 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                     <Trash2 size={18}/>
+                                 </button>
+                             </div>
+                         </div>
+                     ))}
+                 </div>
             </div>
         </div>
     );
@@ -873,17 +968,17 @@ const ReelManager = () => {
     const deleteReel = async (id: string) => { await supabase.from('reels').delete().eq('id', id); fetchReels(); };
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 className="font-bold mb-4">Add Reel</h3>
                 <div className="space-y-3">
-                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Embed URL (YouTube Shorts)" value={form.embed_url} onChange={e=>setForm({...form, embed_url: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Or Direct Video URL" value={form.video_url} onChange={e=>setForm({...form, video_url: e.target.value})} />
-                    <button onClick={saveReel} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Add Reel</button>
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Embed URL (YouTube Shorts)" value={form.embed_url} onChange={e=>setForm({...form, embed_url: e.target.value})} />
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Or Direct Video URL" value={form.video_url} onChange={e=>setForm({...form, video_url: e.target.value})} />
+                    <button onClick={saveReel} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">Add Reel</button>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 className="font-bold mb-4">Published Reels</h3>
                 {reels.map(r => (
                     <div key={r.id} className="flex justify-between items-center p-3 border-b">
@@ -905,20 +1000,20 @@ const MusicManager = () => {
     const deleteTrack = async (id: string) => { await supabase.from('music_tracks').delete().eq('id', id); fetchTracks(); };
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 className="font-bold mb-4">Add Music Track</h3>
                 <div className="space-y-3">
-                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Artist" value={form.artist} onChange={e=>setForm({...form, artist: e.target.value})} />
-                    <input className="w-full border p-2 rounded" placeholder="Audio URL" value={form.url} onChange={e=>setForm({...form, url: e.target.value})} />
-                    <select className="w-full border p-2 rounded" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Artist" value={form.artist} onChange={e=>setForm({...form, artist: e.target.value})} />
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Audio URL" value={form.url} onChange={e=>setForm({...form, url: e.target.value})} />
+                    <select className="w-full border p-2 rounded-xl bg-slate-50" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
                         <option value="MUSIC">Music</option>
                         <option value="PODCAST">Podcast</option>
                     </select>
-                    <button onClick={saveTrack} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Upload Track</button>
+                    <button onClick={saveTrack} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">Upload Track</button>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 className="font-bold mb-4">Library</h3>
                 {tracks.map(t => (
                     <div key={t.id} className="flex justify-between items-center p-3 border-b">
@@ -942,24 +1037,24 @@ const EventManager = () => {
     const deleteEvent = async (id: string) => { await supabase.from('events').delete().eq('id', id); fetchEvents(); };
     return (
         <div className="space-y-6">
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 className="font-bold mb-4">Create Event</h3>
                 <div className="space-y-3">
-                    <input className="w-full border p-2 rounded" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Title" value={form.title} onChange={e=>setForm({...form, title: e.target.value})} />
                     <div className="flex gap-2">
-                        <input type="date" className="w-full border p-2 rounded" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
-                        <input type="time" className="w-full border p-2 rounded" value={form.time} onChange={e=>setForm({...form, time: e.target.value})} />
+                        <input type="date" className="w-full border p-2 rounded-xl bg-slate-50" value={form.date} onChange={e=>setForm({...form, date: e.target.value})} />
+                        <input type="time" className="w-full border p-2 rounded-xl bg-slate-50" value={form.time} onChange={e=>setForm({...form, time: e.target.value})} />
                     </div>
-                    <input className="w-full border p-2 rounded" placeholder="Location" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
-                    <textarea className="w-full border p-2 rounded" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
-                    <select className="w-full border p-2 rounded" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
+                    <input className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Location" value={form.location} onChange={e=>setForm({...form, location: e.target.value})} />
+                    <textarea className="w-full border p-2 rounded-xl bg-slate-50" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
+                    <select className="w-full border p-2 rounded-xl bg-slate-50" value={form.type} onChange={e=>setForm({...form, type: e.target.value})}>
                         <option value="EVENT">Event</option>
                         <option value="ANNOUNCEMENT">Announcement</option>
                     </select>
-                    <button onClick={saveEvent} className="bg-blue-600 text-white px-4 py-2 rounded font-bold">Create Event</button>
+                    <button onClick={saveEvent} className="bg-blue-600 text-white px-4 py-2 rounded-xl font-bold">Create Event</button>
                 </div>
             </div>
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 className="font-bold mb-4">Upcoming Events</h3>
                 {events.map(e => (
                     <div key={e.id} className="flex justify-between items-center p-3 border-b">
@@ -1036,7 +1131,7 @@ const GroupManager = () => {
         return (
             <div className="bg-white p-6 rounded-2xl border border-slate-200">
                 <div className="flex items-center gap-4 mb-6 pb-4 border-b">
-                    <button onClick={() => setSelectedGroupForMembers(null)} className="p-2 hover:bg-slate-100 rounded-full"><ArrowLeft size={20}/></button>
+                    <button onClick={() => setSelectedGroupForMembers(null)} className="p-2 hover:bg-slate-100 rounded-full transition"><ArrowLeft size={20}/></button>
                     <h3 className="font-bold text-lg text-[#0c2d58]">Members of {selectedGroupForMembers.name}</h3>
                 </div>
                 
@@ -1077,20 +1172,20 @@ const GroupManager = () => {
     return (
         <div className="space-y-8">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <h3 className="font-bold mb-4">Add Group</h3>
                     <div className="space-y-3">
-                        <input className="w-full border p-2 rounded text-slate-900" placeholder="Name" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} />
-                        <textarea className="w-full border p-2 rounded text-slate-900" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
-                        <input className="w-full border p-2 rounded text-slate-900" placeholder="Image URL" value={form.image_url} onChange={e=>setForm({...form, image_url: e.target.value})} />
-                        <button onClick={saveGroup} className="w-full bg-blue-600 text-white py-2 rounded font-bold">Create Group</button>
+                        <input className="w-full border p-2 rounded-xl text-slate-900 bg-slate-50" placeholder="Name" value={form.name} onChange={e=>setForm({...form, name: e.target.value})} />
+                        <textarea className="w-full border p-2 rounded-xl text-slate-900 bg-slate-50" placeholder="Description" value={form.description} onChange={e=>setForm({...form, description: e.target.value})} />
+                        <input className="w-full border p-2 rounded-xl text-slate-900 bg-slate-50" placeholder="Image URL" value={form.image_url} onChange={e=>setForm({...form, image_url: e.target.value})} />
+                        <button onClick={saveGroup} className="w-full bg-blue-600 text-white py-2 rounded-xl font-bold">Create Group</button>
                     </div>
                 </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-200">
+                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <h3 className="font-bold mb-4">Existing Groups</h3>
                     <div className="space-y-2 max-h-[300px] overflow-y-auto">
                         {groups.map(g => (
-                            <div key={g.id} className="flex justify-between items-center p-3 border rounded-xl hover:bg-slate-50">
+                            <div key={g.id} className="flex justify-between items-center p-3 border rounded-xl hover:bg-slate-50 transition">
                                 <span className="font-bold text-slate-900">{g.name}</span>
                                 <div className="flex gap-2">
                                     <button onClick={() => setSelectedGroupForMembers(g)} className="text-blue-600 bg-blue-50 p-2 rounded-lg hover:bg-blue-100" title="Manage Members"><Users size={16}/></button>
@@ -1102,7 +1197,7 @@ const GroupManager = () => {
                 </div>
             </div>
             
-            <div className="bg-white p-6 rounded-2xl border border-slate-200">
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                 <h3 className="font-bold mb-4 text-[#0c2d58]">Pending Membership Requests</h3>
                 {requests.length === 0 ? <p className="text-slate-500 italic text-sm">No pending requests found.</p> : (
                     <div className="space-y-3">

@@ -464,9 +464,10 @@ const ContentManager = () => {
     }, []);
 
     const fetchBlogs = async () => { 
-        const { data } = await supabase.from('blog_posts').select('*').order('date', {ascending:false}); 
+        const { data } = await supabase.from('blog_posts').select('*').order('created_at', {ascending:false}); 
         if(data) setBlogs(data.map((b: any) => ({
             ...b, 
+            date: b.created_at,
             image: b.image_url, 
             videoUrl: b.video_url
         }))); 
@@ -513,28 +514,6 @@ const ContentManager = () => {
         }
 
         setIsLoading(true);
-        let combinedDateTime;
-        
-        try {
-            if (publishOption === 'schedule') {
-                const dateParts = form.scheduledDate.split('-');
-                const timeParts = form.scheduledTime.split(':');
-                const dt = new Date(
-                    parseInt(dateParts[0]), 
-                    parseInt(dateParts[1]) - 1, 
-                    parseInt(dateParts[2]), 
-                    parseInt(timeParts[0]), 
-                    parseInt(timeParts[1])
-                );
-                combinedDateTime = dt.toISOString();
-            } else {
-                combinedDateTime = new Date().toISOString();
-            }
-        } catch (e) {
-            alert("Invalid date or time selected.");
-            setIsLoading(false);
-            return;
-        }
         
         const payload = {
             title: form.title,
@@ -544,7 +523,7 @@ const ContentManager = () => {
             video_url: form.video_url,
             excerpt: form.excerpt,
             author: form.author,
-            date: combinedDateTime,
+            created_at: new Date().toISOString(),
             ...(editingId ? {} : { likes: 0, comments: 0 })
         };
 
@@ -834,8 +813,8 @@ const SermonManager = () => {
     useEffect(() => { fetchSermons(); }, []);
 
     const fetchSermons = async () => { 
-        const { data } = await supabase.from('sermons').select('*').order('date', {ascending:false}); 
-        if(data) setSermons(data as any); 
+        const { data } = await supabase.from('sermons').select('*').order('created_at', {ascending:false}); 
+        if(data) setSermons(data.map((s: any) => ({ ...s, date: s.created_at })) as any); 
     };
 
     const saveSermon = async () => {
@@ -849,7 +828,7 @@ const SermonManager = () => {
             title: form.title,
             preacher: form.preacher,
             videoUrl: form.videoUrl,
-            date: form.date,
+            created_at: new Date().toISOString(),
             duration: form.duration,
             thumbnail: thumbnail,
             views: 0
@@ -1120,7 +1099,7 @@ const GroupManager = () => {
             const { error } = await supabase.from('community_group_members').delete().eq('id', id);
             if(error) handleSupabaseError(error, 'Reject Request'); else fetchRequests();
         } else {
-            const { error } = await supabase.from('community_group_members').update({ status: 'Approved' }).eq('id', id);
+            const { error = null } = await supabase.from('community_group_members').update({ status: 'Approved' }).eq('id', id);
             if(error) handleSupabaseError(error, 'Approve Request'); else fetchRequests();
         }
     }

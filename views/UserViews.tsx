@@ -8,7 +8,7 @@ import {
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
   Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon, Film, MessageSquare, Reply, Facebook, Instagram, Loader2, Lock, ThumbsDown, Plus, Trash2, MoreHorizontal, Repeat1, Globe
 } from 'lucide-react';
-import { BlogPost, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, User as UserType, Notification, Reel } from '../types';
+import { BlogPost, User as UserType, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, Notification, Reel } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { explainVerse } from '../services/geminiService';
 import { Logo } from '../components/Logo';
@@ -18,6 +18,31 @@ const getYouTubeID = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null; 
+};
+
+// --- HELPER FOR MEDIA SHARING ---
+const shareMediaFile = async (url: string, title: string, text: string) => {
+    try {
+        if (!navigator.share || !navigator.canShare) return false;
+        
+        const response = await fetch(url);
+        const blob = await response.blob();
+        const fileName = url.split('/').pop()?.split('?')[0] || 'media';
+        const fileExt = fileName.split('.').pop() || (blob.type.includes('video') ? 'mp4' : 'jpg');
+        const file = new File([blob], `icc_share.${fileExt}`, { type: blob.type });
+
+        if (navigator.canShare({ files: [file] })) {
+            await navigator.share({
+                files: [file],
+                title: title,
+                text: text,
+            });
+            return true;
+        }
+    } catch (error) {
+        console.warn("Media share failed:", error);
+    }
+    return false;
 };
 
 // --- HOME VIEW ---
@@ -166,7 +191,55 @@ export const HomeView = ({ onNavigate }: any) => {
   );
 };
 
-// --- MUSIC VIEW (UPDATED) ---
+// --- TRACK ITEM COMPONENT ---
+// Fixed missing component used in MusicView
+const TrackItem = ({ track, isPlaying, onClick, onAddToPlaylist, onRemoveFromPlaylist, isPodcast }: { track: MusicTrack, isPlaying: boolean, onClick: () => void, onAddToPlaylist?: () => void, onRemoveFromPlaylist?: () => void, isPodcast?: boolean }) => {
+    return (
+        <div 
+            onClick={onClick}
+            className={`group flex items-center gap-3 p-3 rounded-2xl transition cursor-pointer ${isPlaying ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800 border' : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-slate-600 shadow-sm'}`}
+        >
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0 transition-transform group-hover:scale-105 ${isPlaying ? 'bg-blue-600' : 'bg-gradient-to-br from-slate-400 to-slate-500'}`}>
+                {isPlaying ? (
+                    <div className="flex gap-0.5 items-end h-4">
+                        <div className="w-1 bg-white animate-pulse h-2"></div>
+                        <div className="w-1 bg-white animate-pulse h-4"></div>
+                        <div className="w-1 bg-white animate-pulse h-3"></div>
+                    </div>
+                ) : (
+                    isPodcast ? <Mic size={20}/> : <Music size={20}/>
+                )}
+            </div>
+            <div className="flex-1 min-w-0">
+                <h4 className={`font-bold text-sm truncate ${isPlaying ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white'}`}>{track.title}</h4>
+                <p className="text-xs text-slate-500 truncate">{track.artist}</p>
+            </div>
+            <div className="flex gap-1">
+                {onAddToPlaylist && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onAddToPlaylist(); }}
+                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition"
+                    >
+                        <Plus size={18} />
+                    </button>
+                )}
+                {onRemoveFromPlaylist && (
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); onRemoveFromPlaylist(); }}
+                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded-lg transition"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                )}
+                <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
+                    <MoreVertical size={18} />
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- MUSIC VIEW ---
 export const MusicView = () => {
     const [activeTab, setActiveTab] = useState<'library' | 'podcast' | 'playlists'>('library');
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
@@ -368,9 +441,7 @@ export const MusicView = () => {
     const podcastTracks = tracks.filter(t => t.type === 'PODCAST');
 
     return (
-        <div className="flex flex-col min-h-full pb-20"> {/* pb-20 for fixed player + safe area */}
-            
-            {/* Header & Tabs */}
+        <div className="flex flex-col min-h-full pb-20">
             <div className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-30 pt-4 px-4 pb-2 border-b border-slate-200 dark:border-slate-800 shadow-sm">
                 <h1 className="text-2xl font-black mb-4 dark:text-white">Media</h1>
                 <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
@@ -380,9 +451,7 @@ export const MusicView = () => {
                 </div>
             </div>
 
-            {/* Content Area */}
-            <div className="flex-1 p-4 pb-32"> {/* Extra padding bottom for player */}
-                
+            <div className="flex-1 p-4 pb-32">
                 {activeTab === 'library' && (
                     <div className="space-y-3">
                         {libraryTracks.map(track => (
@@ -465,7 +534,6 @@ export const MusicView = () => {
                 )}
             </div>
 
-            {/* Modals */}
             {isCreatingPlaylist && (
                 <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl w-full max-w-xs shadow-2xl animate-fade-in">
@@ -517,7 +585,6 @@ export const MusicView = () => {
                 </div>
             )}
 
-            {/* Persistent Audio Logic (Hidden element) */}
             {currentTrack && (
                 <audio 
                     ref={audioRef} 
@@ -527,22 +594,16 @@ export const MusicView = () => {
                 />
             )}
 
-            {/* Persistent Mini Player (Visible when not full screen) */}
             <div className={`fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-2 right-2 z-40 transition-all duration-300 transform ${currentTrack && !isFullScreen ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
                 {currentTrack && (
                     <div onClick={() => setIsFullScreen(true)} className="bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl border border-white/20 dark:border-slate-700 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-2xl p-2 pr-4 flex items-center gap-3 cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition">
-                         {/* Cover Art */}
                          <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
                              {currentTrack.type === 'PODCAST' ? <Mic size={20}/> : <Music size={20}/>}
                          </div>
-                         
-                         {/* Info */}
                          <div className="flex-1 min-w-0">
                              <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{currentTrack.title}</h4>
                              <p className="text-xs text-slate-500 truncate">{currentTrack.artist}</p>
                          </div>
-
-                         {/* Controls */}
                          <button 
                              onClick={togglePlay}
                              className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-md hover:bg-blue-700 transition transform active:scale-95"
@@ -556,10 +617,8 @@ export const MusicView = () => {
                 )}
             </div>
 
-            {/* Full Screen Player Modal */}
             {isFullScreen && currentTrack && (
                 <div className="fixed inset-0 z-[100] bg-white dark:bg-slate-900 flex flex-col animate-slide-up">
-                    {/* Header: Close Button */}
                     <div className="p-4 pt-[calc(1rem+env(safe-area-inset-top))] flex justify-center relative">
                         <button onClick={(e) => { e.stopPropagation(); setIsFullScreen(false); }} className="absolute left-4 top-[calc(1rem+env(safe-area-inset-top))] p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition">
                             <ChevronDown size={32} />
@@ -567,20 +626,16 @@ export const MusicView = () => {
                         <span className="text-xs font-bold uppercase tracking-widest mt-3 text-slate-400">Now Playing</span>
                     </div>
                     
-                    {/* Body */}
                     <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8 overflow-y-auto">
-                         {/* Large Artwork */}
                          <div className="w-full max-w-xs aspect-square bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] shadow-2xl flex items-center justify-center">
                               {currentTrack.type === 'PODCAST' ? <Mic size={80} className="text-white opacity-50"/> : <Music size={80} className="text-white opacity-50" />}
                          </div>
                          
-                         {/* Info */}
                          <div className="text-center w-full">
                              <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 leading-tight">{currentTrack.title}</h2>
                              <p className="text-lg text-slate-500 font-medium">{currentTrack.artist}</p>
                          </div>
                          
-                         {/* Timeline */}
                          <div className="w-full max-w-md space-y-2">
                              <input 
                                 type="range" 
@@ -596,7 +651,6 @@ export const MusicView = () => {
                              </div>
                          </div>
                          
-                         {/* Controls */}
                          <div className="flex items-center justify-between w-full max-w-xs px-2">
                              <button onClick={toggleLoop} className={`p-3 rounded-full transition ${loopMode !== 'OFF' ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
                                  {loopMode === 'ONE' ? <Repeat1 size={24}/> : <Repeat size={24}/>}
@@ -625,54 +679,16 @@ export const MusicView = () => {
     );
 };
 
-// Helper Component for Track Item
-const TrackItem = ({ track, isPlaying, onClick, onAddToPlaylist, onRemoveFromPlaylist, isPodcast }: any) => (
-    <div className="group flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-2xl border border-transparent hover:border-slate-200 dark:hover:border-slate-700 transition-all cursor-pointer relative overflow-hidden">
-        <div onClick={onClick} className="absolute inset-0 z-0"></div>
-        
-        <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-sm z-10 relative transition-transform group-hover:scale-105 ${isPlaying ? 'bg-blue-500' : isPodcast ? 'bg-purple-500' : 'bg-indigo-500'}`}>
-            {isPlaying ? (
-                <div className="flex gap-0.5 items-end h-4">
-                    <div className="w-1 bg-white animate-[bounce_1s_infinite] h-2"></div>
-                    <div className="w-1 bg-white animate-[bounce_1.2s_infinite] h-4"></div>
-                    <div className="w-1 bg-white animate-[bounce_0.8s_infinite] h-3"></div>
-                </div>
-            ) : (
-                <Play size={18} fill="currentColor" />
-            )}
-        </div>
-        
-        <div className="flex-1 min-w-0 z-10 pointer-events-none">
-            <h4 className={`font-bold text-sm truncate ${isPlaying ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white'}`}>{track.title}</h4>
-            <p className="text-xs text-slate-500 truncate">{track.artist} • {track.duration}</p>
-        </div>
-
-        <div className="z-20 flex items-center gap-1">
-             {onAddToPlaylist && (
-                 <button onClick={(e) => { e.stopPropagation(); onAddToPlaylist(); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-full transition">
-                     <Plus size={18}/>
-                 </button>
-             )}
-             {onRemoveFromPlaylist && (
-                 <button onClick={(e) => { e.stopPropagation(); onRemoveFromPlaylist(); }} className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded-full transition">
-                     <Trash2 size={18}/>
-                 </button>
-             )}
-        </div>
-    </div>
-);
-
-// --- GROUP CHAT (STANDALONE FULL SCREEN LAYOUT) ---
+// --- GROUP CHAT ---
 export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
     const [posts, setPosts] = useState<GroupPost[]>([]);
     const [newPostText, setNewPostText] = useState('');
-    const [replyingTo, setReplyingTo] = useState<string | null>(null); // postId
+    const [replyingTo, setReplyingTo] = useState<string | null>(null);
     const [replyText, setReplyText] = useState('');
     const [userId, setUserId] = useState<string | null>(null);
     const messagesEndRef = useRef<null | HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    // Fetch posts function
     const fetchPosts = useCallback(async () => {
         const { data } = await supabase
             .from('group_posts')
@@ -691,10 +707,8 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
             setUserId(user?.id || null);
         };
         getUser();
-
         fetchPosts();
         
-        // Setup Realtime Subscription
         const channel = supabase.channel(`group_${group.id}`)
         .on('postgres_changes', { event: '*', schema: 'public', table: 'group_posts', filter: `group_id=eq.${group.id}` }, () => {
             fetchPosts(); 
@@ -709,8 +723,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
 
     const handleLike = async (postId: string, isLiked: boolean) => {
         if (!userId) return;
-        
-        // 1. Optimistic Update
         setPosts(currentPosts => currentPosts.map(p => {
              if (p.id === postId) {
                  const likes = p.group_post_likes || [];
@@ -765,7 +777,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
 
     return (
         <div className="fixed inset-0 z-[60] flex flex-col bg-slate-100 dark:bg-slate-900 h-full overflow-hidden">
-            {/* Header */}
             <div className="flex-none bg-white dark:bg-slate-800 border-b dark:border-slate-700 shadow-sm z-10 pt-[env(safe-area-inset-top)]">
                 <div className="px-4 py-4 flex items-center gap-3">
                     <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/></button>
@@ -783,11 +794,7 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                 </div>
             </div>
 
-            {/* Posts Feed */}
-            <div 
-                className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth bg-slate-100 dark:bg-slate-900/50 pb-4"
-                style={{ WebkitOverflowScrolling: 'touch' }}
-            >
+            <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth bg-slate-100 dark:bg-slate-900/50 pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {rootPosts.length === 0 && (
                     <div className="text-center py-20 opacity-60">
                         <MessageSquare size={48} className="mx-auto mb-4 text-slate-300"/>
@@ -802,7 +809,6 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
 
                     return (
                         <div key={post.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                            {/* Main Post Header */}
                             <div className="flex items-start gap-3 mb-3">
                                 <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 font-bold text-sm overflow-hidden shadow-inner">
                                     {post.profiles?.avatar_url ? (
@@ -816,40 +822,19 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                                     <p className="text-xs text-slate-400">{new Date(post.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</p>
                                 </div>
                             </div>
-
-                            {/* Content */}
                             <div className="mb-4">
                                 <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
                             </div>
-
-                            {/* Actions */}
                             <div className="flex items-center gap-4 border-t border-slate-100 dark:border-slate-700 pt-3">
-                                <button 
-                                    onClick={() => handleLike(post.id, isLiked)}
-                                    className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${
-                                        isLiked 
-                                          ? 'text-red-500 bg-red-50 dark:bg-red-900/20' 
-                                          : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'
-                                    }`}
-                                >
+                                <button onClick={() => handleLike(post.id, isLiked)} className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${isLiked ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'}`}>
                                     <Heart size={18} className={isLiked ? "fill-current" : ""} />
                                     <span>{likes.length > 0 ? likes.length : 'Like'}</span>
                                 </button>
-                                
-                                <button 
-                                    onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)}
-                                    className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${
-                                        replyingTo === post.id
-                                        ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20'
-                                        : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'
-                                    }`}
-                                >
+                                <button onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)} className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${replyingTo === post.id ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'}`}>
                                     <MessageSquare size={18} />
                                     <span>Reply</span>
                                 </button>
                             </div>
-
-                            {/* Replies */}
                             {(replies.length > 0 || replyingTo === post.id) && (
                                 <div className="mt-4 pl-4 border-l-2 border-slate-100 dark:border-slate-700 space-y-4">
                                     {replies.map(reply => (
@@ -866,28 +851,12 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                                             </div>
                                         </div>
                                     ))}
-
                                     {replyingTo === post.id && (
                                         <div className="flex gap-3 items-start animate-fade-in mt-3 bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-slate-700">
-                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300">
-                                                Me
-                                            </div>
+                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300">Me</div>
                                             <div className="flex-1 relative">
-                                                <input 
-                                                    autoFocus
-                                                    className="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full px-4 py-2 text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none pr-12 shadow-sm"
-                                                    placeholder={`Reply to ${post.profiles?.first_name}...`}
-                                                    value={replyText}
-                                                    onChange={e => setReplyText(e.target.value)}
-                                                    onKeyDown={e => e.key === 'Enter' && handleSend(post.id)}
-                                                />
-                                                <button 
-                                                    onClick={() => handleSend(post.id)}
-                                                    disabled={!replyText.trim()}
-                                                    className="absolute right-1 top-1 p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-full disabled:opacity-50 transition"
-                                                >
-                                                    <Send size={16}/>
-                                                </button>
+                                                <input autoFocus className="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full px-4 py-2 text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none pr-12 shadow-sm" placeholder={`Reply to ${post.profiles?.first_name}...`} value={replyText} onChange={e => setReplyText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend(post.id)}/>
+                                                <button onClick={() => handleSend(post.id)} disabled={!replyText.trim()} className="absolute right-1 top-1 p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-full disabled:opacity-50 transition"><Send size={16}/></button>
                                             </div>
                                         </div>
                                     )}
@@ -899,29 +868,14 @@ export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: ()
                 <div ref={messagesEndRef} />
             </div>
 
-            {/* Input Area */}
-            <div className="flex-none bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20"
-                 style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
+            <div className="flex-none bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
                 <div className="max-w-3xl mx-auto">
                     <label className="block text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2 ml-1">Add a comment:</label>
                     <div className="flex gap-3 items-end">
                         <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all shadow-inner">
-                            <input 
-                                ref={inputRef}
-                                className="w-full bg-transparent border-none text-base dark:text-white focus:outline-none placeholder-slate-400"
-                                placeholder="Type your message here..."
-                                value={newPostText}
-                                onChange={e => setNewPostText(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-                            />
+                            <input ref={inputRef} className="w-full bg-transparent border-none text-base dark:text-white focus:outline-none placeholder-slate-400" placeholder="Type your message here..." value={newPostText} onChange={e => setNewPostText(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}/>
                         </div>
-                        <button 
-                            onClick={() => handleSend()} 
-                            disabled={!newPostText.trim()}
-                            className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex-shrink-0"
-                        >
-                            <Send size={22}/>
-                        </button>
+                        <button onClick={() => handleSend()} disabled={!newPostText.trim()} className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex-shrink-0"><Send size={22}/></button>
                     </div>
                 </div>
             </div>
@@ -972,7 +926,6 @@ export const BibleView = () => {
                 </div>
              </div>
              
-             {/* Additional Bible Features Placeholder */}
              <div className="grid grid-cols-2 gap-4">
                  <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
                      <Bookmark size={24} className="mx-auto text-blue-500 mb-2"/>
@@ -987,7 +940,7 @@ export const BibleView = () => {
     );
 };
 
-// --- BLOG VIEW ---
+// --- BLOG VIEW (UPDATED WITH MEDIA SHARING) ---
 export const BlogView = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
     const [selectedBlog, setSelectedBlog] = useState<BlogPost|null>(null);
@@ -1000,17 +953,92 @@ export const BlogView = () => {
         fetchBlogs();
     }, []);
 
+    const handleBlogShare = async (blog: BlogPost, platform: string) => {
+        const mediaUrl = blog.image || blog.videoUrl;
+        const shareText = `${blog.title}\n\n${blog.excerpt}`;
+        const appLink = window.location.href;
+
+        if (platform === 'whatsapp') {
+            if (mediaUrl) {
+                const shared = await shareMediaFile(mediaUrl, blog.title, shareText);
+                if (shared) return;
+            }
+            window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n\nRead more: ' + appLink)}`, '_blank');
+        } else if (platform === 'facebook') {
+            const urlToShare = mediaUrl || appLink;
+            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(urlToShare)}`, '_blank');
+        } else if (platform === 'instagram_save') {
+            if (!mediaUrl) return;
+            const link = document.createElement('a');
+            link.href = mediaUrl;
+            link.download = `icc_blog_${blog.id}`;
+            link.target = "_blank";
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } else if (platform === 'instagram_copy') {
+            navigator.clipboard.writeText(shareText);
+            alert("Caption copied! Open Instagram to share your saved media.");
+        }
+    };
+
+    const ShareBar = ({ blog, isOverlay }: { blog: BlogPost, isOverlay?: boolean }) => (
+        <div className={`flex items-center gap-2 ${isOverlay ? 'p-2 bg-black/30 backdrop-blur-md rounded-2xl shadow-lg' : 'mt-3'}`}>
+            <button 
+                onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'whatsapp'); }}
+                className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition active:scale-95"
+                title="Share on WhatsApp"
+            >
+                <MessageCircle size={16} />
+            </button>
+            <button 
+                onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'facebook'); }}
+                className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition active:scale-95"
+                title="Share on Facebook"
+            >
+                <Facebook size={16} />
+            </button>
+            {(blog.image || blog.videoUrl) && (
+                <div className="flex gap-1 bg-slate-100 dark:bg-slate-700 p-0.5 rounded-full border dark:border-slate-600 shadow-sm">
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'instagram_save'); }}
+                        className="w-7 h-7 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-white dark:hover:bg-slate-600 rounded-full transition"
+                        title="Save for Instagram"
+                    >
+                        <Download size={14} />
+                    </button>
+                    <button 
+                        onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'instagram_copy'); }}
+                        className="w-7 h-7 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-white dark:hover:bg-slate-600 rounded-full transition"
+                        title="Copy Caption"
+                    >
+                        <Copy size={14} />
+                    </button>
+                </div>
+            )}
+        </div>
+    );
+
     if (selectedBlog) {
         return (
             <div className="p-4 bg-white dark:bg-slate-900 min-h-full">
                 <button onClick={() => setSelectedBlog(null)} className="mb-4 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>
-                {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-48 object-cover rounded-2xl mb-6 shadow-md"/>}
+                {selectedBlog.image && (
+                    <div className="relative mb-6">
+                        <img src={selectedBlog.image} className="w-full h-56 object-cover rounded-[2rem] shadow-xl border border-slate-100 dark:border-slate-700"/>
+                        <div className="absolute bottom-3 right-3">
+                             <ShareBar blog={selectedBlog} isOverlay />
+                        </div>
+                    </div>
+                )}
                 <h1 className="text-2xl font-black mb-2 dark:text-white">{selectedBlog.title}</h1>
-                <div className="flex gap-2 text-xs text-slate-500 mb-6 font-bold uppercase tracking-wider">
-                    <span>{selectedBlog.category}</span> • <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
+                <div className="flex items-center gap-3 text-xs text-slate-500 mb-6 font-bold uppercase tracking-wider">
+                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-lg">{selectedBlog.category}</span>
+                    <span>•</span>
+                    <span>{new Date(selectedBlog.date).toLocaleDateString()}</span>
                 </div>
                 <div className="prose dark:prose-invert max-w-none">
-                    <p className="whitespace-pre-wrap">{selectedBlog.content}</p>
+                    <p className="whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{selectedBlog.content}</p>
                 </div>
             </div>
         );
@@ -1020,12 +1048,22 @@ export const BlogView = () => {
         <div className="p-4 space-y-4">
             <h2 className="text-2xl font-black mb-2 dark:text-white">Articles & Devotionals</h2>
             {blogs.map(blog => (
-                <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer flex gap-4">
-                    {blog.image && <div className="w-24 h-24 bg-cover bg-center rounded-xl flex-shrink-0" style={{backgroundImage: `url(${blog.image})`}}></div>}
+                <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer flex flex-col sm:flex-row gap-4 group">
+                    {blog.image && (
+                        <div className="relative w-full sm:w-32 h-40 sm:h-32 rounded-2xl overflow-hidden flex-shrink-0 shadow-sm">
+                            <div className="w-full h-full bg-cover bg-center transition-transform group-hover:scale-105" style={{backgroundImage: `url(${blog.image})`}}></div>
+                            <div className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <ShareBar blog={blog} isOverlay />
+                            </div>
+                        </div>
+                    )}
                     <div className="flex-1">
                         <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">{blog.category}</div>
-                        <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2">{blog.title}</h3>
-                        <p className="text-xs text-slate-500 line-clamp-2">{blog.excerpt}</p>
+                        <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2 text-lg">{blog.title}</h3>
+                        <p className="text-xs text-slate-500 line-clamp-3 mb-3">{blog.excerpt}</p>
+                        <div className="sm:hidden">
+                            <ShareBar blog={blog} />
+                        </div>
                     </div>
                 </div>
             ))}
@@ -1049,7 +1087,7 @@ export const SermonsView = () => {
         <div className="p-4 space-y-6">
             <h2 className="text-2xl font-black dark:text-white">Sermons</h2>
             {sermons.map(sermon => (
-                <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-3xl overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
+                <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2rem] overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
                     <div className="relative aspect-video bg-black">
                          {sermon.videoUrl && (
                              <iframe 
@@ -1060,11 +1098,11 @@ export const SermonsView = () => {
                              ></iframe>
                          )}
                     </div>
-                    <div className="p-4">
-                        <h3 className="font-bold text-lg dark:text-white mb-1">{sermon.title}</h3>
-                        <div className="flex justify-between items-center text-sm text-slate-500">
-                            <span>{sermon.preacher}</span>
-                            <span>{new Date(sermon.date).toLocaleDateString()}</span>
+                    <div className="p-5">
+                        <h3 className="font-bold text-lg dark:text-white mb-2 leading-tight">{sermon.title}</h3>
+                        <div className="flex justify-between items-center text-sm text-slate-500 font-medium">
+                            <span className="flex items-center gap-1"><User size={14}/> {sermon.preacher}</span>
+                            <span className="flex items-center gap-1"><Calendar size={14}/> {new Date(sermon.date).toLocaleDateString()}</span>
                         </div>
                     </div>
                 </div>
@@ -1118,7 +1156,7 @@ export const CommunityView = () => {
         const { error } = await supabase.from('community_group_members').insert({
             user_id: user.id,
             group_id: groupId,
-            status: 'Pending' // Requires admin approval
+            status: 'Pending'
         });
 
         if(error) alert("Could not request to join.");
@@ -1142,7 +1180,7 @@ export const CommunityView = () => {
                     {groups.map(group => (
                         <div key={group.id} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 items-center">
                             {group.image ? (
-                                <div className="w-16 h-16 rounded-full bg-cover bg-center" style={{backgroundImage: `url(${group.image})`}}></div>
+                                <div className="w-16 h-16 rounded-full bg-cover bg-center shadow-sm" style={{backgroundImage: `url(${group.image})`}}></div>
                             ) : (
                                 <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-xl">{group.name.substring(0,1)}</div>
                             )}
@@ -1152,7 +1190,7 @@ export const CommunityView = () => {
                             </div>
                             <div>
                                 {group.status === 'Approved' ? (
-                                    <button onClick={() => setViewingGroup(group)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold">Open</button>
+                                    <button onClick={() => setViewingGroup(group)} className="bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md">Open</button>
                                 ) : group.status === 'Pending' ? (
                                     <button disabled className="bg-orange-100 text-orange-600 px-4 py-2 rounded-xl text-xs font-bold">Pending</button>
                                 ) : (
@@ -1223,10 +1261,10 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                 </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-100 dark:border-slate-700">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold dark:text-white">Personal Info</h3>
-                    <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className="text-blue-600 font-bold text-sm">
+            <div className="bg-white dark:bg-slate-800 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-700">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold dark:text-white text-lg">Personal Info</h3>
+                    <button onClick={() => isEditing ? handleSave() : setIsEditing(true)} className="text-blue-600 font-bold text-sm bg-blue-50 dark:bg-blue-900/30 px-3 py-1 rounded-full">
                         {isEditing ? 'Save' : 'Edit'}
                     </button>
                 </div>
@@ -1234,7 +1272,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                     <div>
                         <label className="text-xs text-slate-400 uppercase font-bold">Phone</label>
                         {isEditing ? (
-                            <input className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} />
+                            <input className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white outline-none focus:border-blue-500" value={formData.phone} onChange={e=>setFormData({...formData, phone: e.target.value})} />
                         ) : (
                             <p className="dark:text-white font-medium">{user?.phone || 'Not set'}</p>
                         )}
@@ -1242,7 +1280,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                     <div>
                         <label className="text-xs text-slate-400 uppercase font-bold">Date of Birth</label>
                          {isEditing ? (
-                            <input type="date" className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white" value={formData.dob} onChange={e=>setFormData({...formData, dob: e.target.value})} />
+                            <input type="date" className="w-full border-b border-slate-300 py-1 bg-transparent dark:text-white outline-none focus:border-blue-500" value={formData.dob} onChange={e=>setFormData({...formData, dob: e.target.value})} />
                         ) : (
                             <p className="dark:text-white font-medium">{user?.dob || 'Not set'}</p>
                         )}
@@ -1251,14 +1289,14 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
             </div>
 
             <div className="space-y-2">
-                <button onClick={toggleTheme} className="w-full bg-white dark:bg-slate-800 p-4 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
+                <button onClick={toggleTheme} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
                     <div className="flex items-center gap-3">
                         <div className="p-2 bg-slate-100 dark:bg-slate-700 rounded-lg">{isDarkMode ? <Sun size={20} className="text-orange-500"/> : <Moon size={20} className="text-indigo-500"/>}</div>
                         <span className="font-bold dark:text-white">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
                     </div>
                 </button>
                 
-                <button onClick={() => onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
+                <button onClick={() => onNavigate('contact')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
                      <div className="flex items-center gap-3">
                         <div className="p-2 bg-blue-50 dark:bg-slate-700 rounded-lg"><Phone size={20} className="text-blue-500"/></div>
                         <span className="font-bold dark:text-white">Contact Us</span>
@@ -1266,7 +1304,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                     <ChevronRight size={20} className="text-slate-400"/>
                 </button>
 
-                <button onClick={() => onNavigate('events')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
+                <button onClick={() => onNavigate('events')} className="w-full bg-white dark:bg-slate-800 p-4 rounded-2xl flex items-center justify-between shadow-sm border border-slate-100 dark:border-slate-700">
                      <div className="flex items-center gap-3">
                         <div className="p-2 bg-green-50 dark:bg-slate-700 rounded-lg"><Calendar size={20} className="text-green-500"/></div>
                         <span className="font-bold dark:text-white">Events</span>
@@ -1274,7 +1312,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                     <ChevronRight size={20} className="text-slate-400"/>
                 </button>
 
-                <button onClick={onLogout} className="w-full bg-red-50 dark:bg-red-900/10 p-4 rounded-xl flex items-center gap-3 text-red-600 mt-4">
+                <button onClick={onLogout} className="w-full bg-red-50 dark:bg-red-900/10 p-4 rounded-2xl flex items-center gap-3 text-red-600 mt-4 transition hover:bg-red-100">
                     <LogOut size={20}/>
                     <span className="font-bold">Log Out</span>
                 </button>
@@ -1306,33 +1344,33 @@ export const ContactView = ({ onBack }: { onBack?: () => void }) => {
             <div className="bg-blue-600 rounded-[32px] p-8 text-white text-center shadow-xl">
                 <Logo className="w-24 h-24 mx-auto mb-4"/>
                 <h3 className="text-xl font-bold mb-2">Isipingo Community Church</h3>
-                <p className="opacity-80">Where it's all about Jesus</p>
+                <p className="opacity-80 font-medium italic">Where it's all about Jesus</p>
             </div>
 
             <div className="space-y-4">
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                    <div className="bg-green-100 p-3 rounded-full text-green-600"><Phone size={24}/></div>
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="bg-green-100 dark:bg-green-900/30 p-3 rounded-full text-green-600 dark:text-green-400 shadow-inner"><Phone size={24}/></div>
                     <div>
                         <p className="text-xs text-slate-500 font-bold uppercase">Phone</p>
                         <p className="font-bold dark:text-white">+27 31 902 1234</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                    <div className="bg-blue-100 p-3 rounded-full text-blue-600"><Mail size={24}/></div>
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="bg-blue-100 dark:bg-blue-900/30 p-3 rounded-full text-blue-600 dark:text-blue-400 shadow-inner"><Mail size={24}/></div>
                     <div>
                         <p className="text-xs text-slate-500 font-bold uppercase">Email</p>
                         <p className="font-bold dark:text-white">info@icc.org.za</p>
                     </div>
                 </div>
-                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                    <div className="bg-purple-100 p-3 rounded-full text-purple-600"><MapPin size={24}/></div>
+                <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="bg-purple-100 dark:bg-purple-900/30 p-3 rounded-full text-purple-600 dark:text-purple-400 shadow-inner"><MapPin size={24}/></div>
                     <div>
                         <p className="text-xs text-slate-500 font-bold uppercase">Address</p>
                         <p className="font-bold dark:text-white">123 Church Street, Isipingo</p>
                     </div>
                 </div>
-                 <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm">
-                    <div className="bg-indigo-100 p-3 rounded-full text-indigo-600"><Globe size={24}/></div>
+                 <div className="flex items-center gap-4 bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700">
+                    <div className="bg-indigo-100 dark:bg-indigo-900/30 p-3 rounded-full text-indigo-600 dark:text-indigo-400 shadow-inner"><Globe size={24}/></div>
                     <div>
                         <p className="text-xs text-slate-500 font-bold uppercase">Website</p>
                         <p className="font-bold dark:text-white">www.isipingochurch.com</p>

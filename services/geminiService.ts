@@ -1,4 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+
+import { GoogleGenAI, Type } from "@google/genai";
 
 const getClient = () => {
   const apiKey = process.env.API_KEY;
@@ -9,6 +10,7 @@ const getClient = () => {
   return new GoogleGenAI({ apiKey });
 };
 
+// Use gemini-3-flash-preview for text tasks and ensure response.text is used as a property.
 export const explainVerse = async (verseText: string, verseReference: string): Promise<string> => {
   const ai = getClient();
   if (!ai) return "AI Service unavailable (Missing API Key).";
@@ -23,7 +25,7 @@ export const explainVerse = async (verseText: string, verseReference: string): P
     `;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3-flash-preview',
       contents: prompt,
     });
 
@@ -34,22 +36,37 @@ export const explainVerse = async (verseText: string, verseReference: string): P
   }
 };
 
+// Recommended approach for JSON: Use responseSchema and the correct model gemini-3-flash-preview.
 export const generateDevotional = async (topic: string): Promise<{title: string, content: string}> => {
     const ai = getClient();
     if(!ai) return { title: "Error", content: "Service unavailable"};
 
     try {
-        const prompt = `Write a short, uplifting daily devotional about "${topic}". Include a title and a body text. Return strictly JSON.`;
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
+            model: 'gemini-3-flash-preview',
+            contents: `Write a short, uplifting daily devotional about "${topic}".`,
             config: {
-                responseMimeType: "application/json"
+                responseMimeType: "application/json",
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        title: {
+                            type: Type.STRING,
+                            description: "The title of the devotional",
+                        },
+                        content: {
+                            type: Type.STRING,
+                            description: "The body text of the devotional",
+                        }
+                    },
+                    required: ["title", "content"],
+                }
             }
         });
         const text = response.text || "{}";
         return JSON.parse(text);
     } catch (e) {
+        console.error("Gemini Devotional Error:", e);
         return { title: "Error", content: "Could not generate devotional."};
     }
 }

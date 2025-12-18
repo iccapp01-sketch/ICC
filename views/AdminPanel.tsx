@@ -661,13 +661,18 @@ const ContentManager = () => {
                              </div>
                              {categories.map(cat => (
                                  <div key={cat.id} className="flex items-center gap-2 p-3 bg-slate-50 rounded-xl border group">
-                                     {editingCat?.id === cat.id ? (
-                                         <input autoFocus className="flex-1 bg-white border rounded px-2 py-1 text-sm" value={editingCat.name} onChange={e=> { if(editingCat) setEditingCat({...editingCat, name: e.target.value}); }} />
+                                     {editingCat && editingCat.id === cat.id ? (
+                                         <input 
+                                            autoFocus 
+                                            className="flex-1 bg-white border rounded px-2 py-1 text-sm" 
+                                            value={editingCat.name} 
+                                            onChange={e=> setEditingCat(prev => prev ? {...prev, name: e.target.value} : null)} 
+                                         />
                                      ) : (
                                          <span className="flex-1 font-bold text-slate-700">{cat.name}</span>
                                      )}
                                      <div className="flex gap-1">
-                                         {editingCat?.id === cat.id ? (
+                                         {editingCat && editingCat.id === cat.id ? (
                                              <button onClick={handleUpdateCategory} className="text-green-600 p-1"><Check size={18}/></button>
                                          ) : (
                                              <button onClick={() => { if(cat.id) setEditingCat({ id: cat.id, name: cat.name }); }} className="text-slate-400 hover:text-blue-600 p-1"><Edit size={18}/></button>

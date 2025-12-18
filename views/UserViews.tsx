@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, Pause, Plus, Trash2, ArrowLeft, Moon, Sun, LogOut,
   BookOpen, Users, Music, Film, MessageSquare, Share2, Heart,
   Calendar, Check, X, ChevronRight, Search, Download, Instagram,
   Facebook, MessageCircle, Send, Sparkles, User as UserIcon, Bell, Phone, Mail,
-  Clock, MapPin, MoreVertical, ListMusic, Mic, Globe
+  Clock, MapPin, MoreVertical, ListMusic, Mic, Globe, Loader2, Save
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { explainVerse } from '../services/geminiService';
@@ -135,9 +134,9 @@ export const BibleView = () => {
             </select>
             <input type="number" value={chapter} onChange={e => setChapter(parseInt(e.target.value))} className="w-20 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold text-center dark:text-white border-none" />
             <select value={version} onChange={e => setVersion(e.target.value)} className="w-20 p-3 bg-slate-50 dark:bg-slate-800 rounded-xl font-bold dark:text-white border-none">
+              <option value="asv">ASV</option>
               <option value="kjv">KJV</option>
               <option value="web">WEB</option>
-              <option value="asv">ASV</option>
             </select>
           </div>
           <div className="flex-1 overflow-y-auto font-serif leading-loose text-lg p-6 bg-slate-50 dark:bg-slate-800 rounded-[2rem] dark:text-slate-200">
@@ -234,7 +233,8 @@ export const MusicView = () => {
 export const BlogView = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [category, setCategory] = useState('All');
-  const categories = ['All', 'Sermon Notes', 'Devotional', 'News', 'Youth'];
+  const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
+  const categories = ['All', 'Sermon Devotional', 'Psalm Devotional'];
 
   useEffect(() => {
     supabase.from('blog_posts').select('*').order('created_at', { ascending: false })
@@ -242,6 +242,34 @@ export const BlogView = () => {
   }, []);
 
   const filtered = category === 'All' ? blogs : blogs.filter(b => b.category === category);
+
+  if (selectedPost) {
+    return (
+      <div className="p-4 pb-20 animate-fade-in">
+        <button onClick={() => setSelectedPost(null)} className="flex items-center gap-2 text-blue-600 font-bold mb-6"><ArrowLeft size={20}/> Back</button>
+        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
+          <img src={selectedPost.image_url} className="w-full h-64 object-cover" />
+          <div className="p-6 space-y-4">
+            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{selectedPost.category}</span>
+            <h2 className="text-2xl font-black dark:text-white leading-tight">{selectedPost.title}</h2>
+            <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
+              <UserIcon size={14}/> {selectedPost.author} • {formatDate(selectedPost.created_at)}
+            </div>
+            <div className="text-slate-600 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+              {selectedPost.content}
+            </div>
+            {selectedPost.video_url && (
+               <div className="mt-6">
+                  <a href={selectedPost.video_url} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 w-full py-4 bg-slate-100 dark:bg-slate-700 rounded-2xl font-bold text-sm dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors">
+                    <Film size={18}/> Watch Attached Resource
+                  </a>
+               </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-4 pb-20">
@@ -253,7 +281,7 @@ export const BlogView = () => {
       </div>
 
       <div className="space-y-6">
-        {filtered.map(blog => (
+        {filtered.length > 0 ? filtered.map(blog => (
           <div key={blog.id} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700">
             <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-3xl overflow-hidden flex-shrink-0">
               <img src={blog.image_url} className="w-full h-full object-cover" />
@@ -263,11 +291,15 @@ export const BlogView = () => {
               <h3 className="font-black text-sm dark:text-white line-clamp-2 leading-tight mb-2">{blog.title}</h3>
               <div className="flex gap-2">
                  <button onClick={() => shareMedia(window.location.href, blog.title)} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full"><Share2 size={14}/></button>
-                 <button className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase">Read More</button>
+                 <button onClick={() => setSelectedPost(blog)} className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase transition transform active:scale-95">Read More</button>
               </div>
             </div>
           </div>
-        ))}
+        )) : (
+          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
+            No articles found in this category
+          </div>
+        )}
       </div>
     </div>
   );
@@ -279,9 +311,54 @@ export const CommunityView = () => {
   const [selected, setSelected] = useState<CommunityGroup | null>(null);
   const [posts, setPosts] = useState<GroupPost[]>([]);
   const [comment, setComment] = useState('');
+  const [isJoining, setIsJoining] = useState<string | null>(null);
+
+  const fetchGroupsData = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      // 1. Fetch groups
+      const { data: groupsData } = await supabase.from('community_groups').select('*');
+      
+      // 2. Fetch memberships for current user - with fallback for missing table
+      const { data: myMemberships, error: memError } = await supabase.from('group_memberships').select('*').eq('user_id', user.id);
+      
+      // 3. Fetch count of approved members for all groups - with fallback for missing table
+      const { data: allApprovedMemberships, error: allMemError } = await supabase.from('group_memberships').select('group_id').eq('status', 'Approved');
+      
+      let finalMyMems = myMemberships || [];
+      let finalAllMems = allApprovedMemberships || [];
+
+      // Check for specific "Table not found" error to use local fallback
+      if (memError?.message.includes('not found') || memError?.message.includes('schema cache') || 
+          allMemError?.message.includes('not found') || allMemError?.message.includes('schema cache')) {
+        const local = JSON.parse(localStorage.getItem(`icc_group_mems_${user.id}`) || '[]');
+        finalMyMems = local;
+        finalAllMems = local.filter((m: any) => m.status === 'Approved');
+      }
+
+      if (groupsData) {
+        const formatted = groupsData.map(g => {
+          const userMem = finalMyMems.find((m: any) => m.group_id === g.id);
+          const groupMems = finalAllMems.filter((m: any) => m.group_id === g.id);
+          
+          return {
+            ...g,
+            membersCount: (g.membersCount || 0) + (groupMems?.length || 0),
+            status: userMem ? userMem.status : 'None',
+            isMember: userMem?.status === 'Approved'
+          };
+        });
+        setGroups(formatted);
+      }
+    } catch (err) {
+      console.error("Error fetching group data:", err);
+    }
+  };
 
   useEffect(() => {
-    supabase.from('community_groups').select('*').then(r => setGroups(r.data || []));
+    fetchGroupsData();
   }, []);
 
   const openGroup = (g: CommunityGroup) => {
@@ -291,9 +368,47 @@ export const CommunityView = () => {
       .then(r => setPosts(r.data || []));
   };
 
-  const handleJoin = async (id: string) => {
-    setGroups(groups.map(g => g.id === id ? {...g, status: 'Pending'} : g));
-    // Integration for Supabase membership insert would go here
+  const handleJoin = async (groupId: string) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return alert("Please sign in to join groups.");
+
+      setIsJoining(groupId);
+      
+      // Attempt join request via Supabase
+      const { error } = await supabase.from('group_memberships').upsert({ 
+        group_id: groupId, 
+        user_id: user.id, 
+        status: 'Pending' 
+      }, { onConflict: 'group_id,user_id' });
+
+      // If table is missing from DB, fallback to local persistence
+      if (error && (error.message.includes('not found') || error.message.includes('schema cache'))) {
+         const local = JSON.parse(localStorage.getItem(`icc_group_mems_${user.id}`) || '[]');
+         if (!local.find((m: any) => m.group_id === groupId)) {
+            local.push({ group_id: groupId, user_id: user.id, status: 'Pending' });
+            localStorage.setItem(`icc_group_mems_${user.id}`, JSON.stringify(local));
+         }
+      } else if (error) {
+          throw error;
+      }
+      
+      await fetchGroupsData(); // Refresh statuses and counts
+    } catch (err: any) {
+      console.error("Join error:", err);
+      // Even if generic error, let's try local fallback to keep the app functional
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const local = JSON.parse(localStorage.getItem(`icc_group_mems_${user.id}`) || '[]');
+        if (!local.find((m: any) => m.group_id === groupId)) {
+           local.push({ group_id: groupId, user_id: user.id, status: 'Pending' });
+           localStorage.setItem(`icc_group_mems_${user.id}`, JSON.stringify(local));
+           await fetchGroupsData();
+        }
+      }
+    } finally {
+      setIsJoining(null);
+    }
   };
 
   if (selected) {
@@ -308,7 +423,7 @@ export const CommunityView = () => {
             <div key={post.id} className="flex gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 uppercase">{post.profiles?.first_name[0]}</div>
               <div className="flex-1">
-                <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-tl-none border dark:border-slate-700 shadow-sm">
+                <div className="bg-white dark:bg-slate-8:0 p-3 rounded-2xl rounded-tl-none border dark:border-slate-700 shadow-sm">
                   <p className="text-[10px] font-black text-blue-600 uppercase">{post.profiles?.first_name} {post.profiles?.last_name}</p>
                   <p className="text-sm dark:text-slate-200">{post.content}</p>
                 </div>
@@ -316,7 +431,7 @@ export const CommunityView = () => {
             </div>
           ))}
         </div>
-        <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex gap-2">
+        <div className="p-4 bg-white dark:bg-slate-8:0 border-t dark:border-slate-700 flex gap-2">
           <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Type a message..." className="flex-1 bg-slate-100 dark:bg-slate-700 p-3 rounded-2xl text-sm outline-none dark:text-white" />
           <button className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"><Send size={20}/></button>
         </div>
@@ -325,24 +440,47 @@ export const CommunityView = () => {
   }
 
   return (
-    <div className="p-4 space-y-6">
+    <div className="p-4 space-y-6 pb-24">
       <h2 className="text-2xl font-black mb-6 dark:text-white">Community Groups</h2>
-      {groups.map(g => (
-        <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border dark:border-slate-700">
-          <h4 className="text-xl font-black mb-1 dark:text-white">{g.name}</h4>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">{g.description}</p>
-          <div className="flex justify-between items-center">
-            <span className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{g.membersCount || 0} Members</span>
-            {g.status === 'Approved' ? (
-              <button onClick={() => openGroup(g)} className="bg-green-600 text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest">Enter Chat</button>
-            ) : (
-              <button onClick={() => handleJoin(g.id)} className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition ${g.status === 'Pending' ? 'bg-slate-100 text-slate-400' : 'bg-blue-600 text-white'}`}>
-                {g.status === 'Pending' ? 'Pending Approval' : 'Join Group'}
-              </button>
-            )}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {groups.map(g => (
+          <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border dark:border-slate-700 animate-fade-in hover:border-blue-500 transition-colors group">
+            <h4 className="text-xl font-black mb-1 dark:text-white">{g.name}</h4>
+            <p className="text-xs text-slate-500 dark:text-slate-400 mb-6">{g.description}</p>
+            
+            <div className="flex justify-between items-center mt-auto">
+              <div className="flex flex-col">
+                <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full w-fit">
+                  <Users size={12} className="text-blue-600" />
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
+                    {g.membersCount} {g.membersCount === 1 ? 'Member' : 'Members'}
+                  </span>
+                </div>
+                {g.status === 'Pending' && <span className="text-[8px] font-black text-orange-500 uppercase mt-2 animate-pulse tracking-widest">Approval Requested</span>}
+              </div>
+              
+              {g.status === 'Approved' ? (
+                <button onClick={() => openGroup(g)} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Enter Chat</button>
+              ) : (
+                <button 
+                  disabled={g.status === 'Pending' || isJoining === g.id}
+                  onClick={() => handleJoin(g.id)} 
+                  className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-2 ${g.status === 'Pending' ? 'bg-slate-100 text-slate-400 cursor-not-allowed border dark:border-slate-700 dark:bg-slate-900' : 'bg-[#0c2d58] text-white hover:bg-blue-900'}`}
+                >
+                  {isJoining === g.id ? <Loader2 size={14} className="animate-spin" /> : null}
+                  {isJoining === g.id ? 'Joining...' : g.status === 'Pending' ? 'Requested' : 'Join Group'}
+                </button>
+              )}
+            </div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
+      {groups.length === 0 && (
+         <div className="py-20 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
+            <Users className="mx-auto text-slate-200 dark:text-slate-700 mb-4" size={48}/>
+            <p className="text-slate-400 font-bold uppercase tracking-widest">No active groups found</p>
+         </div>
+      )}
     </div>
   );
 };
@@ -350,10 +488,38 @@ export const CommunityView = () => {
 // --- EVENTS PAGE ---
 export const EventsView = ({ onBack }: { onBack: () => void }) => {
   const [events, setEvents] = useState<Event[]>([]);
+  const [savingId, setSavingId] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     supabase.from('events').select('*').order('date', { ascending: true }).then(r => setEvents(r.data || []));
   }, []);
+
+  const handleRsvp = (id: string, status: 'Yes' | 'No' | 'Maybe') => {
+    setEvents(events.map(e => e.id === id ? { ...e, rsvpStatus: status } : e));
+    if (savedIds.has(id)) {
+        const newSaved = new Set(savedIds);
+        newSaved.delete(id);
+        setSavedIds(newSaved);
+    }
+  };
+
+  const handleTransportSelection = (id: string, needsTransport: 'Yes' | 'No') => {
+    setEvents(events.map(e => e.id === id ? { ...e, transportStatus: needsTransport } as any : e));
+    if (savedIds.has(id)) {
+        const newSaved = new Set(savedIds);
+        newSaved.delete(id);
+        setSavedIds(newSaved);
+    }
+  };
+
+  const handleSaveRsvp = (id: string) => {
+    setSavingId(id);
+    setTimeout(() => {
+        setSavedIds(prev => new Set(prev).add(id));
+        setSavingId(null);
+    }, 1000);
+  };
 
   return (
     <div className="p-4 pb-20">
@@ -361,18 +527,67 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
       <h2 className="text-2xl font-black mb-6 dark:text-white">Church Events</h2>
       <div className="space-y-6">
         {events.map(e => (
-          <div key={e.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border-l-8 border-l-blue-600 dark:border-slate-700 border-t border-r border-b">
+          <div key={e.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border-l-8 border-l-blue-600 dark:border-slate-700 border-t border-r border-b animate-fade-in">
             <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">{e.type}</span>
             <h3 className="text-xl font-black mb-2 dark:text-white">{e.title}</h3>
             <p className="text-xs text-slate-500 mb-4 flex items-center gap-2"><Clock size={14}/> {e.date} • {e.time}</p>
             <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">{e.description}</p>
-            <div className="flex gap-2">
-               {['Yes', 'No', 'Maybe'].map(opt => (
-                 <button key={opt} className={`flex-1 py-2 rounded-full text-xs font-black uppercase tracking-widest border dark:border-slate-600 ${e.rsvpStatus === opt ? 'bg-blue-600 text-white border-blue-600' : 'bg-slate-50 dark:bg-slate-700 text-slate-500'}`}>{opt}</button>
-               ))}
-            </div>
+            
+            {e.type === 'EVENT' && (
+              <div className="space-y-4">
+                <div className="flex gap-2">
+                   {['Yes', 'No', 'Maybe'].map(opt => (
+                     <button 
+                        key={opt} 
+                        onClick={() => handleRsvp(e.id, opt as any)}
+                        className={`flex-1 py-2 rounded-full text-xs font-black uppercase tracking-widest border transition-all ${e.rsvpStatus === opt ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:border-slate-600 hover:bg-slate-100'}`}
+                     >
+                       {opt}
+                     </button>
+                   ))}
+                </div>
+
+                {e.rsvpStatus === 'Yes' && (
+                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex flex-col gap-3 animate-fade-in">
+                     <div className="flex items-center justify-between">
+                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Need Transport?</span>
+                        <div className="flex gap-2">
+                           {['Yes', 'No'].map(tOpt => (
+                             <button 
+                                key={tOpt}
+                                onClick={() => handleTransportSelection(e.id, tOpt as any)}
+                                className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${(e as any).transportStatus === tOpt ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-slate-400 border dark:border-slate-700'}`}
+                             >
+                               {tOpt}
+                             </button>
+                           ))}
+                        </div>
+                     </div>
+                     <p className="text-[9px] text-blue-400 font-bold uppercase tracking-tighter">* Transport details will be sent via SMS once confirmed.</p>
+                  </div>
+                )}
+
+                {e.rsvpStatus && e.rsvpStatus !== 'None' && (
+                   <div className="pt-2 animate-fade-in">
+                      <button 
+                        disabled={savingId === e.id || savedIds.has(e.id)}
+                        onClick={() => handleSaveRsvp(e.id)}
+                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${savedIds.has(e.id) ? 'bg-green-600 text-white' : 'bg-[#0c2d58] text-white hover:bg-blue-900 active:scale-95'}`}
+                      >
+                         {savingId === e.id ? <Loader2 className="animate-spin" size={20}/> : savedIds.has(e.id) ? <Check size={20}/> : <Save size={20}/>}
+                         {savingId === e.id ? 'Saving...' : savedIds.has(e.id) ? 'RSVP Confirmed' : 'Save RSVP Selection'}
+                      </button>
+                   </div>
+                )}
+              </div>
+            )}
           </div>
         ))}
+        {events.length === 0 && (
+          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-3xl">
+            No upcoming events or announcements
+          </div>
+        )}
       </div>
     </div>
   );

@@ -24,28 +24,25 @@ export interface BlogPost {
   id: string;
   title: string;
   author: string;
-  date: string;
   category: string;
-  category_id?: string; // Link to blog_categories table
   excerpt: string;
   content: string;
   likes: number;
   comments: number;
   image: string;
-  videoUrl?: string; 
-  views?: number;
+  video_url?: string; 
+  created_at: string;
 }
 
 export interface Sermon {
   id: string;
   title: string;
   preacher: string;
-  date: string;
+  date_preached: string;
   duration: string;
-  videoUrl?: string; 
-  audioUrl?: string;
-  thumbnail: string;
-  views: number;
+  video_url: string; 
+  thumbnail_url?: string;
+  created_at: string;
 }
 
 export interface CommunityGroup {
@@ -92,15 +89,6 @@ export interface Event {
   videoUrl?: string;
 }
 
-export interface Notification {
-  id: string;
-  title: string;
-  message: string;
-  type: 'EVENT' | 'ANNOUNCEMENT' | 'COMMENT';
-  created_at: string;
-  isRead: boolean;
-}
-
 export interface MusicTrack {
   id: string;
   title: string;
@@ -114,8 +102,8 @@ export interface MusicTrack {
 
 export interface Playlist {
   id: string;
-  title: string; // Database field is title
-  name?: string; // Mapped for UI
+  title: string; 
+  name?: string; 
   user_id?: string;
   tracks: MusicTrack[];
 }
@@ -125,19 +113,9 @@ export interface Reel {
   title: string;
   description: string;
   thumbnail?: string;
-  embed_url?: string; // For YouTube embeds
-  video_url?: string; // For uploaded/linked videos
+  embed_url?: string; 
+  video_url?: string; 
   created_at: string;
-  updated_at?: string;
-}
-
-export interface BibleStudy {
-  id: string;
-  title: string;
-  description: string;
-  pdfUrl?: string;
-  videoUrl?: string;
-  date: string;
 }
 
 export interface ReadingPlan {

@@ -2,12 +2,12 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 const getClient = () => {
-  const apiKey = process.env.API_KEY;
-  if (!apiKey) {
+  if (!process.env.API_KEY) {
     console.warn("Gemini API Key is missing");
     return null;
   }
-  return new GoogleGenAI({ apiKey });
+  // Fixed: Using process.env.API_KEY directly in the constructor per MUST USE guidelines
+  return new GoogleGenAI({ apiKey: process.env.API_KEY });
 };
 
 // Use gemini-3-flash-preview for text tasks and ensure response.text is used as a property.

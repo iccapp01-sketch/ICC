@@ -1,5 +1,4 @@
 
-// ... existing imports ...
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { 
   Bell, User, ChevronRight, Heart, MessageCircle, Share2, 
@@ -9,7 +8,8 @@ import {
   Edit, Moon, Mail, LogOut, Image as ImageIcon, Phone, Maximize2, Minimize2, ListMusic, Video, UserPlus, Mic, Volume2, Link as LinkIcon, Copy, Info,
   Edit2, Save, Sun, Check, ArrowRight, Bookmark as BookmarkIcon, Film, MessageSquare, Reply, Facebook, Instagram, Loader2, Lock, ThumbsDown, Plus, Trash2, MoreHorizontal, Repeat1, Globe
 } from 'lucide-react';
-import { BlogPost, User as UserType, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, Notification, Reel } from '../types';
+// Fixed: Removed missing 'Notification' member from types import
+import { BlogPost, User as UserType, Sermon, CommunityGroup, GroupPost, BibleVerse, Event, MusicTrack, Playlist, Reel } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { explainVerse } from '../services/geminiService';
 import { Logo } from '../components/Logo';
@@ -19,6 +19,16 @@ const getYouTubeID = (url: string) => {
     const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
     const match = url.match(regExp);
     return (match && match[2].length === 11) ? match[2] : null; 
+};
+
+const formatDate = (dateString?: string) => {
+    if (!dateString) return '';
+    try {
+        const d = new Date(dateString);
+        return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+    } catch (e) {
+        return '';
+    }
 };
 
 // --- HELPER FOR MEDIA SHARING ---
@@ -81,37 +91,16 @@ export const HomeView = ({ onNavigate }: any) => {
 
   const handleShareReel = async (reel: Reel, platform: string) => {
       const shareText = `${reel.title}\n\n${reel.description || ''}`;
-      const shareUrl = reel.embed_url || reel.video_url || window.location.href;
-      
-      if (platform === 'whatsapp') {
-          window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`, '_blank');
-      } else if (platform === 'facebook') {
-          window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
-      } else if (platform === 'instagram') {
-          if (navigator.clipboard) {
-              navigator.clipboard.writeText(shareUrl);
-              alert("Link copied! Open Instagram to share.");
-          }
-      } else {
-          if (navigator.share) {
-              try {
-                  await navigator.share({
-                      title: reel.title,
-                      text: shareText,
-                      url: shareUrl
-                  });
-              } catch (err) {
-                  console.log("Share cancelled or failed:", err);
-              }
-          }
-      }
+      const shareUrl = reel.video_url || window.location.href;
+      if (platform === 'whatsapp') window.open(`https://wa.me/?text=${encodeURIComponent(shareText + ' ' + shareUrl)}`, '_blank');
+      else if (platform === 'facebook') window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(shareUrl)}`, '_blank');
+      else if (navigator.share) await navigator.share({ title: reel.title, text: shareText, url: shareUrl });
   };
 
   return (
       <div className="p-4 space-y-6">
           <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] rounded-[32px] p-6 text-white shadow-xl relative overflow-hidden">
              <div className="absolute top-0 right-0 p-4 opacity-10"><BookOpen size={120} /></div>
-             <div className="absolute bottom-4 right-4 opacity-10"><Logo className="w-16 h-16"/></div>
              <div className="relative z-10">
                  <span className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-4 inline-block">Verse of the Day</span>
                  <p className="text-xl font-serif leading-relaxed mb-4">"{verse?.text}"</p>
@@ -122,13 +111,14 @@ export const HomeView = ({ onNavigate }: any) => {
           {latestSermon && (
               <div>
                   <h3 className="font-bold text-lg dark:text-white mb-4">Latest Sermon</h3>
-                  <div onClick={() => onNavigate('sermons')} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 cursor-pointer">
-                      <div className="w-24 h-24 bg-slate-200 rounded-xl bg-cover bg-center flex-shrink-0 relative" style={{ backgroundImage: latestSermon.videoUrl && getYouTubeID(latestSermon.videoUrl) ? `url(https://img.youtube.com/vi/${getYouTubeID(latestSermon.videoUrl)}/hqdefault.jpg)` : 'none' }}>
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 rounded-xl"><Play fill="white" className="text-white"/></div>
+                  <div onClick={() => onNavigate('sermons')} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 flex gap-4 cursor-pointer group">
+                      <div className="w-28 h-20 bg-slate-200 dark:bg-slate-700 rounded-xl bg-cover bg-center flex-shrink-0 relative overflow-hidden transition-transform group-hover:scale-105" style={{ backgroundImage: latestSermon.video_url && getYouTubeID(latestSermon.video_url) ? `url(https://img.youtube.com/vi/${getYouTubeID(latestSermon.video_url)}/hqdefault.jpg)` : 'none' }}>
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20"><Play fill="white" className="text-white" size={24}/></div>
                       </div>
-                      <div className="flex-1">
-                          <h4 className="font-bold text-slate-900 dark:text-white line-clamp-2 mb-1">{latestSermon.title}</h4>
-                          <p className="text-xs text-slate-500 mb-2">{latestSermon.preacher}</p>
+                      <div className="flex-1 min-w-0">
+                          <h4 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-2 mb-1">{latestSermon.title}</h4>
+                          <p className="text-xs text-slate-500 mb-1">{latestSermon.preacher}</p>
+                          <p className="text-[10px] text-slate-400">{formatDate(latestSermon.date_preached || latestSermon.created_at)}</p>
                       </div>
                   </div>
               </div>
@@ -142,47 +132,7 @@ export const HomeView = ({ onNavigate }: any) => {
                           <div key={blog.id} onClick={() => onNavigate('blogs')} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer">
                               {blog.image && <div className="h-32 w-full bg-cover bg-center rounded-xl mb-3" style={{backgroundImage: `url(${blog.image})`}}></div>}
                               <h4 className="font-bold text-slate-900 dark:text-white line-clamp-1">{blog.title}</h4>
-                              <p className="text-xs text-slate-500 line-clamp-2">{blog.excerpt}</p>
-                          </div>
-                      ))}
-                  </div>
-              </div>
-          )}
-
-          {reels.length > 0 && (
-              <div>
-                  <div className="flex justify-between items-center mb-4">
-                      <h3 className="font-bold text-lg dark:text-white">Latest Reels</h3>
-                      <button onClick={()=>onNavigate('sermons')} className="text-xs text-blue-600 font-bold">View All</button>
-                  </div>
-                  <div className="flex gap-4 overflow-x-auto no-scrollbar pb-2">
-                      {reels.map(reel => (
-                          <div key={reel.id} className="min-w-[180px] w-[180px] relative rounded-2xl overflow-hidden shadow-lg aspect-[9/16] bg-black group">
-                              {reel.embed_url ? (
-                                  <iframe 
-                                      src={reel.embed_url} 
-                                      className="w-full h-full pointer-events-none" 
-                                      allowFullScreen
-                                      title={reel.title}
-                                  ></iframe>
-                              ) : (
-                                  <video 
-                                      src={reel.video_url} 
-                                      poster={reel.thumbnail} 
-                                      className="w-full h-full object-cover" 
-                                      controls 
-                                      playsInline
-                                      preload="metadata"
-                                  />
-                              )}
-                              
-                              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent pointer-events-none z-10">
-                                  <h4 className="text-white font-bold text-xs line-clamp-2 mb-8">{reel.title}</h4>
-                              </div>
-                              <div className="absolute bottom-2 right-2 flex gap-1 z-20 pointer-events-auto">
-                                  <button onClick={() => handleShareReel(reel, 'whatsapp')} className="w-7 h-7 bg-green-500 rounded-full flex items-center justify-center text-white shadow"><MessageCircle size={12} /></button>
-                                  <button onClick={() => handleShareReel(reel, 'facebook')} className="w-7 h-7 bg-blue-600 rounded-full flex items-center justify-center text-white shadow"><Facebook size={12} /></button>
-                              </div>
+                              <p className="text-[10px] text-slate-400 mt-1">{formatDate(blog.created_at)}</p>
                           </div>
                       ))}
                   </div>
@@ -201,880 +151,64 @@ interface TrackItemProps {
   isPodcast?: boolean;
 }
 
-// --- TRACK ITEM COMPONENT ---
-// Added React.FC typing to allow the special "key" prop used in .map() iterations.
 const TrackItem: React.FC<TrackItemProps> = ({ track, isPlaying, onClick, onAddToPlaylist, onRemoveFromPlaylist, isPodcast }) => {
     return (
-        <div 
-            onClick={onClick}
-            className={`group flex items-center gap-3 p-3 rounded-2xl transition cursor-pointer ${isPlaying ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800 border' : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-blue-200 dark:hover:border-slate-600 shadow-sm'}`}
-        >
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white shadow-md flex-shrink-0 transition-transform group-hover:scale-105 ${isPlaying ? 'bg-blue-600' : 'bg-gradient-to-br from-slate-400 to-slate-500'}`}>
-                {isPlaying ? (
-                    <div className="flex gap-0.5 items-end h-4">
-                        <div className="w-1 bg-white animate-pulse h-2"></div>
-                        <div className="w-1 bg-white animate-pulse h-4"></div>
-                        <div className="w-1 bg-white animate-pulse h-3"></div>
-                    </div>
-                ) : (
-                    isPodcast ? <Mic size={20}/> : <Music size={20}/>
-                )}
+        <div onClick={onClick} className={`flex items-center gap-3 p-3 rounded-2xl transition cursor-pointer ${isPlaying ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-100 dark:border-blue-800 border' : 'bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm'}`}>
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white flex-shrink-0 ${isPlaying ? 'bg-blue-600' : 'bg-slate-400'}`}>
+                {isPlaying ? <div className="flex gap-0.5 items-end h-4"><div className="w-1 bg-white animate-pulse h-2"></div><div className="w-1 bg-white animate-pulse h-4"></div><div className="w-1 bg-white animate-pulse h-3"></div></div> : isPodcast ? <Mic size={20}/> : <Music size={20}/>}
             </div>
             <div className="flex-1 min-w-0">
-                <h4 className={`font-bold text-sm truncate ${isPlaying ? 'text-blue-600 dark:text-blue-400' : 'text-slate-900 dark:text-white'}`}>{track.title}</h4>
+                <h4 className="font-bold text-sm truncate dark:text-white">{track.title}</h4>
                 <p className="text-xs text-slate-500 truncate">{track.artist}</p>
             </div>
-            <div className="flex gap-1">
-                {onAddToPlaylist && (
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onAddToPlaylist(); }}
-                        className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition"
-                    >
-                        <Plus size={18} />
-                    </button>
-                )}
-                {onRemoveFromPlaylist && (
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); onRemoveFromPlaylist(); }}
-                        className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-slate-700 rounded-lg transition"
-                    >
-                        <Trash2 size={18} />
-                    </button>
-                )}
-                <button className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                    <MoreVertical size={18} />
-                </button>
-            </div>
+            {onAddToPlaylist && <button onClick={(e)=>{e.stopPropagation(); onAddToPlaylist();}} className="p-2 text-slate-400 hover:text-blue-600"><Plus size={18}/></button>}
+            {onRemoveFromPlaylist && <button onClick={(e)=>{e.stopPropagation(); onRemoveFromPlaylist();}} className="p-2 text-slate-400 hover:text-red-500"><Trash2 size={18}/></button>}
         </div>
     );
 };
 
-// ... MUSIC VIEW ...
 export const MusicView = () => {
-    const [activeTab, setActiveTab] = useState<'library' | 'podcast' | 'playlists'>('library');
     const [tracks, setTracks] = useState<MusicTrack[]>([]);
-    const [playlists, setPlaylists] = useState<Playlist[]>([]);
     const [currentTrack, setCurrentTrack] = useState<MusicTrack | null>(null);
     const [isPlaying, setIsPlaying] = useState(false);
-    const [duration, setDuration] = useState(0);
-    const [currentTime, setCurrentTime] = useState(0);
-    
-    // New Player States
-    const [isFullScreen, setIsFullScreen] = useState(false);
-    const [loopMode, setLoopMode] = useState<'OFF' | 'ONE' | 'ALL'>('OFF');
-    const [queue, setQueue] = useState<MusicTrack[]>([]);
-    
-    // Playlist Management
-    const [viewingPlaylist, setViewingPlaylist] = useState<Playlist | null>(null);
-    const [newPlaylistName, setNewPlaylistName] = useState('');
-    const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
-    const [isAddingToPlaylist, setIsAddingToPlaylist] = useState<string | null>(null); // track id to add
-    
-    const audioRef = useRef<HTMLAudioElement>(null);
-
-    // Initial Fetch
-    useEffect(() => { 
-        const fetchContent = async () => {
-             // Fetch Tracks
-             const { data: trackData } = await supabase.from('music_tracks').select('*'); 
-             if(trackData) setTracks(trackData as any);
-             
-             // Fetch Playlists
-             const { data: { user } } = await supabase.auth.getUser();
-             if(user) {
-                 const { data: playlistData } = await supabase.from('playlists').select('*').eq('user_id', user.id);
-                 if(playlistData) setPlaylists(playlistData as any);
-             }
-        }; 
-        fetchContent(); 
-    }, []);
-
-    // Audio Logic
-    useEffect(() => {
-        if(currentTrack && audioRef.current) {
-            audioRef.current.play().then(() => setIsPlaying(true)).catch(e => console.log("Auto-play prevented", e));
-        }
-    }, [currentTrack]);
-
-    const togglePlay = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        if(!audioRef.current || !currentTrack) return;
-        if(isPlaying) {
-            audioRef.current.pause();
-            setIsPlaying(false);
-        } else {
-            audioRef.current.play();
-            setIsPlaying(true);
-        }
-    };
-
-    const handleTimeUpdate = () => {
-        if(audioRef.current) {
-            setCurrentTime(audioRef.current.currentTime);
-            setDuration(audioRef.current.duration || 0);
-        }
-    };
-
-    const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
-        if(audioRef.current) {
-            const time = Number(e.target.value);
-            audioRef.current.currentTime = time;
-            setCurrentTime(time);
-        }
-    };
-
-    // New Player Logic
-    const playNext = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        if(!queue.length || !currentTrack) return;
-        const idx = queue.findIndex(t => t.id === currentTrack.id);
-        if(idx === -1) return;
-        
-        if(loopMode === 'OFF' && idx === queue.length - 1) {
-            // End of queue
-            setIsPlaying(false);
-            return;
-        }
-        setCurrentTrack(queue[(idx + 1) % queue.length]);
-    };
-
-    const playPrev = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        if(!queue.length || !currentTrack) return;
-        const idx = queue.findIndex(t => t.id === currentTrack.id);
-        if(idx === -1) return;
-        
-        // If > 3 seconds, replay
-        if(audioRef.current && audioRef.current.currentTime > 3) {
-            audioRef.current.currentTime = 0;
-            return;
-        }
-        
-        setCurrentTrack(queue[(idx - 1 + queue.length) % queue.length]);
-    };
-
-    const toggleLoop = (e?: React.MouseEvent) => {
-        e?.stopPropagation();
-        if(loopMode === 'OFF') setLoopMode('ALL');
-        else if(loopMode === 'ALL') setLoopMode('ONE');
-        else setLoopMode('OFF');
-    };
-
-    const handleTrackEnd = () => {
-        if(loopMode === 'ONE') {
-            if(audioRef.current) {
-                audioRef.current.currentTime = 0;
-                audioRef.current.play();
-            }
-        } else {
-            playNext();
-        }
-    };
-
-    const formatTime = (time: number) => {
-        if(isNaN(time)) return "0:00";
-        const minutes = Math.floor(time / 60);
-        const seconds = Math.floor(time % 60);
-        return `${minutes}:${seconds < 10 ? '0' : ''}${seconds}`;
-    };
-
-    // Playlist Actions
-    const createPlaylist = async () => {
-        if(!newPlaylistName.trim()) return;
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user) return;
-
-        const { data, error } = await supabase.from('playlists').insert({
-            title: newPlaylistName,
-            user_id: user.id,
-            tracks: []
-        }).select();
-
-        if(data) {
-            setPlaylists([...playlists, data[0] as any]);
-            setIsCreatingPlaylist(false);
-            setNewPlaylistName('');
-        }
-    };
-
-    const deletePlaylist = async (id: string) => {
-        if(!confirm("Are you sure you want to delete this playlist?")) return;
-        await supabase.from('playlists').delete().eq('id', id);
-        setPlaylists(playlists.filter(p => p.id !== id));
-        if(viewingPlaylist?.id === id) setViewingPlaylist(null);
-    };
-
-    const addTrackToPlaylist = async (playlistId: string, track: MusicTrack) => {
-        const playlist = playlists.find(p => p.id === playlistId);
-        if(!playlist) return;
-
-        const currentTracks = playlist.tracks || [];
-        // Avoid duplicates
-        if(currentTracks.find(t => t.id === track.id)) {
-            alert("Track already in playlist");
-            setIsAddingToPlaylist(null);
-            return;
-        }
-        
-        const updatedTracks = [...currentTracks, track];
-        
-        const { error } = await supabase.from('playlists')
-            .update({ tracks: updatedTracks })
-            .eq('id', playlistId);
-
-        if(!error) {
-            setPlaylists(playlists.map(p => p.id === playlistId ? { ...p, tracks: updatedTracks } : p));
-            alert("Added to playlist!");
-        }
-        setIsAddingToPlaylist(null);
-    };
-
-    const removeTrackFromPlaylist = async (playlistId: string, trackId: string) => {
-        const playlist = playlists.find(p => p.id === playlistId);
-        if(!playlist) return;
-        
-        const updatedTracks = (playlist.tracks || []).filter(t => t.id !== trackId);
-        
-        const { error } = await supabase.from('playlists')
-            .update({ tracks: updatedTracks })
-            .eq('id', playlistId);
-
-        if(!error) {
-            const updatedPlaylist = { ...playlist, tracks: updatedTracks };
-            setPlaylists(playlists.map(p => p.id === playlistId ? updatedPlaylist : p));
-            if(viewingPlaylist?.id === playlistId) setViewingPlaylist(updatedPlaylist);
-        }
-    };
-
-    // Filter Content
-    const libraryTracks = tracks.filter(t => t.type !== 'PODCAST'); // Default to music if null or 'MUSIC'
-    const podcastTracks = tracks.filter(t => t.type === 'PODCAST');
-
+    useEffect(() => { const fetchTracks = async () => { const { data } = await supabase.from('music_tracks').select('*'); if(data) setTracks(data as any); }; fetchTracks(); }, []);
     return (
-        <div className="flex flex-col min-h-full pb-20">
-            <div className="sticky top-0 bg-slate-50 dark:bg-slate-900 z-30 pt-4 px-4 pb-2 border-b border-slate-200 dark:border-slate-800 shadow-sm">
-                <h1 className="text-2xl font-black mb-4 dark:text-white">Media</h1>
-                <div className="flex bg-slate-200 dark:bg-slate-800 p-1 rounded-xl">
-                    <button onClick={()=>{setActiveTab('library'); setViewingPlaylist(null);}} className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${activeTab==='library' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Music Library</button>
-                    <button onClick={()=>{setActiveTab('podcast'); setViewingPlaylist(null);}} className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${activeTab==='podcast' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Podcasts</button>
-                    <button onClick={()=>{setActiveTab('playlists');}} className={`flex-1 py-2 text-xs sm:text-sm font-bold rounded-lg transition-all ${activeTab==='playlists' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow-sm' : 'text-slate-500'}`}>Playlists</button>
-                </div>
-            </div>
-
-            <div className="flex-1 p-4 pb-32">
-                {activeTab === 'library' && (
-                    <div className="space-y-3">
-                        {libraryTracks.map(track => (
-                            <TrackItem 
-                                key={track.id} 
-                                track={track} 
-                                isPlaying={currentTrack?.id === track.id && isPlaying}
-                                onClick={() => { setCurrentTrack(track); setQueue(libraryTracks); }}
-                                onAddToPlaylist={() => setIsAddingToPlaylist(track.id)}
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {activeTab === 'podcast' && (
-                    <div className="space-y-3">
-                        {podcastTracks.map(track => (
-                            <TrackItem 
-                                key={track.id} 
-                                track={track} 
-                                isPlaying={currentTrack?.id === track.id && isPlaying}
-                                onClick={() => { setCurrentTrack(track); setQueue(podcastTracks); }}
-                                onAddToPlaylist={() => setIsAddingToPlaylist(track.id)}
-                                isPodcast
-                            />
-                        ))}
-                    </div>
-                )}
-
-                {activeTab === 'playlists' && !viewingPlaylist && (
-                    <div>
-                        <button 
-                            onClick={() => setIsCreatingPlaylist(true)}
-                            className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl text-slate-500 font-bold flex items-center justify-center gap-2 hover:bg-slate-100 dark:hover:bg-slate-800 transition mb-6"
-                        >
-                            <Plus size={20}/> Create New Playlist
-                        </button>
-                        
-                        <div className="grid grid-cols-2 gap-4">
-                            {playlists.map(playlist => (
-                                <div key={playlist.id} onClick={() => setViewingPlaylist(playlist)} className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border dark:border-slate-700 cursor-pointer hover:scale-[1.02] transition">
-                                    <div className="aspect-square bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl mb-3 flex items-center justify-center text-white shadow-inner">
-                                        <ListMusic size={32}/>
-                                    </div>
-                                    <h3 className="font-bold text-slate-900 dark:text-white truncate">{playlist.title || playlist.name}</h3>
-                                    <p className="text-xs text-slate-500">{(playlist.tracks || []).length} Tracks</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {activeTab === 'playlists' && viewingPlaylist && (
-                    <div>
-                        <div className="flex items-center gap-3 mb-6">
-                            <button onClick={() => setViewingPlaylist(null)} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border dark:border-slate-700"><ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/></button>
-                            <div className="flex-1">
-                                <h2 className="text-xl font-black text-slate-900 dark:text-white">{viewingPlaylist.title || viewingPlaylist.name}</h2>
-                                <p className="text-xs text-slate-500">{(viewingPlaylist.tracks || []).length} Tracks</p>
-                            </div>
-                            <button onClick={() => deletePlaylist(viewingPlaylist.id)} className="p-2 bg-red-50 text-red-500 rounded-full"><Trash2 size={20}/></button>
-                        </div>
-                        
-                        <div className="space-y-3">
-                            {(viewingPlaylist.tracks || []).length === 0 ? (
-                                <p className="text-center text-slate-400 py-10 italic">No tracks in this playlist yet.</p>
-                            ) : (
-                                (viewingPlaylist.tracks || []).map(track => (
-                                    <TrackItem 
-                                        key={track.id} 
-                                        track={track} 
-                                        isPlaying={currentTrack?.id === track.id && isPlaying}
-                                        onClick={() => { setCurrentTrack(track); setQueue(viewingPlaylist.tracks || []); }}
-                                        onRemoveFromPlaylist={() => removeTrackFromPlaylist(viewingPlaylist.id, track.id)}
-                                    />
-                                ))
-                            )}
-                        </div>
-                    </div>
-                )}
-            </div>
-
-            {isCreatingPlaylist && (
-                <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl w-full max-w-xs shadow-2xl animate-fade-in">
-                        <h3 className="font-bold text-lg mb-4 dark:text-white">New Playlist</h3>
-                        <input 
-                            autoFocus
-                            className="w-full bg-slate-100 dark:bg-slate-700 border-none rounded-xl p-3 mb-4 outline-none dark:text-white font-medium" 
-                            placeholder="Playlist Name"
-                            value={newPlaylistName}
-                            onChange={(e) => setNewPlaylistName(e.target.value)}
-                        />
-                        <div className="flex gap-2">
-                            <button onClick={() => setIsCreatingPlaylist(false)} className="flex-1 py-3 bg-slate-100 dark:bg-slate-700 rounded-xl font-bold text-slate-500">Cancel</button>
-                            <button onClick={createPlaylist} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold">Create</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {isAddingToPlaylist && (
-                 <div className="fixed inset-0 z-[60] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl w-full max-w-xs shadow-2xl animate-fade-in max-h-[80vh] overflow-y-auto">
-                        <div className="flex justify-between items-center mb-4">
-                            <h3 className="font-bold text-lg dark:text-white">Add to Playlist</h3>
-                            <button onClick={() => setIsAddingToPlaylist(null)}><X size={20} className="text-slate-400"/></button>
-                        </div>
-                        <div className="space-y-2">
-                            {playlists.map(p => (
-                                <button 
-                                    key={p.id} 
-                                    onClick={() => {
-                                        const track = tracks.find(t => t.id === isAddingToPlaylist);
-                                        if(track) addTrackToPlaylist(p.id, track);
-                                    }}
-                                    className="w-full text-left p-3 rounded-xl bg-slate-50 dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-900/30 transition flex items-center gap-3"
-                                >
-                                    <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center text-blue-600"><ListMusic size={16}/></div>
-                                    <span className="font-bold text-slate-700 dark:text-slate-200">{p.title || p.name}</span>
-                                </button>
-                            ))}
-                        </div>
-                        <button 
-                            onClick={() => { setIsAddingToPlaylist(null); setActiveTab('playlists'); setIsCreatingPlaylist(true); }}
-                            className="w-full mt-4 py-3 border border-dashed border-slate-300 dark:border-slate-600 rounded-xl text-slate-500 font-bold text-sm"
-                        >
-                            + Create New Playlist
-                        </button>
-                    </div>
-                </div>
-            )}
-
-            {currentTrack && (
-                <audio 
-                    ref={audioRef} 
-                    src={currentTrack.url} 
-                    onTimeUpdate={handleTimeUpdate}
-                    onEnded={handleTrackEnd}
-                />
-            )}
-
-            <div className={`fixed bottom-[calc(4rem+env(safe-area-inset-bottom))] left-2 right-2 z-40 transition-all duration-300 transform ${currentTrack && !isFullScreen ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0 pointer-events-none'}`}>
-                {currentTrack && (
-                    <div onClick={() => setIsFullScreen(true)} className="bg-white/90 dark:bg-slate-800/95 backdrop-blur-xl border border-white/20 dark:border-slate-700 shadow-[0_8px_32px_rgba(0,0,0,0.2)] rounded-2xl p-2 pr-4 flex items-center gap-3 cursor-pointer hover:bg-white dark:hover:bg-slate-800 transition">
-                         <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-lg flex-shrink-0">
-                             {currentTrack.type === 'PODCAST' ? <Mic size={20}/> : <Music size={20}/>}
-                         </div>
-                         <div className="flex-1 min-w-0">
-                             <h4 className="font-bold text-slate-900 dark:text-white text-sm truncate">{currentTrack.title}</h4>
-                             <p className="text-xs text-slate-500 truncate">{currentTrack.artist}</p>
-                         </div>
-                         <button 
-                             onClick={togglePlay}
-                             className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-md hover:bg-blue-700 transition transform active:scale-95"
-                         >
-                             {isPlaying ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" className="ml-1"/>}
-                         </button>
-                         <button onClick={() => setIsFullScreen(true)} className="p-2 text-slate-400 hover:text-blue-600">
-                             <Maximize2 size={20} />
-                         </button>
-                    </div>
-                )}
-            </div>
-
-            {isFullScreen && currentTrack && (
-                <div className="fixed inset-0 z-[100] bg-white dark:bg-slate-900 flex flex-col animate-slide-up">
-                    <div className="p-4 pt-[calc(1rem+env(safe-area-inset-top))] flex justify-center relative">
-                        <button onClick={(e) => { e.stopPropagation(); setIsFullScreen(false); }} className="absolute left-4 top-[calc(1rem+env(safe-area-inset-top))] p-2 text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition">
-                            <ChevronDown size={32} />
-                        </button>
-                        <span className="text-xs font-bold uppercase tracking-widest mt-3 text-slate-400">Now Playing</span>
-                    </div>
-                    
-                    <div className="flex-1 flex flex-col items-center justify-center p-8 gap-8 overflow-y-auto">
-                         <div className="w-full max-w-xs aspect-square bg-gradient-to-br from-indigo-500 to-purple-600 rounded-[2rem] shadow-2xl flex items-center justify-center">
-                              {currentTrack.type === 'PODCAST' ? <Mic size={80} className="text-white opacity-50"/> : <Music size={80} className="text-white opacity-50" />}
-                         </div>
-                         
-                         <div className="text-center w-full">
-                             <h2 className="text-2xl font-black text-slate-900 dark:text-white mb-2 leading-tight">{currentTrack.title}</h2>
-                             <p className="text-lg text-slate-500 font-medium">{currentTrack.artist}</p>
-                         </div>
-                         
-                         <div className="w-full max-w-md space-y-2">
-                             <input 
-                                type="range" 
-                                min="0" 
-                                max={duration || 0} 
-                                value={currentTime} 
-                                onChange={handleSeek}
-                                className="w-full accent-blue-600 h-1 bg-slate-200 dark:bg-slate-700 rounded-lg appearance-none cursor-pointer"
-                             />
-                             <div className="flex justify-between text-xs font-bold text-slate-400 font-mono">
-                                 <span>{formatTime(currentTime)}</span>
-                                 <span>{formatTime(duration)}</span>
-                             </div>
-                         </div>
-                         
-                         <div className="flex items-center justify-between w-full max-w-xs px-2">
-                             <button onClick={toggleLoop} className={`p-3 rounded-full transition ${loopMode !== 'OFF' ? 'text-blue-500 bg-blue-50 dark:bg-blue-900/30' : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}>
-                                 {loopMode === 'ONE' ? <Repeat1 size={24}/> : <Repeat size={24}/>}
-                             </button>
-                             
-                             <button onClick={playPrev} className="p-4 text-slate-700 dark:text-white hover:scale-110 transition active:scale-95">
-                                 <SkipBack size={32} fill="currentColor"/>
-                             </button>
-                             
-                             <button onClick={togglePlay} className="w-20 h-20 bg-blue-600 rounded-full flex items-center justify-center text-white shadow-xl hover:scale-105 transition active:scale-95">
-                                 {isPlaying ? <Pause size={32} fill="currentColor"/> : <Play size={32} fill="currentColor" className="ml-1"/>}
-                             </button>
-                             
-                             <button onClick={playNext} className="p-4 text-slate-700 dark:text-white hover:scale-110 transition active:scale-95">
-                                 <SkipForward size={32} fill="currentColor"/>
-                             </button>
-                             
-                             <button className="p-3 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200">
-                                 <ListMusic size={24}/> 
-                             </button>
-                         </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-// ... GROUP CHAT ...
-export const GroupChat = ({ group, onBack }: { group: CommunityGroup, onBack: () => void }) => {
-    const [posts, setPosts] = useState<GroupPost[]>([]);
-    const [newPostText, setNewPostText] = useState('');
-    const [replyingTo, setReplyingTo] = useState<string | null>(null);
-    const [replyText, setReplyText] = useState('');
-    const [userId, setUserId] = useState<string | null>(null);
-    const messagesEndRef = useRef<null | HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
-
-    const fetchPosts = useCallback(async () => {
-        const { data } = await supabase
-            .from('group_posts')
-            .select('*, profiles(first_name, last_name, avatar_url), group_post_likes(user_id)')
-            .eq('group_id', group.id)
-            .order('created_at', { ascending: true });
-        
-        if (data) {
-            setPosts(data as any);
-        }
-    }, [group.id]);
-
-    useEffect(() => {
-        const getUser = async () => {
-            const { data: { user } } = await supabase.auth.getUser();
-            setUserId(user?.id || null);
-        };
-        getUser();
-        fetchPosts();
-        
-        const channel = supabase.channel(`group_${group.id}`)
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'group_posts', filter: `group_id=eq.${group.id}` }, () => {
-            fetchPosts(); 
-        })
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'group_post_likes' }, () => {
-            fetchPosts(); 
-        })
-        .subscribe();
-
-        return () => { supabase.removeChannel(channel); };
-    }, [group.id, fetchPosts]);
-
-    const handleLike = async (postId: string, isLiked: boolean) => {
-        if (!userId) return;
-        setPosts(currentPosts => currentPosts.map(p => {
-             if (p.id === postId) {
-                 const likes = p.group_post_likes || [];
-                 if (isLiked) {
-                     return { ...p, group_post_likes: likes.filter(l => l.user_id !== userId) };
-                 } else {
-                     return { ...p, group_post_likes: [...likes, { user_id: userId }] };
-                 }
-             }
-             return p;
-        }));
-        
-        try {
-            if (isLiked) {
-                await supabase.from('group_post_likes').delete().match({ post_id: postId, user_id: userId });
-            } else {
-                await supabase.from('group_post_likes').insert({ post_id: postId, user_id: userId });
-            }
-        } catch (error) {
-            console.error("Like error:", error);
-            fetchPosts();
-        }
-    };
-
-    const handleSend = async (parentId: string | null = null) => {
-        const content = parentId ? replyText : newPostText;
-        if (!content.trim() || !userId) return;
-
-        const { error } = await supabase.from('group_posts').insert({
-            group_id: group.id,
-            user_id: userId,
-            content: content,
-            parent_id: parentId
-        });
-
-        if (!error) {
-            if (parentId) {
-                setReplyText('');
-                setReplyingTo(null);
-            } else {
-                setNewPostText('');
-                setTimeout(() => messagesEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-            }
-            await fetchPosts();
-        } else {
-            console.error("Post Error:", error);
-            alert(`Failed to post: ${error.message}`);
-        }
-    };
-
-    const rootPosts = posts.filter(p => !p.parent_id);
-
-    return (
-        <div className="fixed inset-0 z-[60] flex flex-col bg-slate-100 dark:bg-slate-900 h-full overflow-hidden">
-            <div className="flex-none bg-white dark:bg-slate-800 border-b dark:border-slate-700 shadow-sm z-10 pt-[env(safe-area-inset-top)]">
-                <div className="px-4 py-4 flex items-center gap-3">
-                    <button onClick={onBack} className="p-2 -ml-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><ArrowLeft size={20} className="text-slate-600 dark:text-slate-300"/></button>
-                    <div className="flex items-center gap-3">
-                        {group.image ? (
-                            <div className="w-10 h-10 rounded-full bg-cover bg-center" style={{backgroundImage: `url(${group.image})`}}></div>
-                        ) : (
-                            <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 font-bold">{group.name.substring(0,1)}</div>
-                        )}
-                        <div>
-                            <h2 className="font-bold text-base dark:text-white leading-none">{group.name}</h2>
-                            <p className="text-xs text-slate-500 mt-1">{group.membersCount || 0} Members</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth bg-slate-100 dark:bg-slate-900/50 pb-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-                {rootPosts.length === 0 && (
-                    <div className="text-center py-20 opacity-60">
-                        <MessageSquare size={48} className="mx-auto mb-4 text-slate-300"/>
-                        <p className="text-slate-500 font-medium">Start the conversation!</p>
-                    </div>
-                )}
-                
-                {rootPosts.map(post => {
-                    const likes = post.group_post_likes || [];
-                    const isLiked = userId ? likes.some((l: any) => l.user_id === userId) : false;
-                    const replies = posts.filter(p => p.parent_id === post.id);
-
-                    return (
-                        <div key={post.id} className="bg-white dark:bg-slate-800 p-5 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
-                            <div className="flex items-start gap-3 mb-3">
-                                <div className="w-10 h-10 bg-slate-200 dark:bg-slate-700 rounded-full flex items-center justify-center text-slate-500 dark:text-slate-300 font-bold text-sm overflow-hidden shadow-inner">
-                                    {post.profiles?.avatar_url ? (
-                                        <img src={post.profiles.avatar_url} className="w-full h-full object-cover" />
-                                    ) : (
-                                        post.profiles?.first_name?.[0] || 'U'
-                                    )}
-                                </div>
-                                <div className="flex-1">
-                                    <p className="font-bold text-base text-slate-900 dark:text-white">{post.profiles?.first_name} {post.profiles?.last_name}</p>
-                                    <p className="text-xs text-slate-400">{new Date(post.created_at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</p>
-                                </div>
-                            </div>
-                            <div className="mb-4">
-                                <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed whitespace-pre-wrap">{post.content}</p>
-                            </div>
-                            <div className="flex items-center gap-4 border-t border-slate-100 dark:border-slate-700 pt-3">
-                                <button onClick={() => handleLike(post.id, isLiked)} className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${isLiked ? 'text-red-500 bg-red-50 dark:bg-red-900/20' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'}`}>
-                                    <Heart size={18} className={isLiked ? "fill-current" : ""} />
-                                    <span>{likes.length > 0 ? likes.length : 'Like'}</span>
-                                </button>
-                                <button onClick={() => setReplyingTo(replyingTo === post.id ? null : post.id)} className={`flex items-center gap-2 text-sm font-bold px-3 py-1.5 rounded-lg transition-colors duration-200 ${replyingTo === post.id ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 dark:text-slate-400'}`}>
-                                    <MessageSquare size={18} />
-                                    <span>Reply</span>
-                                </button>
-                            </div>
-                            {(replies.length > 0 || replyingTo === post.id) && (
-                                <div className="mt-4 pl-4 border-l-2 border-slate-100 dark:border-slate-700 space-y-4">
-                                    {replies.map(reply => (
-                                        <div key={reply.id} className="flex gap-3">
-                                            <div className="w-8 h-8 bg-slate-200 dark:bg-slate-700 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-slate-500 overflow-hidden">
-                                                {reply.profiles?.first_name?.[0]}
-                                            </div>
-                                            <div className="flex-1 bg-slate-50 dark:bg-slate-700/30 rounded-r-xl rounded-bl-xl p-3 border border-slate-100 dark:border-slate-700/50">
-                                                <div className="flex justify-between items-baseline mb-1">
-                                                    <span className="font-bold text-xs text-slate-900 dark:text-white">{reply.profiles?.first_name} {reply.profiles?.last_name}</span>
-                                                    <span className="text-[10px] text-slate-400">{new Date(reply.created_at).toLocaleString([], {hour: '2-digit', minute:'2-digit'})}</span>
-                                                </div>
-                                                <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{reply.content}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                    {replyingTo === post.id && (
-                                        <div className="flex gap-3 items-start animate-fade-in mt-3 bg-blue-50/50 dark:bg-blue-900/10 p-3 rounded-xl border border-blue-100 dark:border-slate-700">
-                                            <div className="w-8 h-8 bg-blue-100 dark:bg-blue-900 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300">Me</div>
-                                            <div className="flex-1 relative">
-                                                <input autoFocus className="w-full bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-full px-4 py-2 text-sm dark:text-white focus:ring-2 focus:ring-blue-500 outline-none pr-12 shadow-sm" placeholder={`Reply to ${post.profiles?.first_name}...`} value={replyText} onChange={e => setReplyText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSend(post.id)}/>
-                                                <button onClick={() => handleSend(post.id)} disabled={!replyText.trim()} className="absolute right-1 top-1 p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-600 rounded-full disabled:opacity-50 transition"><Send size={16}/></button>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    );
-                })}
-                <div ref={messagesEndRef} />
-            </div>
-
-            <div className="flex-none bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.1)] z-20" style={{ paddingBottom: 'calc(1.5rem + env(safe-area-inset-bottom))' }}>
-                <div className="max-w-3xl mx-auto">
-                    <label className="block text-xs font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2 ml-1">Add a comment:</label>
-                    <div className="flex gap-3 items-end">
-                        <div className="flex-1 bg-slate-100 dark:bg-slate-700 rounded-2xl px-4 py-3 border border-slate-200 dark:border-slate-600 focus-within:ring-2 focus-within:ring-blue-500 focus-within:bg-white dark:focus-within:bg-slate-800 transition-all shadow-inner">
-                            <input ref={inputRef} className="w-full bg-transparent border-none text-base dark:text-white focus:outline-none placeholder-slate-400" placeholder="Type your message here..." value={newPostText} onChange={e => setNewPostText(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}/>
-                        </div>
-                        <button onClick={() => handleSend()} disabled={!newPostText.trim()} className="bg-blue-600 text-white p-3.5 rounded-2xl shadow-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95 flex-shrink-0"><Send size={22}/></button>
-                    </div>
-                </div>
+        <div className="p-4 space-y-4">
+            <h2 className="text-2xl font-black dark:text-white">Media Library</h2>
+            <div className="space-y-3 pb-32">
+                {tracks.map(track => (
+                    <TrackItem key={track.id} track={track} isPlaying={currentTrack?.id === track.id && isPlaying} onClick={() => { setCurrentTrack(track); setIsPlaying(true); }} />
+                ))}
             </div>
         </div>
     );
 };
 
-// ... BIBLE VIEW ...
-export const BibleView = () => {
-    const [explanation, setExplanation] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [verse, setVerse] = useState<BibleVerse>({ reference: "John 3:16", text: "For God so loved the world, that he gave his one and only Son, that whoever believes in him should not perish, but have eternal life.", version: "WEB" });
-
-    const handleExplain = async () => {
-        setLoading(true);
-        const text = await explainVerse(verse.text, verse.reference);
-        setExplanation(text);
-        setLoading(false);
-    }
-
-    return (
-        <div className="p-4 space-y-6">
-             <div className="bg-gradient-to-br from-indigo-900 to-slate-900 rounded-[32px] p-8 text-white shadow-2xl relative overflow-hidden">
-                <BookOpen size={100} className="absolute -top-4 -right-4 opacity-10"/>
-                <h2 className="text-2xl font-serif font-bold mb-6 text-center">Daily Scripture</h2>
-                <div className="space-y-4">
-                    <p className="text-xl leading-relaxed text-center font-serif">"{verse.text}"</p>
-                    <p className="text-center font-bold text-indigo-300 uppercase tracking-widest text-sm">{verse.reference}</p>
-                </div>
-                
-                <div className="mt-8">
-                     {!explanation && !loading && (
-                         <button onClick={handleExplain} className="w-full py-3 bg-white/10 hover:bg-white/20 rounded-xl font-bold flex items-center justify-center gap-2 transition backdrop-blur-sm">
-                             <Sparkles size={18}/> Explain this verse
-                         </button>
-                     )}
-                     {loading && (
-                         <div className="text-center py-4 flex items-center justify-center gap-2">
-                             <Loader2 size={20} className="animate-spin"/> Consulting AI Pastor...
-                         </div>
-                     )}
-                     {explanation && (
-                         <div className="bg-white/10 rounded-xl p-4 backdrop-blur-md animate-fade-in border border-white/10">
-                             <h4 className="font-bold text-indigo-200 mb-2 flex items-center gap-2"><Sparkles size={16}/> Interpretation</h4>
-                             <p className="text-sm leading-relaxed opacity-90">{explanation}</p>
-                         </div>
-                     )}
-                </div>
-             </div>
-             
-             <div className="grid grid-cols-2 gap-4">
-                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
-                     <Bookmark size={24} className="mx-auto text-blue-500 mb-2"/>
-                     <span className="font-bold text-sm dark:text-white">Reading Plans</span>
-                 </div>
-                 <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 text-center">
-                     <Search size={24} className="mx-auto text-purple-500 mb-2"/>
-                     <span className="font-bold text-sm dark:text-white">Search Bible</span>
-                 </div>
-             </div>
-        </div>
-    );
-};
-
-// --- BLOG VIEW (UPDATED WITH CORRECT DATE FORMATTING) ---
 export const BlogView = () => {
     const [blogs, setBlogs] = useState<BlogPost[]>([]);
     const [selectedBlog, setSelectedBlog] = useState<BlogPost|null>(null);
-
-    useEffect(() => {
-        const fetchBlogs = async () => {
-            const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-            if(data) setBlogs(data as any);
-        };
-        fetchBlogs();
-    }, []);
-
-    const handleBlogShare = async (blog: BlogPost, platform: string) => {
-        const mediaUrl = blog.image || blog.videoUrl;
-        const shareText = `${blog.title}\n\n${blog.excerpt}`;
-        const appLink = window.location.href;
-
-        if (platform === 'whatsapp') {
-            if (mediaUrl) {
-                const shared = await shareMediaFile(mediaUrl, blog.title, shareText);
-                if (shared) return;
-            }
-            window.open(`https://wa.me/?text=${encodeURIComponent(shareText + '\n\nRead more: ' + appLink)}`, '_blank');
-        } else if (platform === 'facebook') {
-            const urlToShare = mediaUrl || appLink;
-            window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(urlToShare)}`, '_blank');
-        } else if (platform === 'instagram_save') {
-            if (!mediaUrl) return;
-            const link = document.createElement('a');
-            link.href = mediaUrl;
-            link.download = `icc_blog_${blog.id}`;
-            link.target = "_blank";
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        } else if (platform === 'instagram_copy') {
-            navigator.clipboard.writeText(shareText);
-            alert("Caption copied! Open Instagram to share your saved media.");
-        }
-    };
-
-    const ShareBar = ({ blog, isOverlay }: { blog: BlogPost, isOverlay?: boolean }) => (
-        <div className={`flex items-center gap-2 ${isOverlay ? 'p-2 bg-black/30 backdrop-blur-md rounded-2xl shadow-lg' : 'mt-3'}`}>
-            <button 
-                onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'whatsapp'); }}
-                className="w-8 h-8 bg-green-500 text-white rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition active:scale-95"
-                title="Share on WhatsApp"
-            >
-                <MessageCircle size={16} />
-            </button>
-            <button 
-                onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'facebook'); }}
-                className="w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-sm hover:scale-105 transition active:scale-95"
-                title="Share on Facebook"
-            >
-                <Facebook size={16} />
-            </button>
-            {(blog.image || blog.videoUrl) && (
-                <div className="flex gap-1 bg-slate-100 dark:bg-slate-700 p-0.5 rounded-full border dark:border-slate-600 shadow-sm">
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'instagram_save'); }}
-                        className="w-7 h-7 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-white dark:hover:bg-slate-600 rounded-full transition"
-                        title="Save for Instagram"
-                    >
-                        <Download size={14} />
-                    </button>
-                    <button 
-                        onClick={(e) => { e.stopPropagation(); handleBlogShare(blog, 'instagram_copy'); }}
-                        className="w-7 h-7 text-slate-600 dark:text-slate-300 flex items-center justify-center hover:bg-white dark:hover:bg-slate-600 rounded-full transition"
-                        title="Copy Caption"
-                    >
-                        <Copy size={14} />
-                    </button>
-                </div>
-            )}
-        </div>
-    );
+    useEffect(() => { const fetchBlogs = async () => { const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false }); if(data) setBlogs(data as any); }; fetchBlogs(); }, []);
 
     if (selectedBlog) {
-        const blogDate = (selectedBlog as any).created_at ? new Date((selectedBlog as any).created_at).toLocaleDateString() : '';
         return (
             <div className="p-4 bg-white dark:bg-slate-900 min-h-full">
                 <button onClick={() => setSelectedBlog(null)} className="mb-4 p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><ArrowLeft size={20} className="dark:text-white"/></button>
-                {selectedBlog.image && (
-                    <div className="relative mb-6">
-                        <img src={selectedBlog.image} className="w-full h-56 object-cover rounded-[2rem] shadow-xl border border-slate-100 dark:border-slate-700"/>
-                        <div className="absolute bottom-3 right-3">
-                             <ShareBar blog={selectedBlog} isOverlay />
-                        </div>
-                    </div>
-                )}
+                {selectedBlog.image && <img src={selectedBlog.image} className="w-full h-56 object-cover rounded-[2rem] shadow-xl mb-6 border border-slate-100 dark:border-slate-700"/>}
                 <h1 className="text-2xl font-black mb-2 dark:text-white">{selectedBlog.title}</h1>
-                <div className="flex items-center gap-3 text-xs text-slate-500 mb-6 font-bold uppercase tracking-wider">
-                    <span className="bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300 px-2 py-1 rounded-lg">{selectedBlog.category}</span>
-                    <span>•</span>
-                    <span>{blogDate}</span>
-                </div>
-                <div className="prose dark:prose-invert max-w-none">
-                    <p className="whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{selectedBlog.content}</p>
-                </div>
+                <p className="text-xs text-slate-500 mb-6 font-bold uppercase tracking-wider">{formatDate(selectedBlog.created_at)}</p>
+                <div className="prose dark:prose-invert max-w-none"><p className="whitespace-pre-wrap leading-relaxed text-slate-700 dark:text-slate-300">{selectedBlog.content}</p></div>
             </div>
         );
     }
-
     return (
         <div className="p-4 space-y-4">
-            <h2 className="text-2xl font-black mb-2 dark:text-white">Articles & Devotionals</h2>
+            <h2 className="text-2xl font-black mb-2 dark:text-white">Articles</h2>
             {blogs.map(blog => (
-                <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer flex flex-col sm:flex-row gap-4 group">
-                    {blog.image && (
-                        <div className="relative w-full sm:w-32 h-40 sm:h-32 rounded-2xl overflow-hidden flex-shrink-0 shadow-sm">
-                            <div className="w-full h-full bg-cover bg-center transition-transform group-hover:scale-105" style={{backgroundImage: `url(${blog.image})`}}></div>
-                            <div className="absolute bottom-1 right-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <ShareBar blog={blog} isOverlay />
-                            </div>
-                        </div>
-                    )}
+                <div key={blog.id} onClick={() => setSelectedBlog(blog)} className="bg-white dark:bg-slate-800 p-4 rounded-[2rem] shadow-sm border border-slate-100 dark:border-slate-700 cursor-pointer flex flex-col sm:flex-row gap-4">
+                    {blog.image && <div className="relative w-full sm:w-32 h-40 sm:h-32 rounded-2xl overflow-hidden flex-shrink-0 shadow-sm bg-cover bg-center" style={{backgroundImage: `url(${blog.image})`}}></div>}
                     <div className="flex-1">
-                        <div className="text-[10px] font-bold text-blue-600 uppercase mb-1">{blog.category}</div>
-                        <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 line-clamp-2 text-lg">{blog.title}</h3>
-                        <p className="text-xs text-slate-500 line-clamp-3 mb-3">{blog.excerpt}</p>
-                        <div className="sm:hidden">
-                            <ShareBar blog={blog} />
-                        </div>
+                        <h3 className="font-bold text-slate-900 dark:text-white leading-tight mb-2 text-lg">{blog.title}</h3>
+                        <p className="text-xs text-slate-400">{formatDate(blog.created_at)}</p>
                     </div>
                 </div>
             ))}
@@ -1082,9 +216,9 @@ export const BlogView = () => {
     );
 };
 
-// --- SERMONS VIEW (UPDATED WITH DYNAMIC THUMBNAILS) ---
 export const SermonsView = () => {
     const [sermons, setSermons] = useState<Sermon[]>([]);
+    const [playingId, setPlayingId] = useState<string | null>(null);
     
     useEffect(() => {
         const fetchSermons = async () => {
@@ -1095,130 +229,94 @@ export const SermonsView = () => {
     }, []);
 
     return (
-        <div className="p-4 space-y-6">
-            <h2 className="text-2xl font-black dark:text-white">Sermons</h2>
-            {sermons.map(sermon => {
-                const ytId = sermon.videoUrl ? getYouTubeID(sermon.videoUrl) : null;
-                const sermonDate = (sermon as any).created_at ? new Date((sermon as any).created_at).toLocaleDateString() : '';
-                return (
-                    <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2rem] overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700">
-                        <div className="relative aspect-video bg-black">
-                            {ytId ? (
-                                <iframe 
-                                    src={`https://www.youtube.com/embed/${ytId}`} 
-                                    className="absolute inset-0 w-full h-full" 
-                                    allowFullScreen 
-                                    title={sermon.title}
-                                ></iframe>
-                            ) : sermon.videoUrl ? (
-                                <video src={sermon.videoUrl} className="w-full h-full" controls />
+        <div className="p-4 space-y-4">
+            <h2 className="text-2xl font-black dark:text-white mb-6">Sermon Library</h2>
+            <div className="space-y-4 pb-20">
+                {sermons.map(sermon => {
+                    const ytId = getYouTubeID(sermon.video_url);
+                    const thumb = sermon.thumbnail_url || (ytId ? `https://img.youtube.com/vi/${ytId}/hqdefault.jpg` : '');
+                    const isPlaying = playingId === sermon.id;
+
+                    return (
+                        <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2rem] overflow-hidden shadow-sm border border-slate-100 dark:border-slate-700 p-4">
+                            {isPlaying && ytId ? (
+                                <div className="aspect-video bg-black rounded-2xl overflow-hidden mb-4 animate-fade-in relative">
+                                    <button onClick={() => setPlayingId(null)} className="absolute top-2 right-2 z-10 bg-black/50 text-white p-1 rounded-full"><X size={16}/></button>
+                                    <iframe src={`https://www.youtube.com/embed/${ytId}?autoplay=1`} className="w-full h-full" allowFullScreen allow="autoplay"></iframe>
+                                </div>
                             ) : (
-                                <div className="absolute inset-0 flex items-center justify-center text-slate-500 italic">No video available</div>
+                                <div className="flex gap-4 items-center">
+                                    <div 
+                                        onClick={() => ytId ? setPlayingId(sermon.id) : null}
+                                        className="w-32 h-20 bg-slate-200 dark:bg-slate-700 rounded-2xl bg-cover bg-center flex-shrink-0 relative cursor-pointer group overflow-hidden" 
+                                        style={{ backgroundImage: `url(${thumb})` }}
+                                    >
+                                        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition flex items-center justify-center">
+                                            <Play fill="white" className="text-white drop-shadow-lg" size={24}/>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <h3 className="font-bold text-slate-900 dark:text-white text-sm line-clamp-2 leading-tight mb-1">{sermon.title}</h3>
+                                        <p className="text-xs text-slate-500 mb-1">{sermon.preacher}</p>
+                                        <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                                            <span>{formatDate(sermon.date_preached || sermon.created_at)}</span>
+                                            {sermon.duration && (
+                                                <>
+                                                    <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                                                    <span>{sermon.duration}</span>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
                             )}
                         </div>
-                        <div className="p-5">
-                            <h3 className="font-bold text-lg dark:text-white mb-2 leading-tight">{sermon.title}</h3>
-                            <div className="flex justify-between items-center text-sm text-slate-500 font-medium">
-                                <span className="flex items-center gap-1"><User size={14}/> {sermon.preacher}</span>
-                                <span className="flex items-center gap-1"><Calendar size={14}/> {sermonDate}</span>
-                            </div>
-                        </div>
-                    </div>
-                );
-            })}
+                    );
+                })}
+            </div>
         </div>
     );
 };
 
-// --- MISSING VIEWS REQUIRED BY APP.TSX ---
-
 export const CommunityView = () => (
   <div className="p-4 flex flex-col items-center justify-center min-h-[50vh] text-center">
     <Users size={48} className="text-slate-300 mb-4" />
-    <h2 className="text-xl font-bold dark:text-white mb-2">Community Groups</h2>
-    <p className="text-slate-500 max-w-xs">Join a group to grow in faith and fellowship with other believers.</p>
+    <h2 className="text-xl font-bold dark:text-white">Groups</h2>
+  </div>
+);
+
+export const BibleView = () => (
+  <div className="p-4 flex flex-col items-center justify-center min-h-[50vh] text-center">
+    <BookOpen size={48} className="text-slate-300 mb-4" />
+    <h2 className="text-xl font-bold dark:text-white">Bible Tools</h2>
   </div>
 );
 
 export const EventsView = ({ onBack }: { onBack: () => void }) => (
   <div className="p-4">
-    <button onClick={onBack} className="mb-4 flex items-center gap-2 text-blue-600 font-bold">
-      <ArrowLeft size={18}/> Back
-    </button>
-    <h2 className="text-2xl font-black dark:text-white mb-6">Upcoming Events</h2>
-    <div className="bg-white dark:bg-slate-800 p-8 rounded-3xl border border-dashed border-slate-200 dark:border-slate-700 text-center text-slate-400">
-      No upcoming events scheduled at this time.
-    </div>
+    <button onClick={onBack} className="mb-4 flex items-center gap-2 text-blue-600 font-bold"><ArrowLeft size={18}/> Back</button>
+    <h2 className="text-2xl font-black dark:text-white">Events</h2>
   </div>
 );
 
 export const NotificationsView = () => (
-  <div className="p-4">
-    <h2 className="text-2xl font-black dark:text-white mb-6">Notifications</h2>
-    <div className="space-y-4">
-      <div className="p-4 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700 shadow-sm flex gap-4">
-        <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center text-blue-600 flex-shrink-0">
-          <Bell size={20}/>
-        </div>
-        <div>
-          <h4 className="font-bold dark:text-white">Welcome!</h4>
-          <p className="text-sm text-slate-500">Welcome to the Isipingo Community Church app.</p>
-          <span className="text-[10px] text-slate-400 mt-2 block">Just now</span>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div className="p-4"><h2 className="text-2xl font-black dark:text-white">Notifications</h2></div>
 );
 
 export const ContactView = ({ onBack }: { onBack: () => void }) => (
-  <div className="p-4">
-    <button onClick={onBack} className="mb-4 flex items-center gap-2 text-blue-600 font-bold">
-      <ArrowLeft size={18}/> Back
-    </button>
-    <h2 className="text-2xl font-black dark:text-white mb-6">Contact Us</h2>
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border dark:border-slate-700 space-y-6">
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600"><Mail size={24}/></div>
-        <div>
-          <p className="text-xs text-slate-500 font-bold uppercase">Email</p>
-          <p className="font-bold dark:text-white">office@isipingocc.org</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-4">
-        <div className="w-12 h-12 bg-green-50 dark:bg-green-900/30 rounded-2xl flex items-center justify-center text-green-600"><Phone size={24}/></div>
-        <div>
-          <p className="text-xs text-slate-500 font-bold uppercase">Phone</p>
-          <p className="font-bold dark:text-white">+27 (031) 123-4567</p>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div className="p-4"><button onClick={onBack} className="mb-4 flex items-center gap-2 text-blue-600 font-bold"><ArrowLeft size={18}/> Back</button></div>
 );
 
 export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode }: any) => (
   <div className="p-4 space-y-4">
-    <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] shadow-sm border dark:border-slate-700 text-center">
-      <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-3xl font-black mx-auto mb-4">
-        {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-      </div>
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-[32px] text-center border dark:border-slate-700 shadow-sm">
+      <div className="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center text-white text-3xl font-black mx-auto mb-4">{user?.firstName?.[0]}</div>
       <h2 className="text-xl font-black dark:text-white">{user?.firstName} {user?.lastName}</h2>
       <p className="text-sm text-slate-500">{user?.email}</p>
     </div>
-    
-    <div className="bg-white dark:bg-slate-800 rounded-[2rem] shadow-sm border dark:border-slate-700 overflow-hidden">
-      <button onClick={toggleTheme} className="w-full flex items-center justify-between p-5 hover:bg-slate-50 dark:hover:bg-slate-700/50 transition border-b dark:border-slate-700">
-        <div className="flex items-center gap-3 font-bold dark:text-white">
-          {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
-          <span>{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
-        </div>
-        <div className={`w-12 h-6 rounded-full p-1 transition-colors ${isDarkMode ? 'bg-blue-600' : 'bg-slate-300'}`}>
-          <div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`}></div>
-        </div>
-      </button>
-      <button onClick={onLogout} className="w-full flex items-center gap-3 p-5 text-red-500 font-bold hover:bg-red-50 dark:hover:bg-red-900/10 transition">
-        <LogOut size={20}/>
-        <span>Logout</span>
-      </button>
+    <div className="bg-white dark:bg-slate-800 rounded-[2rem] border dark:border-slate-700 overflow-hidden shadow-sm">
+      <button onClick={toggleTheme} className="w-full flex items-center justify-between p-5 border-b dark:border-slate-700"><div className="flex items-center gap-3 font-bold dark:text-white">{isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}<span>Theme</span></div></button>
+      <button onClick={onLogout} className="w-full flex items-center gap-3 p-5 text-red-500 font-bold"><LogOut size={20}/><span>Logout</span></button>
     </div>
   </div>
 );

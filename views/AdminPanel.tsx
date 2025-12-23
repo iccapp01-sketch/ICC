@@ -837,6 +837,8 @@ const GroupManager = () => {
   const [members, setMembers] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null);
   const [showMembers, setShowMembers] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<Partial<CommunityGroup> | null>(null);
 
   const fetchGroups = async () => {
     setLoading(true);
@@ -854,6 +856,42 @@ const GroupManager = () => {
   };
 
   useEffect(() => { fetchGroups(); }, []);
+
+  const handleSaveGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingGroup?.name) return alert("Group name is required.");
+
+    setLoading(true);
+    const groupData = {
+      name: editingGroup.name,
+      description: editingGroup.description || '',
+    };
+
+    try {
+      if (editingGroup.id) {
+        await supabase.from('community_groups').update(groupData).eq('id', editingGroup.id);
+      } else {
+        await supabase.from('community_groups').insert([groupData]);
+      }
+      setIsFormOpen(false);
+      setEditingGroup(null);
+      fetchGroups();
+    } catch (err: any) {
+      alert("Error saving group: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDeleteGroup = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this group? All posts and memberships will be removed.")) return;
+    try {
+      await supabase.from('community_groups').delete().eq('id', id);
+      fetchGroups();
+    } catch (err: any) {
+      alert("Error deleting group: " + err.message);
+    }
+  };
 
   const handleMemberAction = async (userId: string, groupId: string, action: 'Approve' | 'Decline' | 'Remove') => {
     let error;
@@ -882,26 +920,85 @@ const GroupManager = () => {
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
-        <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Community Groups</h3>
-        <button className="bg-blue-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-colors">
+        <div>
+          <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Community Groups</h3>
+          <p className="text-sm text-slate-500">Manage church groups and moderate memberships.</p>
+        </div>
+        <button 
+          onClick={() => { setEditingGroup({ name: '', description: '' }); setIsFormOpen(true); }}
+          className="bg-blue-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-colors"
+        >
           <Plus size={16}/> Create Group
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {isFormOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up border dark:border-slate-700">
+            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <h4 className="font-black dark:text-white uppercase tracking-tighter">{editingGroup?.id ? 'Edit Group' : 'New Community Group'}</h4>
+              <button onClick={() => { setIsFormOpen(false); setEditingGroup(null); }} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
+            </div>
+            
+            <form onSubmit={handleSaveGroup} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Group Name</label>
+                <input 
+                  required
+                  value={editingGroup?.name || ''}
+                  onChange={e => setEditingGroup(prev => ({...prev, name: e.target.value}))}
+                  placeholder="Youth Ministry..." 
+                  className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Description</label>
+                <textarea 
+                  rows={4}
+                  value={editingGroup?.description || ''}
+                  onChange={e => setEditingGroup(prev => ({...prev, description: e.target.value}))}
+                  placeholder="Tell us about this community..." 
+                  className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-medium dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition resize-none"
+                />
+              </div>
+
+              <div className="pt-6 border-t dark:border-slate-700 flex justify-end gap-3">
+                <button type="button" onClick={() => { setIsFormOpen(false); setEditingGroup(null); }} className="px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={loading}
+                  className="bg-[#0c2d58] text-white px-10 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-blue-900 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16}/>}
+                  {editingGroup?.id ? 'Update Group' : 'Create Group'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {groups.map(g => (
-          <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm">
-            <h4 className="font-black dark:text-white text-lg mb-1">{g.name}</h4>
-            <p className="text-xs text-slate-500 mb-4 line-clamp-2">{g.description}</p>
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">
-                {g.membersCount || 0} Members
+          <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-700 shadow-sm relative group">
+            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => { setEditingGroup(g); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors" title="Edit Group"><Edit size={16}/></button>
+              <button onClick={() => handleDeleteGroup(g.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors" title="Delete Group"><Trash2 size={16}/></button>
+            </div>
+            
+            <h4 className="font-black dark:text-white text-lg mb-1 pr-16">{g.name}</h4>
+            <p className="text-xs text-slate-500 mb-6 line-clamp-2 pr-4">{g.description}</p>
+            
+            <div className="flex justify-between items-center mt-auto">
+              <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                <Users size={12}/> {g.membersCount || 0} Members
               </span>
               <button 
                 onClick={() => { setSelectedGroup(g.id); fetchGroupMembers(g.id); setShowMembers(true); }}
-                className="text-[10px] font-black uppercase text-slate-500 hover:text-blue-600 transition-colors flex items-center gap-1"
+                className="text-[10px] font-black uppercase bg-[#0c2d58] text-white px-4 py-2 rounded-full hover:bg-blue-900 transition-colors shadow-md active:scale-95"
               >
-                <Users size={14}/> Manage
+                Manage Members
               </button>
             </div>
           </div>
@@ -910,23 +1007,27 @@ const GroupManager = () => {
 
       {showMembers && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up">
-            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
-              <h4 className="font-black dark:text-white uppercase tracking-tighter">Group Members</h4>
-              <button onClick={() => setShowMembers(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
+          <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up flex flex-col max-h-[80vh]">
+            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <div>
+                <h4 className="font-black dark:text-white uppercase tracking-tighter">Member Access Control</h4>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Moderate participation for {groups.find(g => g.id === selectedGroup)?.name}</p>
+              </div>
+              <button onClick={() => setShowMembers(false)} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
             </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-4">
+            <div className="p-6 overflow-y-auto space-y-4 flex-1">
               {members.length === 0 ? (
-                <p className="text-center py-10 text-slate-400 font-bold uppercase tracking-widest text-xs">No members found</p>
+                <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest text-xs border-2 border-dashed rounded-[2rem] border-slate-100 dark:border-slate-700">No members or requests found</div>
               ) : members.map(m => (
-                <div key={m.user_id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
+                <div key={m.user_id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border dark:border-slate-700 group hover:border-blue-300 transition-colors">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center font-bold text-blue-600">
+                    <div className="w-10 h-10 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center font-bold text-blue-600 border dark:border-blue-800">
                       {m.profiles?.first_name?.[0] || 'U'}
                     </div>
                     <div>
-                      <p className="font-bold text-sm dark:text-white">{m.profiles?.first_name} {m.profiles?.last_name}</p>
-                      <p className={`text-[10px] font-black uppercase ${m.status === 'pending' ? 'text-orange-500' : 'text-green-600'}`}>
+                      <p className="font-bold text-sm dark:text-white leading-tight">{m.profiles?.first_name} {m.profiles?.last_name}</p>
+                      <p className="text-[10px] text-slate-500 font-medium truncate max-w-[150px]">{m.profiles?.email}</p>
+                      <p className={`text-[9px] font-black uppercase mt-1 tracking-widest ${m.status === 'pending' ? 'text-orange-500' : 'text-green-600'}`}>
                         {m.status}
                       </p>
                     </div>
@@ -934,11 +1035,27 @@ const GroupManager = () => {
                   <div className="flex gap-2">
                     {m.status === 'pending' ? (
                       <>
-                        <button onClick={() => handleMemberAction(m.user_id, m.group_id, 'Approve')} className="p-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition"><Check size={16}/></button>
-                        <button onClick={() => handleMemberAction(m.user_id, m.group_id, 'Decline')} className="p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition"><X size={16}/></button>
+                        <button 
+                          onClick={() => handleMemberAction(m.user_id, m.group_id, 'Approve')} 
+                          className="px-4 py-2 bg-green-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-green-600 transition shadow-sm active:scale-95 flex items-center gap-1.5"
+                        >
+                          <Check size={14}/> Approve
+                        </button>
+                        <button 
+                          onClick={() => handleMemberAction(m.user_id, m.group_id, 'Decline')} 
+                          className="px-4 py-2 bg-red-500 text-white rounded-xl text-[10px] font-black uppercase tracking-widest hover:bg-red-600 transition shadow-sm active:scale-95 flex items-center gap-1.5"
+                        >
+                          <X size={14}/> Decline
+                        </button>
                       </>
                     ) : (
-                      <button onClick={() => handleMemberAction(m.user_id, m.group_id, 'Remove')} className="p-2 text-slate-400 hover:text-red-600 transition"><Trash2 size={16}/></button>
+                      <button 
+                        onClick={() => handleMemberAction(m.user_id, m.group_id, 'Remove')} 
+                        className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition"
+                        title="Remove Member"
+                      >
+                        <Trash2 size={18}/>
+                      </button>
                     )}
                   </div>
                 </div>

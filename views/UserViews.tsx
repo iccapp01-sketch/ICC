@@ -28,18 +28,39 @@ const getYouTubeID = (url: string) => {
   return match && match[2].length === 11 ? match[2] : null;
 };
 
-const shareMedia = async (url: string, title: string) => {
+/**
+ * Enhanced Share Utility
+ * Shares the ACTUAL file (image or video) instead of just a link.
+ * Note: navigator.share with files is supported on most modern mobile browsers.
+ */
+const shareMediaFile = async (mediaUrl: string, title: string, fileName: string = 'share-content') => {
   try {
-    if (navigator.share) {
-      await navigator.share({ title, url });
+    // 1. Fetch the file blob
+    const response = await fetch(mediaUrl);
+    const blob = await response.blob();
+    
+    // 2. Create a File object
+    const extension = blob.type.split('/')[1] || 'png';
+    const file = new File([blob], `${fileName}.${extension}`, { type: blob.type });
+
+    // 3. Check if sharing files is supported
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      await navigator.share({
+        files: [file],
+        title: title,
+        text: `Check this out: ${title}`
+      });
     } else {
-      const shareUrl = `https://wa.me/?text=${encodeURIComponent(title + ' ' + url)}`;
+      // Fallback for desktop or non-supported browsers
+      const shareUrl = `https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`;
       window.open(shareUrl, '_blank');
+      alert("Sharing actual files is only supported on mobile devices. Shared link instead.");
     }
   } catch (err) { 
-    console.warn("Share failed:", err); 
-    navigator.clipboard.writeText(`${title} ${url}`);
-    alert("Link copied to clipboard!");
+    console.error("Share failed:", err); 
+    // Final fallback: copy link
+    navigator.clipboard.writeText(mediaUrl);
+    alert("Could not share file directly. Link copied to clipboard!");
   }
 };
 
@@ -97,7 +118,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
               </div>
               <div className="flex-1">
                 <h4 className="font-bold text-sm leading-tight mb-2 dark:text-white line-clamp-2">{blog.title}</h4>
-                <button onClick={(e) => { e.stopPropagation(); shareMedia(window.location.href, blog.title); }} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1"><Share2 size={12}/> Share</button>
+                <button onClick={(e) => { e.stopPropagation(); shareMediaFile(blog.image_url, blog.title); }} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1"><Share2 size={12}/> Share</button>
               </div>
             </div>
           ))}
@@ -197,7 +218,6 @@ export const MusicView = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
     
-    // Attempting to fetch user playlists - using a try/catch as schema might not be ready
     try {
       const { data: playlistsData } = await supabase
         .from('playlists')
@@ -223,7 +243,6 @@ export const MusicView = () => {
     fetchPlaylists();
   }, []);
 
-  // Sync isPlaying state with audio element
   useEffect(() => {
     if (!audioRef.current) return;
     if (isPlaying) {
@@ -590,7 +609,15 @@ export const BlogView = () => {
             )}
             
             <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
-              <button onClick={() => shareMedia(window.location.href, selectedPost.title)} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg hover:scale-110 transition"><Share2 size={20}/></button>
+              <button 
+                onClick={() => {
+                   const shareUrl = selectedPost.video_url || selectedPost.image_url;
+                   shareMediaFile(shareUrl, selectedPost.title, selectedPost.title.replace(/\s+/g, '-').toLowerCase());
+                }} 
+                className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg hover:scale-110 transition"
+              >
+                <Share2 size={20}/>
+              </button>
             </div>
           </div>
 
@@ -624,15 +651,27 @@ export const BlogView = () => {
       <div className="space-y-6">
         {filtered.length > 0 ? filtered.map(blog => (
           <div key={blog.id} onClick={() => setSelectedPost(blog)} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-colors cursor-pointer group">
-            <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-3xl overflow-hidden flex-shrink-0">
+            <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-3xl overflow-hidden flex-shrink-0 relative">
               <img src={blog.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={blog.title} />
+              {/* Added a subtle play icon for video-enabled blogs to fix thumbnail "readability" */}
+              {blog.video_url && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                   <div className="bg-white/30 backdrop-blur-md p-2 rounded-full">
+                     <Play size={20} fill="white" className="text-white ml-0.5" />
+                   </div>
+                </div>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-[10px] font-black text-blue-600 uppercase mb-1 block">{blog.category}</span>
               <h3 className="font-black text-sm dark:text-white line-clamp-2 leading-tight mb-2 truncate">{blog.title}</h3>
               <div className="flex gap-2">
                  <button 
-                  onClick={(e) => { e.stopPropagation(); shareMedia(window.location.href, blog.title); }} 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    const shareUrl = blog.video_url || blog.image_url;
+                    shareMediaFile(shareUrl, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase()); 
+                  }} 
                   className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition"
                  >
                    <Share2 size={14}/>
@@ -1006,7 +1045,7 @@ export const SermonsView = () => {
                   <div className="flex justify-between items-start mb-3">
                     <h3 className="text-xl font-black dark:text-white leading-tight pr-4">{sermon.title}</h3>
                     <button 
-                      onClick={() => shareMedia(sermon.video_url, sermon.title)}
+                      onClick={() => shareMediaFile(sermon.video_url, sermon.title, 'sermon')}
                       className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition shadow-sm active:scale-90"
                       title="Share Sermon"
                     >

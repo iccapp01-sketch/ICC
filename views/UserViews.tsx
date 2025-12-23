@@ -6,12 +6,12 @@ import {
   Facebook, MessageCircle, Send, User as UserIcon, Bell, Phone, Mail,
   Clock, MapPin, MoreVertical, ListMusic, Mic, Globe, Loader2, Save,
   SkipBack, SkipForward, Square, Repeat, RotateCcw, Edit2, Shield,
-  ExternalLink, Info, Trash2, Pencil, CornerDownRight
+  ExternalLink, Info, Trash2, Pencil, CornerDownRight, Plus, FolderPlus
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { 
   BlogPost, Sermon, CommunityGroup, GroupPost, 
-  Event, MusicTrack, BibleVerse, User, UserRole
+  Event, MusicTrack, BibleVerse, User, UserRole, Playlist
 } from '../types';
 import { Logo } from '../components/Logo';
 
@@ -174,46 +174,94 @@ export const BibleView = () => {
 export const MusicView = () => {
   const [activeTab, setActiveTab] = useState<'music' | 'podcast' | 'playlists'>('music');
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
+  const [userPlaylists, setUserPlaylists] = useState<Playlist[]>([]);
+  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
   const [current, setCurrent] = useState<MusicTrack | null>(null);
+  const [playingList, setPlayingList] = useState<MusicTrack[]>([]);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLooping, setIsLooping] = useState(false);
+  
+  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
+  const [newPlaylistTitle, setNewPlaylistTitle] = useState('');
+  const [trackToAdd, setTrackToAdd] = useState<MusicTrack | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
+
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
+  const fetchTracks = async () => {
+    const { data } = await supabase.from('music_tracks').select('*');
+    setTracks(data || []);
+  };
+
+  const fetchPlaylists = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    // Attempting to fetch user playlists - using a try/catch as schema might not be ready
+    try {
+      const { data: playlistsData } = await supabase
+        .from('playlists')
+        .select('*, playlist_tracks(music_tracks(*))')
+        .eq('user_id', user.id);
+      
+      if (playlistsData) {
+        const formatted: Playlist[] = playlistsData.map(p => ({
+          id: p.id,
+          title: p.title,
+          user_id: p.user_id,
+          tracks: p.playlist_tracks?.map((pt: any) => pt.music_tracks).filter(Boolean) || []
+        }));
+        setUserPlaylists(formatted);
+      }
+    } catch (err) {
+      console.warn("Playlists table might not exist yet:", err);
+    }
+  };
+
   useEffect(() => {
-    supabase.from('music_tracks').select('*').then(r => setTracks(r.data || []));
+    fetchTracks();
+    fetchPlaylists();
   }, []);
+
+  // Sync isPlaying state with audio element
+  useEffect(() => {
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.play().catch(e => {
+        console.warn("Autoplay blocked or playback failed:", e);
+        setIsPlaying(false);
+      });
+    } else {
+      audioRef.current.pause();
+    }
+  }, [isPlaying, current]);
 
   const filtered = activeTab === 'music' ? tracks.filter(t => t.type === 'MUSIC') : 
                    activeTab === 'podcast' ? tracks.filter(t => t.type === 'PODCAST') : [];
 
-  const toggleTrack = (track: MusicTrack) => {
+  const toggleTrack = (track: MusicTrack, list: MusicTrack[]) => {
     if (current?.id === track.id) {
-      if (isPlaying) {
-        audioRef.current?.pause();
-        setIsPlaying(false);
-      } else {
-        audioRef.current?.play();
-        setIsPlaying(true);
-      }
+      setIsPlaying(!isPlaying);
     } else {
+      setPlayingList(list);
       setCurrent(track);
       setIsPlaying(true);
     }
   };
 
   const handleNext = () => {
-    if (!current || filtered.length === 0) return;
-    const currentIndex = filtered.findIndex(t => t.id === current.id);
-    const nextIndex = (currentIndex + 1) % filtered.length;
-    setCurrent(filtered[nextIndex]);
+    if (!current || playingList.length === 0) return;
+    const currentIndex = playingList.findIndex(t => t.id === current.id);
+    const nextIndex = (currentIndex + 1) % playingList.length;
+    setCurrent(playingList[nextIndex]);
     setIsPlaying(true);
   };
 
   const handlePrevious = () => {
-    if (!current || filtered.length === 0) return;
-    const currentIndex = filtered.findIndex(t => t.id === current.id);
-    const prevIndex = (currentIndex - 1 + filtered.length) % filtered.length;
-    setCurrent(filtered[prevIndex]);
+    if (!current || playingList.length === 0) return;
+    const currentIndex = playingList.findIndex(t => t.id === current.id);
+    const prevIndex = (currentIndex - 1 + playingList.length) % playingList.length;
+    setCurrent(playingList[prevIndex]);
     setIsPlaying(true);
   };
 
@@ -233,48 +281,199 @@ export const MusicView = () => {
     }
   };
 
+  const createPlaylist = async () => {
+    if (!newPlaylistTitle.trim()) return;
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return alert("Sign in to create playlists.");
+
+    try {
+      const { data, error } = await supabase
+        .from('playlists')
+        .insert([{ title: newPlaylistTitle, user_id: user.id }])
+        .select();
+      
+      if (error) throw error;
+      setNewPlaylistTitle('');
+      setIsCreatingPlaylist(false);
+      fetchPlaylists();
+    } catch (err: any) {
+      alert("Failed to create playlist: " + err.message);
+    }
+  };
+
+  const addToPlaylist = async (playlistId: string) => {
+    if (!trackToAdd) return;
+    try {
+      const { error } = await supabase
+        .from('playlist_tracks')
+        .insert([{ playlist_id: playlistId, track_id: trackToAdd.id }]);
+      
+      if (error) throw error;
+      setShowAddModal(false);
+      setTrackToAdd(null);
+      fetchPlaylists();
+      alert("Added to playlist!");
+    } catch (err: any) {
+      alert("Failed to add track: " + err.message);
+    }
+  };
+
   return (
-    <div className="p-4 flex flex-col h-full pb-48">
-      <h2 className="text-2xl font-black mb-6 dark:text-white tracking-tighter uppercase">Media</h2>
-      <div className="flex gap-2 mb-6">
+    <div className="p-4 flex flex-col h-full pb-48 animate-fade-in relative">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-black dark:text-white tracking-tighter uppercase">Media Hub</h2>
+        {activeTab === 'playlists' && !selectedPlaylist && (
+          <button 
+            onClick={() => setIsCreatingPlaylist(true)}
+            className="p-2 bg-blue-600 text-white rounded-xl shadow-lg hover:scale-105 active:scale-95 transition"
+          >
+            <FolderPlus size={20}/>
+          </button>
+        )}
+      </div>
+
+      <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar">
         {['music', 'podcast', 'playlists'].map(t => (
           <button 
             key={t} 
-            onClick={() => setActiveTab(t as any)} 
-            className={`px-5 py-2 rounded-full text-xs font-bold uppercase tracking-widest transition-all ${activeTab === t ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500'}`}
+            onClick={() => { setActiveTab(t as any); setSelectedPlaylist(null); }} 
+            className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all whitespace-nowrap ${activeTab === t ? 'bg-blue-600 text-white shadow-lg shadow-blue-200' : 'bg-white dark:bg-slate-800 text-slate-500 border dark:border-slate-700'}`}
           >
             {t}
           </button>
         ))}
       </div>
 
-      <div className="space-y-3 overflow-y-auto pr-1 no-scrollbar">
-        {filtered.map(track => (
-          <div 
-            key={track.id} 
-            onClick={() => toggleTrack(track)} 
-            className={`p-4 rounded-3xl flex items-center gap-4 border transition-all cursor-pointer ${current?.id === track.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200' : 'bg-white dark:bg-slate-800 border-transparent dark:border-slate-700 shadow-sm hover:border-slate-200'}`}
-          >
-            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${current?.id === track.id ? 'bg-blue-600 text-white' : 'bg-blue-100 dark:bg-blue-900 text-blue-600'}`}>
-              {current?.id === track.id && isPlaying ? <Pause size={20}/> : <Play size={20} fill="currentColor"/>}
-            </div>
-            <div className="flex-1">
-              <h4 className={`font-bold text-sm ${current?.id === track.id ? 'text-blue-700 dark:text-blue-400' : 'dark:text-white'}`}>{track.title}</h4>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">{track.artist}</p>
-            </div>
+      {activeTab === 'playlists' && selectedPlaylist ? (
+        <div className="space-y-4">
+          <button onClick={() => setSelectedPlaylist(null)} className="flex items-center gap-2 text-[10px] font-black text-blue-600 uppercase mb-4">
+            <ArrowLeft size={14}/> Back to Playlists
+          </button>
+          <div className="p-6 bg-gradient-to-br from-[#0c2d58] to-blue-900 rounded-[2.5rem] text-white shadow-xl mb-6">
+             <h3 className="text-2xl font-black tracking-tight">{selectedPlaylist.title}</h3>
+             <p className="text-[10px] font-bold uppercase tracking-widest opacity-70">{selectedPlaylist.tracks.length} Tracks</p>
           </div>
-        ))}
-        {filtered.length === 0 && (
-          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
-            No media found
+          <div className="space-y-3">
+            {selectedPlaylist.tracks.map((track: MusicTrack) => (
+              <div 
+                key={track.id} 
+                className={`p-4 rounded-3xl flex items-center gap-4 border transition-all cursor-pointer ${current?.id === track.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200' : 'bg-white dark:bg-slate-800 border-transparent dark:border-slate-700 shadow-sm'}`}
+                onClick={() => toggleTrack(track, selectedPlaylist.tracks)}
+              >
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${current?.id === track.id ? 'bg-blue-600 text-white' : 'bg-blue-100 dark:bg-blue-900 text-blue-600'}`}>
+                  {current?.id === track.id && isPlaying ? <Pause size={18}/> : <Play size={18} fill="currentColor"/>}
+                </div>
+                <div className="flex-1">
+                  <h4 className="font-bold text-sm dark:text-white leading-tight">{track.title}</h4>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase">{track.artist}</p>
+                </div>
+              </div>
+            ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : activeTab === 'playlists' ? (
+        <div className="grid grid-cols-2 gap-4">
+           {userPlaylists.length > 0 ? userPlaylists.map(pl => (
+             <div 
+              key={pl.id} 
+              onClick={() => setSelectedPlaylist(pl)}
+              className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-all cursor-pointer group"
+             >
+                <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 mb-4 group-hover:scale-110 transition-transform">
+                   <ListMusic size={24}/>
+                </div>
+                <h4 className="font-black text-sm dark:text-white mb-1 truncate">{pl.title}</h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{pl.tracks.length} Tracks</p>
+             </div>
+           )) : (
+             <div className="col-span-2 py-20 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
+               <Music size={48} className="mx-auto text-slate-200 mb-4" />
+               <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No playlists created yet</p>
+               <button onClick={() => setIsCreatingPlaylist(true)} className="mt-4 text-blue-600 font-black uppercase text-[10px] tracking-widest">Create Your First One</button>
+             </div>
+           )}
+        </div>
+      ) : (
+        <div className="space-y-3 overflow-y-auto pr-1 no-scrollbar">
+          {filtered.map(track => (
+            <div 
+              key={track.id} 
+              className={`p-4 rounded-3xl flex items-center gap-4 border transition-all cursor-pointer ${current?.id === track.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200' : 'bg-white dark:bg-slate-800 border-transparent dark:border-slate-700 shadow-sm hover:border-slate-200'}`}
+              onClick={() => toggleTrack(track, filtered)}
+            >
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${current?.id === track.id ? 'bg-blue-600 text-white' : 'bg-blue-100 dark:bg-blue-900 text-blue-600'}`}>
+                {current?.id === track.id && isPlaying ? <Pause size={20}/> : <Play size={20} fill="currentColor"/>}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h4 className={`font-bold text-sm truncate ${current?.id === track.id ? 'text-blue-700 dark:text-blue-400' : 'dark:text-white'}`}>{track.title}</h4>
+                <p className="text-[10px] font-bold text-slate-400 uppercase truncate">{track.artist}</p>
+              </div>
+              <button 
+                onClick={(e) => { e.stopPropagation(); setTrackToAdd(track); setShowAddModal(true); }}
+                className="p-2 text-slate-400 hover:text-blue-600 transition"
+              >
+                <Plus size={20}/>
+              </button>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
+              No media found
+            </div>
+          )}
+        </div>
+      )}
 
+      {/* Playlist Creation Modal */}
+      {isCreatingPlaylist && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border dark:border-slate-700 animate-slide-up">
+              <h3 className="text-xl font-black uppercase tracking-tighter mb-6 dark:text-white">Create Playlist</h3>
+              <input 
+                autoFocus
+                value={newPlaylistTitle}
+                onChange={e => setNewPlaylistTitle(e.target.value)}
+                placeholder="My Worship List..."
+                className="w-full bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl text-sm font-bold mb-6 outline-none focus:ring-2 focus:ring-blue-500 dark:text-white"
+              />
+              <div className="flex gap-3">
+                <button onClick={() => setIsCreatingPlaylist(false)} className="flex-1 py-4 text-xs font-black uppercase tracking-widest text-slate-500">Cancel</button>
+                <button onClick={createPlaylist} className="flex-1 py-4 bg-blue-600 text-white rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg active:scale-95 transition">Create</button>
+              </div>
+           </div>
+        </div>
+      )}
+
+      {/* Add Track to Playlist Modal */}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-6 z-[100]">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border dark:border-slate-700 animate-slide-up">
+              <h3 className="text-lg font-black uppercase tracking-tighter mb-4 dark:text-white">Add to Playlist</h3>
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-6">Select a playlist for: <span className="text-blue-600">{trackToAdd?.title}</span></p>
+              <div className="space-y-3 max-h-60 overflow-y-auto no-scrollbar mb-6">
+                {userPlaylists.length > 0 ? userPlaylists.map(pl => (
+                   <button 
+                    key={pl.id} 
+                    onClick={() => addToPlaylist(pl.id)}
+                    className="w-full p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl text-left font-bold text-sm dark:text-white hover:bg-blue-50 dark:hover:bg-blue-900/20 transition flex items-center justify-between"
+                   >
+                     {pl.title}
+                     <ChevronRight size={16} className="text-slate-300"/>
+                   </button>
+                )) : (
+                  <p className="text-center py-4 text-xs text-slate-500">No playlists found. Create one first!</p>
+                )}
+              </div>
+              <button onClick={() => setShowAddModal(false)} className="w-full py-4 text-xs font-black uppercase tracking-widest text-slate-500">Close</button>
+           </div>
+        </div>
+      )}
+
+      {/* Fixed Media Player */}
       {current && (
-        <div className="fixed bottom-20 left-4 right-4 bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.1)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border dark:border-slate-700 z-40 animate-slide-up">
+        <div className="fixed bottom-20 left-4 right-4 bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-[0_-10px_40px_rgba(0,0,0,0.15)] dark:shadow-[0_-10px_40px_rgba(0,0,0,0.5)] border dark:border-slate-700 z-40 animate-slide-up">
            <div className="flex items-center gap-4 mb-6">
-             <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg animate-pulse">
+             <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-200 dark:shadow-none animate-pulse">
                <Music size={24}/>
              </div>
              <div className="flex-1 min-w-0">
@@ -303,7 +502,7 @@ export const MusicView = () => {
                   {isPlaying ? <Pause size={32}/> : <Play size={32} fill="currentColor" className="ml-1"/>}
                 </button>
 
-                <button onClick={handleReplay} className="p-3 text-blue-600 hover:bg-blue-50 dark:hover:bg-red-900/20 rounded-full transition-colors active:scale-90">
+                <button onClick={handleReplay} className="p-3 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors active:scale-90">
                   <RotateCcw size={20} />
                 </button>
              </div>
@@ -316,7 +515,6 @@ export const MusicView = () => {
            <audio 
              ref={audioRef} 
              src={current.url} 
-             autoPlay={isPlaying} 
              loop={isLooping}
              onEnded={() => {
                if (!isLooping) handleNext();
@@ -357,7 +555,6 @@ export const BlogView = () => {
         </button>
         
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
-          {/* HEADER MEDIA SECTION - Displays Video if available, otherwise Image */}
           <div className="relative group bg-slate-100 dark:bg-slate-900 min-h-[300px] flex items-center justify-center overflow-hidden aspect-video bg-black">
             {selectedPost.video_url ? (
                ytId ? (
@@ -440,7 +637,6 @@ export const BlogView = () => {
                  >
                    <Share2 size={14}/>
                  </button>
-                 {/* Fixed: Read Article button functionality */}
                  <button 
                   onClick={(e) => { e.stopPropagation(); setSelectedPost(blog); }}
                   className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase transition transform active:scale-95 shadow-md hover:bg-blue-700"
@@ -1054,10 +1250,8 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
 
   return (
     <div className="p-4 pb-24 max-w-2xl mx-auto animate-fade-in">
-      {/* Header Profile Card */}
       <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden mb-8">
         <Logo className="absolute -bottom-8 -right-8 w-48 h-48 opacity-10 pointer-events-none" />
-        
         <div className="flex flex-col items-center text-center relative z-10">
           <div className="w-24 h-24 bg-white/20 backdrop-blur-xl border-4 border-white/30 rounded-[2.5rem] flex items-center justify-center text-4xl font-black mb-4 shadow-2xl">
             {user?.firstName?.[0]}{user?.lastName?.[0]}
@@ -1070,7 +1264,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
         </div>
       </div>
 
-      {/* Main Info Card */}
       <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-8 border dark:border-slate-700 shadow-sm space-y-8">
         <div className="flex items-center justify-between">
           <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
@@ -1134,7 +1327,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
         )}
       </div>
 
-      {/* Settings/Actions List */}
       <div className="mt-8 space-y-3">
         <button 
           onClick={toggleTheme}
@@ -1151,7 +1343,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
           </div>
           <ChevronRight size={20} className="text-slate-300 group-hover:translate-x-1 transition"/>
         </button>
-
         <button 
           onClick={() => onNavigate('contact')}
           className="w-full bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 flex items-center justify-between group transition-transform active:scale-[0.98]"
@@ -1167,7 +1358,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
           </div>
           <ChevronRight size={20} className="text-slate-300 group-hover:translate-x-1 transition"/>
         </button>
-
         <button 
           onClick={onLogout}
           className="w-full bg-red-50 dark:bg-red-900/10 p-6 rounded-[2rem] border border-red-100 dark:border-red-900/20 flex items-center justify-between group transition-transform active:scale-[0.98]"
@@ -1208,7 +1398,6 @@ export const ContactView = ({ onBack }: { onBack: () => void }) => (
   <div className="p-4 pb-24 max-w-2xl mx-auto animate-fade-in">
     <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-black mb-6 hover:translate-x-[-4px] transition-transform uppercase tracking-widest text-[10px]"><ArrowLeft size={16}/> Back to Profile</button>
     <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter mb-8">Contact Us</h2>
-    
     <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-8 border dark:border-slate-700 shadow-sm space-y-12">
       <div className="space-y-6">
         <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Our Location</h3>
@@ -1220,7 +1409,6 @@ export const ContactView = ({ onBack }: { onBack: () => void }) => (
            </div>
         </div>
       </div>
-
       <div className="space-y-6">
         <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Contact Channels</h3>
         <div className="grid grid-cols-1 gap-4">

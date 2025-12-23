@@ -30,64 +30,46 @@ const getYouTubeID = (url: string) => {
 
 /**
  * Enhanced Share Utility
- * Shares the ACTUAL file (image or video) instead of just a link.
- * Targets the native share sheet which allows Instagram, Facebook, TikTok, etc.
+ * Shares the ACTUAL file (image or video) via System Share Sheet.
+ * This allows sharing to Instagram, TikTok, Facebook, and WhatsApp.
  */
 const shareMediaFile = async (mediaUrl: string, title: string, fileName: string = 'share-content') => {
   if (!mediaUrl) return;
 
   try {
-    // Check if it's a player link (YouTube/Vimeo) - we can't fetch these as files
-    const isPlayer = mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || mediaUrl.includes('vimeo');
-    
-    if (isPlayer) {
-      // For players, if the system share exists, use it for the link
-      if (navigator.share) {
-        await navigator.share({ title, url: mediaUrl });
-      } else {
-        // Fallback for players when native share is missing
-        const shareUrl = `https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`;
-        window.open(shareUrl, '_blank');
-      }
-      return;
-    }
-
-    // 1. Fetch the file blob
-    const response = await fetch(mediaUrl, { method: 'GET' });
+    // 1. Fetch the media as a blob
+    const response = await fetch(mediaUrl, { mode: 'cors' });
     if (!response.ok) throw new Error('Fetch failed');
     const blob = await response.blob();
     
     // 2. Create a File object
     const mimeType = blob.type || (mediaUrl.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'image/png');
-    const extension = mimeType.split('/')[1]?.split('+')[0] || 'png';
-    const file = new File([blob], `${fileName}.${extension}`, { type: mimeType });
+    const ext = mimeType.split('/')[1]?.split('+')[0] || 'png';
+    const file = new File([blob], `${fileName}.${ext}`, { type: mimeType });
 
-    // 3. Check if sharing files is supported (Native Share Sheet)
-    // This sheet includes Instagram, TikTok, Facebook, WhatsApp, etc.
+    // 3. Use Native Share Sheet with files
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
         files: [file],
         title: title,
         text: title
       });
-    } else if (navigator.share) {
-      // Fallback to text share if files not supported but share is
-      await navigator.share({ title, url: mediaUrl });
-    } else {
-      // Last resort fallback to WhatsApp link
-      const shareUrl = `https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`;
-      window.open(shareUrl, '_blank');
+      return;
     }
-  } catch (err) { 
-    console.error("Share failed:", err); 
-    // Final generic fallback
-    if (navigator.share) {
-      try { await navigator.share({ title, url: mediaUrl }); } catch(e) {}
-    } else {
-      navigator.clipboard.writeText(mediaUrl);
-      alert("Could not share file directly. Link copied to clipboard!");
-    }
+  } catch (err) {
+    console.warn("Direct file share not supported or failed, falling back to link:", err);
   }
+
+  // Fallback 1: Native Share (Link only)
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, url: mediaUrl });
+      return;
+    } catch (e) {}
+  }
+
+  // Fallback 2: WhatsApp Link
+  window.open(`https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`, '_blank');
 };
 
 // --- HOME PAGE ---
@@ -638,7 +620,6 @@ export const BlogView = () => {
               <button 
                 onClick={() => {
                    const isYT = selectedPost.video_url && (selectedPost.video_url.includes('youtube.com') || selectedPost.video_url.includes('youtu.be'));
-                   // Avoid sharing link by sharing the thumbnail image if it's a youtube player
                    const shareTarget = isYT ? selectedPost.image_url : (selectedPost.video_url || selectedPost.image_url);
                    shareMediaFile(shareTarget, selectedPost.title, selectedPost.title.replace(/\s+/g, '-').toLowerCase());
                 }} 
@@ -697,7 +678,6 @@ export const BlogView = () => {
                   onClick={(e) => { 
                     e.stopPropagation(); 
                     const isYT = blog.video_url && (blog.video_url.includes('youtube.com') || blog.video_url.includes('youtu.be'));
-                    // Priority: Share actual image file instead of YouTube link
                     const shareTarget = isYT ? blog.image_url : (blog.video_url || blog.image_url);
                     shareMediaFile(shareTarget, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase()); 
                   }} 
@@ -715,7 +695,7 @@ export const BlogView = () => {
             </div>
           </div>
         )) : (
-          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
+          <div className="py-20 text-center text-slate-400 font-black uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
             No articles found in this category
           </div>
         )}
@@ -1034,81 +1014,59 @@ export const SermonsView = () => {
 
   if (loading) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-4">
-        <Loader2 className="animate-spin text-blue-600" size={40} />
-        <p className="text-xs font-black uppercase tracking-widest">Loading Word...</p>
+      <div className="flex flex-col items-center justify-center py-24 text-slate-400">
+        <Loader2 className="animate-spin mb-4" size={40} />
+        <p className="text-xs font-black uppercase tracking-widest">Loading Library...</p>
       </div>
     );
   }
 
   return (
-    <div className="p-4 pb-24 space-y-6 max-w-4xl mx-auto animate-fade-in">
+    <div className="p-4 space-y-6 pb-24 animate-fade-in">
       <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Sermon Archive</h2>
-      
-      {sermons.length > 0 ? (
-        <div className="space-y-8">
-          {sermons.map((sermon) => {
-            const ytId = getYouTubeID(sermon.video_url);
-            return (
-              <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-colors group">
-                <div className="aspect-video w-full bg-black">
-                  {ytId ? (
-                    <iframe
-                      width="100%"
-                      height="100%"
-                      src={`https://www.youtube.com/embed/${ytId}`}
-                      title={sermon.title}
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                      className="w-full h-full"
-                    ></iframe>
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
-                      Invalid Video URL
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-6">
-                  <div className="flex justify-between items-start mb-3">
-                    <h3 className="text-xl font-black dark:text-white leading-tight pr-4">{sermon.title}</h3>
-                    <button 
-                      onClick={() => shareMediaFile(sermon.video_url, sermon.title, 'sermon')}
-                      className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition shadow-sm active:scale-90"
-                      title="Share Sermon"
-                    >
-                      <Share2 size={16} />
-                    </button>
-                  </div>
-                  
-                  <div className="flex flex-wrap gap-4 items-center text-[10px] font-black uppercase tracking-widest">
-                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-full">
-                      <UserIcon size={12}/>
-                      <span>{sermon.preacher}</span>
-                    </div>
-                    <div className="flex items-center gap-1.5 text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-full">
-                      <Calendar size={12}/>
-                      <span>{formatDate(sermon.date_preached)}</span>
-                    </div>
-                    {sermon.duration && (
-                      <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-full">
-                        <Clock size={12}/>
-                        <span>{sermon.duration}</span>
-                      </div>
-                    )}
-                  </div>
-                </div>
+      <div className="space-y-6">
+        {sermons.map(sermon => {
+          const ytId = getYouTubeID(sermon.video_url);
+          return (
+            <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
+              <div className="aspect-video bg-black relative">
+                {ytId ? (
+                  <iframe
+                    width="100%"
+                    height="100%"
+                    src={`https://www.youtube.com/embed/${ytId}`}
+                    title={sermon.title}
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full"
+                  ></iframe>
+                ) : (
+                  <video src={sermon.video_url} controls className="w-full h-full object-contain" />
+                )}
               </div>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
-          <Video className="mx-auto text-slate-300 mb-4" size={48} />
-          <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No sermons found in our archive</p>
-        </div>
-      )}
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-2">
+                  <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">
+                    {sermon.preacher}
+                  </span>
+                  <div className="flex items-center gap-1.5 text-slate-400">
+                    <Clock size={12}/>
+                    <span className="text-[10px] font-bold uppercase">{sermon.duration}</span>
+                  </div>
+                </div>
+                <h3 className="text-lg font-black dark:text-white leading-tight mb-2">{sermon.title}</h3>
+                <p className="text-[10px] font-bold text-blue-500 uppercase tracking-widest">{formatDate(sermon.date_preached)}</p>
+              </div>
+            </div>
+          );
+        })}
+        {sermons.length === 0 && (
+          <div className="py-20 text-center text-slate-400 font-black uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
+            No sermons found
+          </div>
+        )}
+      </div>
     </div>
   );
 };
@@ -1116,396 +1074,215 @@ export const SermonsView = () => {
 // --- EVENTS PAGE ---
 export const EventsView = ({ onBack }: { onBack: () => void }) => {
   const [events, setEvents] = useState<Event[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [userRsvps, setUserRsvps] = useState<Record<string, { status: string, transport_required: boolean }>>({});
-  const [submittingId, setSubmittingId] = useState<string | null>(null);
-  const [submittedId, setSubmittedId] = useState<string | null>(null);
 
-  const fetchData = async () => {
-    setLoading(true);
-    const { data: eventsData } = await supabase.from('events').select('*').order('date', { ascending: true });
-    setEvents(eventsData || []);
-
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data: rsvps } = await supabase.from('event_rsvps').select('*').eq('user_id', user.id);
-      const rsvpMap: any = {};
-      rsvps?.forEach(r => {
-        rsvpMap[r.event_id] = { status: r.status, transport_required: r.transport_required };
-      });
-      setUserRsvps(rsvpMap);
-    }
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, []);
-
-  const handleRsvpSubmit = async (eventId: string, status: string, transport: boolean) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return alert("Please sign in to RSVP.");
-
-    setSubmittingId(eventId);
-    const { error } = await supabase.from('event_rsvps').upsert({
-      user_id: user.id,
-      event_id: eventId,
-      status,
-      transport_required: transport
-    }, { onConflict: 'user_id,event_id' });
-
-    if (error) {
-      alert("Error submitting RSVP: " + error.message);
-    } else {
-      setUserRsvps(prev => ({ ...prev, [eventId]: { status, transport_required: transport } }));
-      setSubmittedId(eventId);
-      setTimeout(() => setSubmittedId(null), 3000);
-    }
-    setSubmittingId(null);
-  };
-
-  const handleTransportToggle = (eventId: string) => {
-    const current = userRsvps[eventId] || { status: 'None', transport_required: false };
-    setUserRsvps(prev => ({
-      ...prev,
-      [eventId]: { ...current, transport_required: !current.transport_required }
-    }));
-  };
-
-  const setLocalStatus = (eventId: string, status: string) => {
-    const current = userRsvps[eventId] || { status: 'None', transport_required: false };
-    setUserRsvps(prev => ({
-      ...prev,
-      [eventId]: { ...current, status }
-    }));
-  };
+  useEffect(() => {
+    supabase.from('events').select('*').order('date', { ascending: true })
+      .then(r => setEvents(r.data || []));
+  }, []);
 
   return (
-    <div className="p-4 pb-24 space-y-6 max-w-4xl mx-auto animate-fade-in">
-      <div className="flex items-center gap-4 mb-6">
-        <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition"><ArrowLeft/></button>
-        <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Community Updates</h2>
+    <div className="p-4 space-y-6 pb-24 animate-fade-in">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border dark:border-slate-700 text-slate-600 dark:text-slate-300"><ArrowLeft size={20}/></button>
+        <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Events & News</h2>
       </div>
 
-      {loading ? (
-        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={40}/></div>
-      ) : events.length > 0 ? (
-        <div className="grid grid-cols-1 gap-6">
-          {events.map(event => {
-            const rsvp = userRsvps[event.id] || { status: 'None', transport_required: false };
-            const isEvent = event.type === 'EVENT';
-            
-            return (
-              <div key={event.id} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border dark:border-slate-700 shadow-sm transition-all relative overflow-hidden group`}>
-                <div className={`absolute top-0 right-0 w-32 h-32 ${isEvent ? 'bg-blue-600/5' : 'bg-orange-600/5'} rounded-bl-[5rem] transition-colors duration-500`}></div>
-                
-                <div className="relative z-10 space-y-6">
-                   <div className="flex justify-between items-start">
-                      <div className={`w-14 h-14 ${isEvent ? 'bg-blue-600' : 'bg-orange-500'} text-white rounded-[1.5rem] flex items-center justify-center shadow-xl`}>
-                        {isEvent ? <Calendar size={28}/> : <Info size={28}/>}
-                      </div>
-                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isEvent ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
-                        {event.type}
-                      </span>
-                   </div>
-                   
-                   <div>
-                      <h3 className="text-2xl font-black dark:text-white leading-tight mb-3">{event.title}</h3>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{event.description}</p>
-                   </div>
-
-                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t dark:border-slate-700">
-                      <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-blue-600">
-                         <Calendar size={14}/> {formatDate(event.date)}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
-                         <Clock size={14}/> {event.time || 'TBA'}
-                      </div>
-                      <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
-                         <MapPin size={14}/> {event.location || 'Church Main Hall'}
-                      </div>
-                   </div>
-
-                   {isEvent && (
-                     <div className="mt-8 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] space-y-6 border dark:border-slate-700">
-                        <div className="space-y-4">
-                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">RSVP Confirmation</p>
-                           <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700">
-                              {['Yes', 'Maybe', 'No'].map((status) => (
-                                <button
-                                  key={status}
-                                  onClick={() => setLocalStatus(event.id, status)}
-                                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rsvp.status === status ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
-                                >
-                                  {status}
-                                </button>
-                              ))}
-                           </div>
-                        </div>
-
-                        <div className="flex items-center justify-between px-2">
-                           <div className="flex flex-col">
-                              <p className="text-sm font-black dark:text-white">Transport Needed?</p>
-                              <p className="text-[10px] text-slate-400 font-bold uppercase">Let us help you get here</p>
-                           </div>
-                           <button 
-                             onClick={() => handleTransportToggle(event.id)}
-                             className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${rsvp.transport_required ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'}`}
-                           >
-                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${rsvp.transport_required ? 'left-7' : 'left-1'}`}></div>
-                           </button>
-                        </div>
-
-                        <button 
-                          disabled={submittingId === event.id || rsvp.status === 'None'}
-                          onClick={() => handleRsvpSubmit(event.id, rsvp.status, rsvp.transport_required)}
-                          className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${submittedId === event.id ? 'bg-green-500 text-white' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-[1.02] active:scale-95'}`}
-                        >
-                          {submittingId === event.id ? (
-                            <Loader2 size={16} className="animate-spin" />
-                          ) : submittedId === event.id ? (
-                            <>
-                              <Check size={16}/> Saved and Submitted
-                            </>
-                          ) : (
-                            <>
-                              <Save size={16}/> Submit RSVP
-                            </>
-                          )}
-                        </button>
-                     </div>
-                   )}
-                </div>
+      <div className="space-y-4">
+        {events.map(event => (
+          <div key={event.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 shadow-sm">
+            <div className="flex justify-between items-start mb-4">
+              <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest ${event.type === 'EVENT' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                {event.type}
+              </span>
+              <div className="text-right">
+                <p className="text-xs font-black text-slate-800 dark:text-white">{formatDate(event.date)}</p>
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{event.time}</p>
               </div>
-            );
-          })}
+            </div>
+            <h4 className="text-lg font-black dark:text-white mb-2 leading-tight">{event.title}</h4>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{event.description}</p>
+            <div className="flex items-center gap-2 text-blue-600 font-bold text-xs uppercase">
+              <MapPin size={14}/> {event.location}
+            </div>
+          </div>
+        ))}
+        {events.length === 0 && (
+          <div className="py-20 text-center text-slate-400 font-black uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200 dark:border-slate-800">
+            No events scheduled
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// --- NOTIFICATIONS PAGE ---
+export const NotificationsView = () => {
+  return (
+    <div className="p-4 space-y-6 pb-24">
+      <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Notifications</h2>
+      <div className="bg-white dark:bg-slate-800 p-12 rounded-[2.5rem] border dark:border-slate-700 shadow-sm text-center py-24 flex flex-col items-center">
+        <div className="w-20 h-20 bg-slate-50 dark:bg-slate-900 rounded-full flex items-center justify-center mb-6">
+          <Bell size={40} className="text-slate-200 dark:text-slate-700" />
         </div>
-      ) : (
-        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
-          <Calendar className="mx-auto text-slate-300 mb-4" size={48} />
-          <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No upcoming events scheduled</p>
+        <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Stay tuned for church updates</p>
+      </div>
+    </div>
+  );
+};
+
+// --- CONTACT PAGE ---
+export const ContactView = ({ onBack }: { onBack: () => void }) => {
+  return (
+    <div className="p-4 space-y-6 pb-24 animate-fade-in">
+      <div className="flex items-center gap-3">
+        <button onClick={onBack} className="p-2 bg-white dark:bg-slate-800 rounded-full shadow-sm border dark:border-slate-700 text-slate-600 dark:text-slate-300"><ArrowLeft size={20}/></button>
+        <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Contact Us</h2>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 shadow-sm space-y-8">
+        <div className="space-y-6">
+          <div className="flex items-center gap-5">
+             <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm"><Phone size={24}/></div>
+             <div>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Call Us</p>
+               <p className="font-bold dark:text-white text-lg leading-none">+27 31 123 4567</p>
+             </div>
+          </div>
+          <div className="flex items-center gap-5">
+             <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm"><Mail size={24}/></div>
+             <div>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Email Us</p>
+               <p className="font-bold dark:text-white text-lg leading-none">info@icc.com</p>
+             </div>
+          </div>
+          <div className="flex items-center gap-5">
+             <div className="w-14 h-14 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex items-center justify-center text-blue-600 shadow-sm"><MapPin size={24}/></div>
+             <div>
+               <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Visit Us</p>
+               <p className="font-bold dark:text-white text-lg leading-tight">123 Main Road, Isipingo, Durban</p>
+             </div>
+          </div>
         </div>
-      )}
+
+        <div className="pt-8 border-t dark:border-slate-700">
+           <p className="text-xs font-black text-slate-400 uppercase tracking-widest mb-4">Service Times</p>
+           <div className="space-y-2">
+              <div className="flex justify-between items-center"><span className="text-sm font-bold dark:text-slate-300">Sunday Morning</span><span className="text-sm font-black text-blue-600 uppercase">08:00 AM</span></div>
+              <div className="flex justify-between items-center"><span className="text-sm font-bold dark:text-slate-300">Mid-Week Prayer</span><span className="text-sm font-black text-blue-600 uppercase">06:30 PM</span></div>
+           </div>
+        </div>
+      </div>
     </div>
   );
 };
 
 // --- PROFILE PAGE ---
-export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
-  const [editing, setEditing] = useState(false);
-  const [formData, setFormData] = useState({
-    firstName: user?.firstName || '',
-    lastName: user?.lastName || '',
-    phone: user?.phone || '',
-    dob: user?.dob || '',
-    gender: user?.gender || 'Female'
-  });
+export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: { 
+  user: User | null, 
+  onUpdateUser: (data: Partial<User>) => void,
+  onLogout: () => void,
+  toggleTheme: () => void,
+  isDarkMode: boolean,
+  onNavigate: (tab: string) => void
+}) => {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editData, setEditData] = useState<Partial<User>>({});
 
   useEffect(() => {
-    if (user) {
-      setFormData({
-        firstName: user.firstName,
-        lastName: user.lastName,
-        phone: user.phone,
-        dob: user.dob,
-        gender: user.gender || 'Female'
-      });
-    }
+    if (user) setEditData({
+      firstName: user.firstName,
+      lastName: user.lastName,
+      phone: user.phone,
+      dob: user.dob,
+      gender: user.gender
+    });
   }, [user]);
 
-  const handleSave = async () => {
-    await onUpdateUser(formData);
-    setEditing(false);
+  const handleSave = () => {
+    onUpdateUser(editData);
+    setIsEditing(false);
   };
 
   return (
-    <div className="p-4 pb-24 max-w-2xl mx-auto animate-fade-in">
-      <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden mb-8">
-        <Logo className="absolute -bottom-8 -right-8 w-48 h-48 opacity-10 pointer-events-none" />
-        <div className="flex flex-col items-center text-center relative z-10">
-          <div className="w-24 h-24 bg-white/20 backdrop-blur-xl border-4 border-white/30 rounded-[2.5rem] flex items-center justify-center text-4xl font-black mb-4 shadow-2xl">
-            {user?.firstName?.[0]}{user?.lastName?.[0]}
+    <div className="p-4 space-y-6 pb-24 animate-fade-in">
+      <div className="bg-[#0c2d58] p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
+        <Logo className="absolute -bottom-8 -right-8 w-40 h-40 opacity-5" />
+        <div className="flex items-center gap-6 relative z-10">
+          <div className="w-24 h-24 bg-white/10 backdrop-blur-md rounded-[2rem] flex items-center justify-center text-white text-4xl font-black shadow-inner border border-white/20">
+             {user?.firstName?.[0]}{user?.lastName?.[0]}
           </div>
-          <h2 className="text-2xl font-black tracking-tight leading-none mb-2">{user?.firstName} {user?.lastName}</h2>
-          <div className="flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md">
-            <Shield size={12} className="text-blue-300"/>
-            <p className="text-blue-100 font-black text-[10px] uppercase tracking-widest opacity-90">{user?.role} • Joined {formatDate(user?.joinedDate)}</p>
+          <div>
+            <h2 className="text-2xl font-black tracking-tighter">{user?.firstName} {user?.lastName}</h2>
+            <div className="px-3 py-1 bg-blue-500/20 rounded-full w-fit mt-1 border border-blue-400/30">
+              <p className="text-[10px] font-black uppercase tracking-widest text-blue-300">{user?.role}</p>
+            </div>
           </div>
         </div>
       </div>
 
-      <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-8 border dark:border-slate-700 shadow-sm space-y-8">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
-            <UserIcon size={14}/> Personal Details
-          </h3>
-          <button 
-            onClick={() => setEditing(!editing)}
-            className={`p-3 rounded-2xl transition flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${editing ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20'}`}
-          >
-            {editing ? <X size={14}/> : <Edit2 size={14}/>}
-            {editing ? 'Cancel' : 'Edit Info'}
+      <div className="grid grid-cols-2 gap-4">
+        <button onClick={() => onNavigate('contact')} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 shadow-sm flex flex-col items-center gap-3 active:scale-95 transition-transform group">
+          <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/30 rounded-2xl flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+            <Mail size={24}/>
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">Contact Us</span>
+        </button>
+        <button onClick={toggleTheme} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 shadow-sm flex flex-col items-center gap-3 active:scale-95 transition-transform">
+          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center transition-colors ${isDarkMode ? 'bg-amber-500/20 text-amber-500' : 'bg-indigo-50 text-indigo-600'}`}>
+            {isDarkMode ? <Sun size={24}/> : <Moon size={24}/>}
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</span>
+        </button>
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 shadow-sm space-y-6">
+        <div className="flex justify-between items-center mb-2">
+          <h3 className="font-black dark:text-white uppercase tracking-tighter text-lg">My Information</h3>
+          <button onClick={() => setIsEditing(!isEditing)} className={`p-2 rounded-full transition-colors ${isEditing ? 'bg-rose-50 text-rose-600' : 'bg-blue-50 text-blue-600'}`}>
+            {isEditing ? <X size={20}/> : <Edit2 size={20}/>}
           </button>
         </div>
 
-        <div className="grid grid-cols-1 gap-6">
-          {[
-            { label: 'First Name', key: 'firstName', icon: UserIcon },
-            { label: 'Last Name', key: 'lastName', icon: UserIcon },
-            { label: 'Phone', key: 'phone', icon: Phone },
-            { label: 'Date of Birth', key: 'dob', icon: Calendar, type: 'date' },
-            { label: 'Gender', key: 'gender', icon: Users, type: 'select', options: ['Male', 'Female'] }
-          ].map(field => (
-            <div key={field.key} className="space-y-2">
-              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">{field.label}</label>
-              <div className="relative">
-                <field.icon size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600"/>
-                {editing ? (
-                  field.type === 'select' ? (
-                    <select 
-                      className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 p-4 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold dark:text-white appearance-none"
-                      value={(formData as any)[field.key]}
-                      onChange={e => setFormData({...formData, [field.key]: e.target.value})}
-                    >
-                      {field.options?.map(opt => <option key={opt}>{opt}</option>)}
-                    </select>
-                  ) : (
-                    <input 
-                      type={field.type || 'text'}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 p-4 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold dark:text-white"
-                      value={(formData as any)[field.key]}
-                      onChange={e => setFormData({...formData, [field.key]: e.target.value})}
-                    />
-                  )
-                ) : (
-                  <div className="w-full bg-slate-50 dark:bg-slate-900 border border-transparent dark:border-slate-700 p-4 pl-14 rounded-2xl text-sm font-bold dark:text-white">
-                    {(user as any)[field.key] || 'Not specified'}
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="space-y-4">
+           {isEditing ? (
+             <div className="space-y-5 animate-slide-up">
+               <div className="space-y-1.5">
+                 <label className="text-[10px] font-black uppercase text-slate-400 ml-2">First Name</label>
+                 <input value={editData.firstName || ''} onChange={e => setEditData({...editData, firstName: e.target.value})} placeholder="First Name" className="w-full bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition" />
+               </div>
+               <div className="space-y-1.5">
+                 <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Last Name</label>
+                 <input value={editData.lastName || ''} onChange={e => setEditData({...editData, lastName: e.target.value})} placeholder="Last Name" className="w-full bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition" />
+               </div>
+               <div className="space-y-1.5">
+                 <label className="text-[10px] font-black uppercase text-slate-400 ml-2">Phone</label>
+                 <input value={editData.phone || ''} onChange={e => setEditData({...editData, phone: e.target.value})} placeholder="Phone" className="w-full bg-slate-100 dark:bg-slate-900 p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition" />
+               </div>
+               <button onClick={handleSave} className="w-full bg-[#0c2d58] text-white p-4 rounded-2xl font-black uppercase tracking-widest shadow-lg active:scale-95 transition-transform mt-2">Save Changes</button>
+             </div>
+           ) : (
+             <div className="space-y-3">
+               <div className="flex justify-between items-center py-3 border-b dark:border-slate-700/50">
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Email Address</span>
+                 <span className="text-sm font-bold dark:text-white truncate max-w-[200px]">{user?.email}</span>
+               </div>
+               <div className="flex justify-between items-center py-3 border-b dark:border-slate-700/50">
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Mobile Contact</span>
+                 <span className="text-sm font-bold dark:text-white">{user?.phone || 'Not set'}</span>
+               </div>
+               <div className="flex justify-between items-center py-3 border-b dark:border-slate-700/50">
+                 <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Member Since</span>
+                 <span className="text-sm font-bold dark:text-white">{formatDate(user?.joinedDate)}</span>
+               </div>
+             </div>
+           )}
         </div>
-
-        {editing && (
-          <button 
-            onClick={handleSave}
-            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-3 transition hover:bg-blue-700"
-          >
-            <Save size={18}/> Save Changes
-          </button>
-        )}
       </div>
 
-      <div className="mt-8 space-y-3">
-        <button 
-          onClick={toggleTheme}
-          className="w-full bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 flex items-center justify-between group transition-transform active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300">
-              {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
-            </div>
-            <div className="text-left">
-              <p className="font-black text-sm dark:text-white">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Toggle Appearance</p>
-            </div>
-          </div>
-          <ChevronRight size={20} className="text-slate-300 group-hover:translate-x-1 transition"/>
-        </button>
-        <button 
-          onClick={() => onNavigate('contact')}
-          className="w-full bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 flex items-center justify-between group transition-transform active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300">
-              <Phone size={20}/>
-            </div>
-            <div className="text-left">
-              <p className="font-black text-sm dark:text-white">Help & Support</p>
-              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Contact Office</p>
-            </div>
-          </div>
-          <ChevronRight size={20} className="text-slate-300 group-hover:translate-x-1 transition"/>
-        </button>
-        <button 
-          onClick={onLogout}
-          className="w-full bg-red-50 dark:bg-red-900/10 p-6 rounded-[2rem] border border-red-100 dark:border-red-900/20 flex items-center justify-between group transition-transform active:scale-[0.98]"
-        >
-          <div className="flex items-center gap-4 text-red-600">
-            <div className="w-10 h-10 bg-red-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-red-200 dark:shadow-none">
-              <LogOut size={20}/>
-            </div>
-            <div className="text-left">
-              <p className="font-black text-sm">Sign Out</p>
-              <p className="text-[10px] opacity-60 font-black uppercase tracking-widest">Securely Logout</p>
-            </div>
-          </div>
-          <ChevronRight size={20} className="text-red-300 group-hover:translate-x-1 transition"/>
-        </button>
-      </div>
+      <button onClick={onLogout} className="w-full bg-rose-50 dark:bg-rose-900/10 text-rose-600 p-6 rounded-[2.5rem] font-black uppercase tracking-widest border border-rose-100 dark:border-rose-900/20 flex items-center justify-center gap-3 active:scale-95 transition-all shadow-sm">
+        <LogOut size={24}/> Sign Out from ICC
+      </button>
     </div>
   );
 };
-
-// --- NOTIFICATIONS VIEW ---
-export const NotificationsView = () => (
-  <div className="p-4 max-w-2xl mx-auto animate-fade-in">
-    <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Notifications</h2>
-    <div className="py-24 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
-      <div className="relative inline-block mb-6">
-        <Bell className="mx-auto text-slate-200" size={64} />
-        <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full border-4 border-white dark:border-slate-900"></div>
-      </div>
-      <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Your Inbox is clean</p>
-      <p className="text-slate-300 dark:text-slate-600 text-[10px] mt-2 px-8 font-medium">We'll notify you when there's an update from the community.</p>
-    </div>
-  </div>
-);
-
-// --- CONTACT VIEW ---
-export const ContactView = ({ onBack }: { onBack: () => void }) => (
-  <div className="p-4 pb-24 max-w-2xl mx-auto animate-fade-in">
-    <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-black mb-6 hover:translate-x-[-4px] transition-transform uppercase tracking-widest text-[10px]"><ArrowLeft size={16}/> Back to Profile</button>
-    <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter mb-8">Contact Us</h2>
-    <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-8 border dark:border-slate-700 shadow-sm space-y-12">
-      <div className="space-y-6">
-        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Our Location</h3>
-        <div className="flex gap-4 items-start">
-           <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl flex items-center justify-center shrink-0"><MapPin size={24}/></div>
-           <div>
-              <p className="font-black text-sm dark:text-white">Isipingo Community Church</p>
-              <p className="text-sm text-slate-500 font-medium leading-relaxed">123 Church Avenue, Isipingo Beach<br/>Durban, 4115, South Africa</p>
-           </div>
-        </div>
-      </div>
-      <div className="space-y-6">
-        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Contact Channels</h3>
-        <div className="grid grid-cols-1 gap-4">
-          <a href="tel:+27123456789" className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl group transition-all hover:bg-blue-600 hover:text-white">
-             <div className="w-10 h-10 bg-white dark:bg-slate-800 text-blue-600 rounded-xl flex items-center justify-center group-hover:text-blue-600 group-hover:bg-white transition-colors"><Phone size={20}/></div>
-             <div className="flex-1">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Call us</p>
-                <p className="text-sm font-black">+27 12 345 6789</p>
-             </div>
-             <ExternalLink size={14} className="opacity-40 group-hover:opacity-100"/>
-          </a>
-          <a href="mailto:info@icc.com" className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl group transition-all hover:bg-blue-600 hover:text-white">
-             <div className="w-10 h-10 bg-white dark:bg-slate-800 text-blue-600 rounded-xl flex items-center justify-center group-hover:text-blue-600 group-hover:bg-white transition-colors"><Mail size={20}/></div>
-             <div className="flex-1">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Email us</p>
-                <p className="text-sm font-black">info@icc.com</p>
-             </div>
-             <ExternalLink size={14} className="opacity-40 group-hover:opacity-100"/>
-          </a>
-          <a href="https://wa.me/27123456789" className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl group transition-all hover:bg-green-600 hover:text-white">
-             <div className="w-10 h-10 bg-white dark:bg-slate-800 text-green-600 rounded-xl flex items-center justify-center group-hover:text-green-600 group-hover:bg-white transition-colors"><MessageCircle size={20}/></div>
-             <div className="flex-1">
-                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">WhatsApp</p>
-                <p className="text-sm font-black">Open Chat</p>
-             </div>
-             <ExternalLink size={14} className="opacity-40 group-hover:opacity-100"/>
-          </a>
-        </div>
-      </div>
-    </div>
-  </div>
-);

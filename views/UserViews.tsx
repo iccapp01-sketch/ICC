@@ -31,36 +31,62 @@ const getYouTubeID = (url: string) => {
 /**
  * Enhanced Share Utility
  * Shares the ACTUAL file (image or video) instead of just a link.
- * Note: navigator.share with files is supported on most modern mobile browsers.
+ * Targets the native share sheet which allows Instagram, Facebook, TikTok, etc.
  */
 const shareMediaFile = async (mediaUrl: string, title: string, fileName: string = 'share-content') => {
+  if (!mediaUrl) return;
+
   try {
+    // Check if it's a player link (YouTube/Vimeo) - we can't fetch these as files
+    const isPlayer = mediaUrl.includes('youtube.com') || mediaUrl.includes('youtu.be') || mediaUrl.includes('vimeo');
+    
+    if (isPlayer) {
+      // For players, if the system share exists, use it for the link
+      if (navigator.share) {
+        await navigator.share({ title, url: mediaUrl });
+      } else {
+        // Fallback for players when native share is missing
+        const shareUrl = `https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`;
+        window.open(shareUrl, '_blank');
+      }
+      return;
+    }
+
     // 1. Fetch the file blob
-    const response = await fetch(mediaUrl);
+    const response = await fetch(mediaUrl, { method: 'GET' });
+    if (!response.ok) throw new Error('Fetch failed');
     const blob = await response.blob();
     
     // 2. Create a File object
-    const extension = blob.type.split('/')[1] || 'png';
-    const file = new File([blob], `${fileName}.${extension}`, { type: blob.type });
+    const mimeType = blob.type || (mediaUrl.toLowerCase().endsWith('.mp4') ? 'video/mp4' : 'image/png');
+    const extension = mimeType.split('/')[1]?.split('+')[0] || 'png';
+    const file = new File([blob], `${fileName}.${extension}`, { type: mimeType });
 
-    // 3. Check if sharing files is supported
+    // 3. Check if sharing files is supported (Native Share Sheet)
+    // This sheet includes Instagram, TikTok, Facebook, WhatsApp, etc.
     if (navigator.canShare && navigator.canShare({ files: [file] })) {
       await navigator.share({
         files: [file],
         title: title,
-        text: `Check this out: ${title}`
+        text: title
       });
+    } else if (navigator.share) {
+      // Fallback to text share if files not supported but share is
+      await navigator.share({ title, url: mediaUrl });
     } else {
-      // Fallback for desktop or non-supported browsers
+      // Last resort fallback to WhatsApp link
       const shareUrl = `https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`;
       window.open(shareUrl, '_blank');
-      alert("Sharing actual files is only supported on mobile devices. Shared link instead.");
     }
   } catch (err) { 
     console.error("Share failed:", err); 
-    // Final fallback: copy link
-    navigator.clipboard.writeText(mediaUrl);
-    alert("Could not share file directly. Link copied to clipboard!");
+    // Final generic fallback
+    if (navigator.share) {
+      try { await navigator.share({ title, url: mediaUrl }); } catch(e) {}
+    } else {
+      navigator.clipboard.writeText(mediaUrl);
+      alert("Could not share file directly. Link copied to clipboard!");
+    }
   }
 };
 
@@ -611,8 +637,10 @@ export const BlogView = () => {
             <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
               <button 
                 onClick={() => {
-                   const shareUrl = selectedPost.video_url || selectedPost.image_url;
-                   shareMediaFile(shareUrl, selectedPost.title, selectedPost.title.replace(/\s+/g, '-').toLowerCase());
+                   const isYT = selectedPost.video_url && (selectedPost.video_url.includes('youtube.com') || selectedPost.video_url.includes('youtu.be'));
+                   // Avoid sharing link by sharing the thumbnail image if it's a youtube player
+                   const shareTarget = isYT ? selectedPost.image_url : (selectedPost.video_url || selectedPost.image_url);
+                   shareMediaFile(shareTarget, selectedPost.title, selectedPost.title.replace(/\s+/g, '-').toLowerCase());
                 }} 
                 className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg hover:scale-110 transition"
               >
@@ -653,7 +681,6 @@ export const BlogView = () => {
           <div key={blog.id} onClick={() => setSelectedPost(blog)} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-colors cursor-pointer group">
             <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-3xl overflow-hidden flex-shrink-0 relative">
               <img src={blog.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={blog.title} />
-              {/* Added a subtle play icon for video-enabled blogs to fix thumbnail "readability" */}
               {blog.video_url && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/10">
                    <div className="bg-white/30 backdrop-blur-md p-2 rounded-full">
@@ -669,8 +696,10 @@ export const BlogView = () => {
                  <button 
                   onClick={(e) => { 
                     e.stopPropagation(); 
-                    const shareUrl = blog.video_url || blog.image_url;
-                    shareMediaFile(shareUrl, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase()); 
+                    const isYT = blog.video_url && (blog.video_url.includes('youtube.com') || blog.video_url.includes('youtu.be'));
+                    // Priority: Share actual image file instead of YouTube link
+                    const shareTarget = isYT ? blog.image_url : (blog.video_url || blog.image_url);
+                    shareMediaFile(shareTarget, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase()); 
                   }} 
                   className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition"
                  >

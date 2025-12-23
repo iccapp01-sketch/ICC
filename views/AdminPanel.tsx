@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { BlogPost, User, Sermon, Event, CommunityGroup } from '../types';
 import { supabase } from '../lib/supabaseClient';
+import { Logo } from '../components/Logo';
 
 interface AdminPanelProps {
   onLogout: () => void;
@@ -1179,6 +1180,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'blogs' | 'sermons' | 'events' | 'groups'>('dashboard');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (activeTab === 'users') {
@@ -1210,6 +1212,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     }
   };
 
+  const filteredUsers = users.filter(u => {
+    const term = searchQuery.toLowerCase();
+    return (
+      u.firstName.toLowerCase().includes(term) ||
+      u.lastName.toLowerCase().includes(term) ||
+      u.email.toLowerCase().includes(term)
+    );
+  });
+
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'users', icon: Users, label: 'User Management' },
@@ -1224,7 +1235,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       {/* Sidebar */}
       <div className="w-64 bg-slate-900 text-white p-6 flex flex-col">
         <div className="flex items-center gap-3 mb-10">
-          <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-black">AD</div>
+          <Logo className="w-10 h-10" />
           <h1 className="font-black text-xl tracking-tighter">ADMIN PANEL</h1>
         </div>
 
@@ -1276,45 +1287,65 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
         ) : activeTab === 'groups' ? (
           <GroupManager />
         ) : activeTab === 'users' ? (
-          <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden animate-fade-in">
-            <table className="w-full text-left">
-              <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
-                <tr>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500">User</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500">Role</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500">Joined</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-                {users.map(u => (
-                  <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-sm dark:text-white">{u.firstName} {u.lastName}</span>
-                        <span className="text-xs text-slate-500">{u.email}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
-                        u.role === 'ADMIN' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
-                      }`}>
-                        {u.role}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-slate-500">
-                      {new Date(u.joinedDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={16}/></button>
-                        <button className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16}/></button>
-                      </div>
-                    </td>
+          <div className="space-y-6 animate-fade-in">
+            {/* Search Bar */}
+            <div className="relative max-w-md">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+              <input 
+                type="text"
+                placeholder="Search by name or email..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 pl-12 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 shadow-sm transition-all"
+              />
+            </div>
+
+            <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+              <table className="w-full text-left">
+                <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+                  <tr>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500">User</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500">Role</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500">Joined</th>
+                    <th className="px-6 py-4 text-[10px] font-black uppercase text-slate-500 text-right">Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+                  {filteredUsers.length > 0 ? filteredUsers.map(u => (
+                    <tr key={u.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-sm dark:text-white">{u.firstName} {u.lastName}</span>
+                          <span className="text-xs text-slate-500">{u.email}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${
+                          u.role === 'ADMIN' ? 'bg-purple-50 text-purple-600' : 'bg-blue-50 text-blue-600'
+                        }`}>
+                          {u.role}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm text-slate-500">
+                        {new Date(u.joinedDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={16}/></button>
+                          <button className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16}/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={4} className="px-6 py-12 text-center text-slate-400 font-bold uppercase tracking-widest text-xs">
+                        No matching users found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center h-[60vh] text-slate-400 animate-fade-in">

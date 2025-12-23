@@ -6,7 +6,7 @@ import {
   Facebook, MessageCircle, Send, User as UserIcon, Bell, Phone, Mail,
   Clock, MapPin, MoreVertical, ListMusic, Mic, Globe, Loader2, Save,
   SkipBack, SkipForward, Square, Repeat, RotateCcw, Edit2, Shield,
-  ExternalLink, Info
+  ExternalLink, Info, Trash2, Pencil, CornerDownRight
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { 
@@ -467,11 +467,25 @@ export const CommunityView = () => {
   const [posts, setPosts] = useState<GroupPost[]>([]);
   const [comment, setComment] = useState('');
   const [isJoining, setIsJoining] = useState<string | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [replyingToPost, setReplyingToPost] = useState<GroupPost | null>(null);
+  const [isSending, setIsSending] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  const fetchPosts = async (groupId: string) => {
+    const { data } = await supabase
+      .from('group_posts')
+      .select('*, profiles(first_name, last_name, avatar_url), group_post_likes(user_id)')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: true });
+    setPosts(data || []);
+  };
 
   const fetchGroupsData = async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      setCurrentUserId(user.id);
 
       const { data: groupsData } = await supabase.from('community_groups').select('*');
       const { data: myMemberships } = await supabase.from('community_group_members').select('*').eq('user_id', user.id);
@@ -499,8 +513,75 @@ export const CommunityView = () => {
   const openGroup = (g: CommunityGroup) => {
     if (g.status !== 'approved') return alert("Access pending admin approval.");
     setSelected(g);
-    supabase.from('group_posts').select('*, profiles(first_name, last_name)').eq('group_id', g.id).order('created_at', { ascending: false })
-      .then(r => setPosts(r.data || []));
+    fetchPosts(g.id);
+  };
+
+  const handleSendMessage = async () => {
+    if (!comment.trim() || !selected || !currentUserId) return;
+    setIsSending(true);
+
+    try {
+      if (editingPostId) {
+        const { error } = await supabase
+          .from('group_posts')
+          .update({ content: comment })
+          .eq('id', editingPostId);
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('group_posts')
+          .insert([{
+            group_id: selected.id,
+            user_id: currentUserId,
+            content: comment,
+            parent_id: replyingToPost?.id || null
+          }]);
+        if (error) throw error;
+      }
+
+      setComment('');
+      setEditingPostId(null);
+      setReplyingToPost(null);
+      await fetchPosts(selected.id);
+    } catch (err: any) {
+      alert("Error sending message: " + err.message);
+    } finally {
+      setIsSending(false);
+    }
+  };
+
+  const handleLikePost = async (postId: string) => {
+    if (!currentUserId) return;
+    const post = posts.find(p => p.id === postId);
+    const isLiked = post?.group_post_likes?.some(l => l.user_id === currentUserId);
+
+    try {
+      if (isLiked) {
+        await supabase.from('group_post_likes').delete().eq('post_id', postId).eq('user_id', currentUserId);
+      } else {
+        await supabase.from('group_post_likes').insert([{ post_id: postId, user_id: currentUserId }]);
+      }
+      fetchPosts(selected!.id);
+    } catch (err) {
+      console.error("Like error:", err);
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (!confirm("Delete this message?")) return;
+    try {
+      const { error } = await supabase.from('group_posts').delete().eq('id', postId);
+      if (error) throw error;
+      fetchPosts(selected!.id);
+    } catch (err: any) {
+      alert("Error deleting: " + err.message);
+    }
+  };
+
+  const handleEditClick = (post: GroupPost) => {
+    setComment(post.content);
+    setEditingPostId(post.id);
+    setReplyingToPost(null);
   };
 
   const handleJoin = async (groupId: string) => {
@@ -512,7 +593,6 @@ export const CommunityView = () => {
       }
 
       setIsJoining(groupId);
-      // Upsert to handle potential re-joins after declines if record persists as 'none' or similar
       const { error } = await supabase.from('community_group_members').upsert({ 
         group_id: groupId, 
         user_id: user.id, 
@@ -522,9 +602,7 @@ export const CommunityView = () => {
       if (error) throw error;
       await fetchGroupsData();
     } catch (err: any) {
-      console.error("Join error detail:", err);
-      // Fixed: Improved error reporting to provide clear messages instead of [object Object]
-      const errorMsg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err)) || "An unexpected error occurred.";
+      const errorMsg = err?.message || "An unexpected error occurred.";
       alert("Join error: " + errorMsg);
     } finally {
       setIsJoining(null);
@@ -533,30 +611,103 @@ export const CommunityView = () => {
 
   if (selected) {
     return (
-      <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 pb-20">
-        <div className="p-4 flex items-center gap-4 bg-white dark:bg-slate-800 border-b dark:border-slate-700">
-          <button onClick={() => setSelected(null)}><ArrowLeft/></button>
-          <h3 className="font-black text-lg dark:text-white">{selected.name}</h3>
+      <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 pb-20 relative">
+        <div className="p-4 flex items-center justify-between bg-white dark:bg-slate-800 border-b dark:border-slate-700 sticky top-0 z-10">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelected(null)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><ArrowLeft size={20}/></button>
+            <div>
+              <h3 className="font-black text-lg dark:text-white leading-tight">{selected.name}</h3>
+              <p className="text-[10px] font-bold text-blue-600 uppercase tracking-widest">{posts.length} Messages</p>
+            </div>
+          </div>
+          <button className="p-2 text-slate-400"><MoreVertical size={20}/></button>
         </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {posts.map(post => (
-            <div key={post.id} className="flex gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 uppercase">
-                {/* Fixed: Improved safety for avatar fallback to prevent crash if profiles is null */}
-                {(post.profiles?.first_name || 'U')[0]}
-              </div>
-              <div className="flex-1">
-                <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-tl-none border dark:border-slate-700 shadow-sm">
-                  <p className="text-[10px] font-black text-blue-600 uppercase">{post.profiles?.first_name} {post.profiles?.last_name}</p>
-                  <p className="text-sm dark:text-slate-200">{post.content}</p>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24">
+          {posts.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+               <MessageSquare size={48} className="opacity-20 mb-4"/>
+               <p className="text-xs font-black uppercase tracking-widest">No messages yet. Start the conversation!</p>
+            </div>
+          ) : posts.map(post => {
+            const isMe = post.user_id === currentUserId;
+            const parent = post.parent_id ? posts.find(p => p.id === post.parent_id) : null;
+            const isLiked = post.group_post_likes?.some(l => l.user_id === currentUserId);
+
+            return (
+              <div key={post.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} group`}>
+                <div className={`flex gap-3 max-w-[85%] ${isMe ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-black text-xs shrink-0 shadow-sm ${isMe ? 'bg-[#0c2d58] text-white' : 'bg-white dark:bg-slate-800 text-blue-600 border dark:border-slate-700'}`}>
+                    {post.profiles?.first_name?.[0] || 'U'}
+                  </div>
+                  
+                  <div className="space-y-1">
+                    {!isMe && (
+                      <span className="text-[10px] font-black text-slate-500 uppercase ml-2 tracking-widest">
+                        {post.profiles?.first_name} {post.profiles?.last_name}
+                      </span>
+                    )}
+
+                    <div className={`relative p-4 rounded-[2rem] shadow-sm border ${isMe ? 'bg-blue-600 border-blue-500 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 dark:text-slate-200 rounded-tl-none'}`}>
+                      {parent && (
+                        <div className={`mb-2 p-2 rounded-xl text-[10px] border-l-4 ${isMe ? 'bg-blue-700/50 border-white/30 text-white/80' : 'bg-slate-50 dark:bg-slate-900 border-blue-500 text-slate-500'}`}>
+                           <p className="font-black uppercase mb-0.5">Replying to {parent.profiles?.first_name}</p>
+                           <p className="line-clamp-1 italic">{parent.content}</p>
+                        </div>
+                      )}
+                      <p className="text-sm font-medium leading-relaxed">{post.content}</p>
+                      <p className={`text-[8px] font-black uppercase mt-2 opacity-50 ${isMe ? 'text-right' : 'text-left'}`}>
+                        {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+
+                    <div className={`flex items-center gap-3 mt-1 px-2 transition-opacity ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <button onClick={() => handleLikePost(post.id)} className={`flex items-center gap-1 text-[10px] font-black uppercase transition-colors ${isLiked ? 'text-rose-500' : 'text-slate-400 hover:text-slate-600'}`}>
+                        <Heart size={14} fill={isLiked ? "currentColor" : "none"}/> {post.group_post_likes?.length || 0}
+                      </button>
+                      <button onClick={() => setReplyingToPost(post)} className="text-slate-400 hover:text-blue-500 transition-colors"><CornerDownRight size={14}/></button>
+                      {isMe && (
+                        <>
+                          <button onClick={() => handleEditClick(post)} className="text-slate-400 hover:text-blue-500 transition-colors"><Pencil size={14}/></button>
+                          <button onClick={() => handleDeletePost(post.id)} className="text-slate-400 hover:text-rose-500 transition-colors"><Trash2 size={14}/></button>
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
-        <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex gap-2">
-          <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Type a message..." className="flex-1 bg-slate-100 dark:bg-slate-700 p-3 rounded-2xl text-sm outline-none dark:text-white" />
-          <button className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"><Send size={20}/></button>
+
+        <div className="fixed bottom-20 left-0 right-0 p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t dark:border-slate-800 z-20">
+          {(replyingToPost || editingPostId) && (
+            <div className="mb-2 p-3 bg-blue-50 dark:bg-blue-900/40 rounded-2xl flex items-center justify-between animate-slide-up border dark:border-slate-700">
+               <div className="flex items-center gap-2 overflow-hidden">
+                 {editingPostId ? <Pencil size={16} className="text-blue-600"/> : <CornerDownRight size={16} className="text-blue-600"/>}
+                 <p className="text-[10px] font-black text-blue-600 uppercase tracking-widest truncate">
+                   {editingPostId ? 'Editing Message' : `Replying to ${replyingToPost?.profiles?.first_name}`}
+                 </p>
+               </div>
+               <button onClick={() => { setEditingPostId(null); setReplyingToPost(null); setComment(''); }} className="p-1 hover:bg-white rounded-full transition"><X size={14}/></button>
+            </div>
+          )}
+          <div className="flex gap-2">
+            <input 
+              value={comment} 
+              onChange={e => setComment(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Type a message..." 
+              className="flex-1 bg-slate-100 dark:bg-slate-800 p-4 rounded-[2rem] text-sm font-bold outline-none dark:text-white border dark:border-slate-700 focus:ring-2 focus:ring-blue-500 transition shadow-inner" 
+            />
+            <button 
+              disabled={isSending || !comment.trim()}
+              onClick={handleSendMessage}
+              className={`w-14 h-14 rounded-2xl flex items-center justify-center transition-all shadow-lg active:scale-90 ${isSending ? 'bg-slate-400' : editingPostId ? 'bg-green-600 hover:bg-green-700' : 'bg-blue-600 hover:bg-blue-700'} text-white`}
+            >
+              {isSending ? <Loader2 size={24} className="animate-spin"/> : editingPostId ? <Check size={24}/> : <Send size={24}/>}
+            </button>
+          </div>
         </div>
       </div>
     );

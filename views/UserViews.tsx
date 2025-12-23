@@ -357,13 +357,40 @@ export const BlogView = () => {
         </button>
         
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
-          <div className="relative group bg-slate-100 dark:bg-slate-900 min-h-[300px] flex items-center justify-center overflow-hidden">
-            <img 
-              src={selectedPost.image_url} 
-              className="w-full h-auto max-h-[500px] object-contain mx-auto transition-transform duration-700 group-hover:scale-105" 
-              alt={selectedPost.title}
-              onError={(e) => (e.currentTarget.style.display = 'none')}
-            />
+          {/* HEADER MEDIA SECTION - Displays Video if available, otherwise Image */}
+          <div className="relative group bg-slate-100 dark:bg-slate-900 min-h-[300px] flex items-center justify-center overflow-hidden aspect-video bg-black">
+            {selectedPost.video_url ? (
+               ytId ? (
+                <iframe
+                  width="100%"
+                  height="100%"
+                  src={`https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`}
+                  title={selectedPost.title}
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="w-full h-full"
+                ></iframe>
+               ) : (
+                <video 
+                  src={selectedPost.video_url} 
+                  controls 
+                  playsInline
+                  preload="metadata"
+                  className="w-full h-full object-contain"
+                  poster={selectedPost.image_url}
+                >
+                  Your browser does not support the video tag.
+                </video>
+               )
+            ) : (
+              <img 
+                src={selectedPost.image_url} 
+                className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" 
+                alt={selectedPost.title}
+                onError={(e) => (e.currentTarget.style.display = 'none')}
+              />
+            )}
             
             <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
               <button onClick={() => shareMedia(window.location.href, selectedPost.title)} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg hover:scale-110 transition"><Share2 size={20}/></button>
@@ -382,39 +409,6 @@ export const BlogView = () => {
             <div className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap font-medium text-base">
               {selectedPost.content}
             </div>
-
-            {selectedPost.video_url && (
-               <div className="mt-12">
-                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
-                    <Video size={14}/> Attached Media
-                  </h4>
-                  <div className="relative rounded-[2rem] overflow-hidden border dark:border-slate-700 shadow-2xl aspect-video bg-black ring-8 ring-slate-50 dark:ring-slate-900/50">
-                    {ytId ? (
-                      <iframe
-                        width="100%"
-                        height="100%"
-                        src={`https://www.youtube.com/embed/${ytId}`}
-                        title={selectedPost.title}
-                        frameBorder="0"
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        className="w-full h-full"
-                      ></iframe>
-                    ) : (
-                      <video 
-                        src={selectedPost.video_url} 
-                        controls 
-                        playsInline
-                        preload="metadata"
-                        className="w-full h-full object-contain"
-                        poster={selectedPost.image_url}
-                      >
-                        Your browser does not support the video tag.
-                      </video>
-                    )}
-                  </div>
-               </div>
-            )}
           </div>
         </div>
       </div>
@@ -446,7 +440,13 @@ export const BlogView = () => {
                  >
                    <Share2 size={14}/>
                  </button>
-                 <span className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase transition transform active:scale-95 shadow-md">Read Article</span>
+                 {/* Fixed: Read Article button functionality */}
+                 <button 
+                  onClick={(e) => { e.stopPropagation(); setSelectedPost(blog); }}
+                  className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase transition transform active:scale-95 shadow-md hover:bg-blue-700"
+                 >
+                   Read Article
+                 </button>
               </div>
             </div>
           </div>
@@ -523,7 +523,8 @@ export const CommunityView = () => {
       await fetchGroupsData();
     } catch (err: any) {
       console.error("Join error detail:", err);
-      const errorMsg = err?.message || "An unexpected error occurred.";
+      // Fixed: Improved error reporting to provide clear messages instead of [object Object]
+      const errorMsg = err?.message || (typeof err === 'string' ? err : JSON.stringify(err)) || "An unexpected error occurred.";
       alert("Join error: " + errorMsg);
     } finally {
       setIsJoining(null);
@@ -541,6 +542,7 @@ export const CommunityView = () => {
           {posts.map(post => (
             <div key={post.id} className="flex gap-3">
               <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 uppercase">
+                {/* Fixed: Improved safety for avatar fallback to prevent crash if profiles is null */}
                 {(post.profiles?.first_name || 'U')[0]}
               </div>
               <div className="flex-1">

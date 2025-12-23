@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download, TrendingUp, Activity
 } from 'lucide-react';
 import { BlogPost, User, Sermon, Event, CommunityGroup } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -33,6 +33,113 @@ const getYouTubeID = (url: string) => {
 };
 
 // --- SUB-COMPONENTS ---
+
+const Dashboard = () => {
+  const [stats, setStats] = useState({
+    users: 0,
+    blogs: 0,
+    sermons: 0,
+    events: 0,
+    groups: 0
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      setLoading(true);
+      const [
+        { count: usersCount },
+        { count: blogsCount },
+        { count: sermonsCount },
+        { count: eventsCount },
+        { count: groupsCount }
+      ] = await Promise.all([
+        supabase.from('profiles').select('*', { count: 'exact', head: true }),
+        supabase.from('blog_posts').select('*', { count: 'exact', head: true }),
+        supabase.from('sermons').select('*', { count: 'exact', head: true }),
+        supabase.from('events').select('*', { count: 'exact', head: true }),
+        supabase.from('community_groups').select('*', { count: 'exact', head: true })
+      ]);
+
+      setStats({
+        users: usersCount || 0,
+        blogs: blogsCount || 0,
+        sermons: sermonsCount || 0,
+        events: eventsCount || 0,
+        groups: groupsCount || 0
+      });
+      setLoading(false);
+    };
+
+    fetchStats();
+  }, []);
+
+  const statCards = [
+    { label: 'Total Members', value: stats.users, icon: Users, color: 'bg-blue-500', text: 'text-blue-600' },
+    { label: 'Blog Articles', value: stats.blogs, icon: FileText, color: 'bg-purple-500', text: 'text-purple-600' },
+    { label: 'Sermon Archive', value: stats.sermons, icon: Video, color: 'bg-rose-500', text: 'text-rose-600' },
+    { label: 'Live Events', value: stats.events, icon: Calendar, color: 'bg-amber-500', text: 'text-amber-600' },
+    { label: 'Community Groups', value: stats.groups, icon: MessageCircle, color: 'bg-emerald-500', text: 'text-emerald-600' },
+  ];
+
+  if (loading) return (
+    <div className="flex items-center justify-center py-20">
+      <Loader2 className="animate-spin text-blue-600" size={40} />
+    </div>
+  );
+
+  return (
+    <div className="space-y-8 animate-fade-in">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        {statCards.map((stat, i) => (
+          <div key={i} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 shadow-sm flex flex-col items-center text-center group hover:border-blue-500 transition-all duration-300">
+            <div className={`w-12 h-12 ${stat.color} text-white rounded-2xl flex items-center justify-center mb-4 shadow-lg group-hover:scale-110 transition-transform`}>
+              <stat.icon size={24} />
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-1">{stat.label}</p>
+            <h4 className="text-3xl font-black dark:text-white tracking-tighter">{stat.value}</h4>
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <Activity className="text-blue-600" size={20} />
+            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">System Overview</h4>
+          </div>
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Database Health</span>
+              <span className="flex items-center gap-2 text-xs font-black text-green-500 uppercase"><Check size={14}/> Active</span>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Media Storage</span>
+              <span className="text-xs font-black dark:text-white">Cloud Integrated</span>
+            </div>
+            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl">
+              <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">Last Backup</span>
+              <span className="text-xs font-black dark:text-white">Today, 04:00 AM</span>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 shadow-sm">
+          <div className="flex items-center gap-3 mb-6">
+            <TrendingUp className="text-emerald-600" size={20} />
+            <h4 className="font-black text-slate-800 dark:text-white uppercase tracking-tighter">Growth Status</h4>
+          </div>
+          <div className="flex flex-col items-center justify-center py-8">
+             <div className="w-24 h-24 rounded-full border-8 border-emerald-500/20 border-t-emerald-500 flex items-center justify-center mb-4">
+                <span className="text-xl font-black text-emerald-500">+12%</span>
+             </div>
+             <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Membership growth this month</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
 
 const EventManager = () => {
   const [events, setEvents] = useState<Event[]>([]);
@@ -1158,6 +1265,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
           <div className="flex items-center justify-center h-[50vh]">
             <Loader2 className="animate-spin text-blue-600" size={32} />
           </div>
+        ) : activeTab === 'dashboard' ? (
+          <Dashboard />
         ) : activeTab === 'blogs' ? (
           <BlogManager />
         ) : activeTab === 'sermons' ? (

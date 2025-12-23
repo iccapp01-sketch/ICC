@@ -6,7 +6,7 @@ import {
   Facebook, MessageCircle, Send, User as UserIcon, Bell, Phone, Mail,
   Clock, MapPin, MoreVertical, ListMusic, Mic, Globe, Loader2, Save,
   SkipBack, SkipForward, Square, Repeat, RotateCcw, Edit2, Shield,
-  ExternalLink
+  ExternalLink, Info
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { 
@@ -702,60 +702,166 @@ export const SermonsView = () => {
 export const EventsView = ({ onBack }: { onBack: () => void }) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userRsvps, setUserRsvps] = useState<Record<string, { status: string, transport_required: boolean }>>({});
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [submittedId, setSubmittedId] = useState<string | null>(null);
 
-  useEffect(() => {
-    supabase.from('events')
-      .select('*')
-      .order('date', { ascending: true })
-      .then(r => {
-        setEvents(r.data || []);
-        setLoading(false);
+  const fetchData = async () => {
+    setLoading(true);
+    const { data: eventsData } = await supabase.from('events').select('*').order('date', { ascending: true });
+    setEvents(eventsData || []);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      const { data: rsvps } = await supabase.from('event_rsvps').select('*').eq('user_id', user.id);
+      const rsvpMap: any = {};
+      rsvps?.forEach(r => {
+        rsvpMap[r.event_id] = { status: r.status, transport_required: r.transport_required };
       });
-  }, []);
+      setUserRsvps(rsvpMap);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchData(); }, []);
+
+  const handleRsvpSubmit = async (eventId: string, status: string, transport: boolean) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return alert("Please sign in to RSVP.");
+
+    setSubmittingId(eventId);
+    const { error } = await supabase.from('event_rsvps').upsert({
+      user_id: user.id,
+      event_id: eventId,
+      status,
+      transport_required: transport
+    }, { onConflict: 'user_id,event_id' });
+
+    if (error) {
+      alert("Error submitting RSVP: " + error.message);
+    } else {
+      setUserRsvps(prev => ({ ...prev, [eventId]: { status, transport_required: transport } }));
+      setSubmittedId(eventId);
+      setTimeout(() => setSubmittedId(null), 3000);
+    }
+    setSubmittingId(null);
+  };
+
+  const handleTransportToggle = (eventId: string) => {
+    const current = userRsvps[eventId] || { status: 'None', transport_required: false };
+    setUserRsvps(prev => ({
+      ...prev,
+      [eventId]: { ...current, transport_required: !current.transport_required }
+    }));
+  };
+
+  const setLocalStatus = (eventId: string, status: string) => {
+    const current = userRsvps[eventId] || { status: 'None', transport_required: false };
+    setUserRsvps(prev => ({
+      ...prev,
+      [eventId]: { ...current, status }
+    }));
+  };
 
   return (
     <div className="p-4 pb-24 space-y-6 max-w-4xl mx-auto animate-fade-in">
       <div className="flex items-center gap-4 mb-6">
         <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition"><ArrowLeft/></button>
-        <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Church Events</h2>
+        <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Community Updates</h2>
       </div>
 
       {loading ? (
         <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={40}/></div>
       ) : events.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          {events.map(event => (
-            <div key={event.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-6 border dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
-              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600/5 rounded-bl-[4rem] group-hover:bg-blue-600 transition-colors duration-500 -z-0"></div>
-              
-              <div className="relative z-10 space-y-4">
-                 <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-none mb-4">
-                    <Calendar size={24}/>
-                 </div>
-                 
-                 <div>
-                    <h3 className="text-xl font-black dark:text-white leading-tight mb-2">{event.title}</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3">{event.description}</p>
-                 </div>
+        <div className="grid grid-cols-1 gap-6">
+          {events.map(event => {
+            const rsvp = userRsvps[event.id] || { status: 'None', transport_required: false };
+            const isEvent = event.type === 'EVENT';
+            
+            return (
+              <div key={event.id} className={`bg-white dark:bg-slate-800 rounded-[2.5rem] p-8 border dark:border-slate-700 shadow-sm transition-all relative overflow-hidden group`}>
+                <div className={`absolute top-0 right-0 w-32 h-32 ${isEvent ? 'bg-blue-600/5' : 'bg-orange-600/5'} rounded-bl-[5rem] transition-colors duration-500`}></div>
+                
+                <div className="relative z-10 space-y-6">
+                   <div className="flex justify-between items-start">
+                      <div className={`w-14 h-14 ${isEvent ? 'bg-blue-600' : 'bg-orange-500'} text-white rounded-[1.5rem] flex items-center justify-center shadow-xl`}>
+                        {isEvent ? <Calendar size={28}/> : <Info size={28}/>}
+                      </div>
+                      <span className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isEvent ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>
+                        {event.type}
+                      </span>
+                   </div>
+                   
+                   <div>
+                      <h3 className="text-2xl font-black dark:text-white leading-tight mb-3">{event.title}</h3>
+                      <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">{event.description}</p>
+                   </div>
 
-                 <div className="space-y-2 pt-4 border-t dark:border-slate-700">
-                    <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-blue-600">
-                       <Calendar size={14}/> {formatDate(event.date)}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
-                       <Clock size={14}/> {event.time || 'TBA'}
-                    </div>
-                    <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
-                       <MapPin size={14}/> {event.location || 'Church Main Hall'}
-                    </div>
-                 </div>
+                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-6 border-t dark:border-slate-700">
+                      <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-blue-600">
+                         <Calendar size={14}/> {formatDate(event.date)}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
+                         <Clock size={14}/> {event.time || 'TBA'}
+                      </div>
+                      <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
+                         <MapPin size={14}/> {event.location || 'Church Main Hall'}
+                      </div>
+                   </div>
 
-                 <button className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transform group-hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-2">
-                   <Check size={14}/> Save in My Events
-                 </button>
+                   {isEvent && (
+                     <div className="mt-8 p-6 bg-slate-50 dark:bg-slate-900/50 rounded-[2rem] space-y-6 border dark:border-slate-700">
+                        <div className="space-y-4">
+                           <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">RSVP Confirmation</p>
+                           <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-2xl border dark:border-slate-700">
+                              {['Yes', 'Maybe', 'No'].map((status) => (
+                                <button
+                                  key={status}
+                                  onClick={() => setLocalStatus(event.id, status)}
+                                  className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${rsvp.status === status ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:text-slate-600'}`}
+                                >
+                                  {status}
+                                </button>
+                              ))}
+                           </div>
+                        </div>
+
+                        <div className="flex items-center justify-between px-2">
+                           <div className="flex flex-col">
+                              <p className="text-sm font-black dark:text-white">Transport Needed?</p>
+                              <p className="text-[10px] text-slate-400 font-bold uppercase">Let us help you get here</p>
+                           </div>
+                           <button 
+                             onClick={() => handleTransportToggle(event.id)}
+                             className={`w-12 h-6 rounded-full relative transition-colors duration-300 ${rsvp.transport_required ? 'bg-green-500' : 'bg-slate-200 dark:bg-slate-700'}`}
+                           >
+                              <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all duration-300 ${rsvp.transport_required ? 'left-7' : 'left-1'}`}></div>
+                           </button>
+                        </div>
+
+                        <button 
+                          disabled={submittingId === event.id || rsvp.status === 'None'}
+                          onClick={() => handleRsvpSubmit(event.id, rsvp.status, rsvp.transport_required)}
+                          className={`w-full py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transition-all flex items-center justify-center gap-2 ${submittedId === event.id ? 'bg-green-500 text-white' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-[1.02] active:scale-95'}`}
+                        >
+                          {submittingId === event.id ? (
+                            <Loader2 size={16} className="animate-spin" />
+                          ) : submittedId === event.id ? (
+                            <>
+                              <Check size={16}/> Saved and Submitted
+                            </>
+                          ) : (
+                            <>
+                              <Save size={16}/> Submit RSVP
+                            </>
+                          )}
+                        </button>
+                     </div>
+                   )}
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <div className="py-24 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">

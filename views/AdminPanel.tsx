@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download, TrendingUp, Activity, Send, Zap
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download, TrendingUp, Activity, Send, Zap, Monitor
 } from 'lucide-react';
-import { BlogPost, User, Sermon, Event, CommunityGroup } from '../types';
+import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { Logo } from '../components/Logo';
 
@@ -137,6 +137,263 @@ const Dashboard = () => {
              <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Membership growth this month</p>
           </div>
         </div>
+      </div>
+    </div>
+  );
+};
+
+const MediaManager = () => {
+  const [tracks, setTracks] = useState<MusicTrack[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingTrack, setEditingTrack] = useState<Partial<MusicTrack> | null>(null);
+  const [uploadMode, setUploadMode] = useState<'pc' | 'url'>('pc');
+  const [uploadProgress, setUploadProgress] = useState(false);
+
+  const fetchTracks = async () => {
+    setLoading(true);
+    const { data } = await supabase.from('music_tracks').select('*').order('created_at', { ascending: false });
+    setTracks(data || []);
+    setLoading(false);
+  };
+
+  useEffect(() => { fetchTracks(); }, []);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setUploadProgress(true);
+      try {
+        const base64 = await fileToBase64(file);
+        setEditingTrack(prev => ({ ...prev, url: base64 }));
+      } catch (err) {
+        alert("Failed to process file.");
+      } finally {
+        setUploadProgress(false);
+      }
+    }
+  };
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTrack?.title || !editingTrack?.artist || !editingTrack?.url) {
+      return alert("Title, Artist, and Media Source are required.");
+    }
+
+    setLoading(true);
+    const trackData = {
+      title: editingTrack.title,
+      artist: editingTrack.artist,
+      url: editingTrack.url,
+      type: editingTrack.type || 'MUSIC',
+      duration: editingTrack.duration || '00:00'
+    };
+
+    try {
+      if (editingTrack.id) {
+        await supabase.from('music_tracks').update(trackData).eq('id', editingTrack.id);
+      } else {
+        await supabase.from('music_tracks').insert([trackData]);
+      }
+      setIsFormOpen(false);
+      setEditingTrack(null);
+      fetchTracks();
+    } catch (err: any) {
+      alert("Error saving track: " + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this track?")) return;
+    await supabase.from('music_tracks').delete().eq('id', id);
+    fetchTracks();
+  };
+
+  return (
+    <div className="space-y-6 animate-fade-in">
+      <div className="flex justify-between items-center">
+        <div>
+          <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Media Hub</h3>
+          <p className="text-sm text-slate-500">Manage church music, worship tracks, and podcasts.</p>
+        </div>
+        <button 
+          onClick={() => { setEditingTrack({ type: 'MUSIC' }); setUploadMode('pc'); setIsFormOpen(true); }}
+          className="bg-blue-600 text-white px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-95"
+        >
+          <Plus size={18}/> Add Media
+        </button>
+      </div>
+
+      {isFormOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-2xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up border dark:border-slate-700">
+            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+              <h4 className="font-black dark:text-white uppercase tracking-tighter">{editingTrack?.id ? 'Edit Track' : 'Add New Media'}</h4>
+              <button onClick={() => { setIsFormOpen(false); setEditingTrack(null); }} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
+            </div>
+            
+            <form onSubmit={handleSave} className="p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Track Title</label>
+                  <input 
+                    required
+                    value={editingTrack?.title || ''}
+                    onChange={e => setEditingTrack(prev => ({...prev, title: e.target.value}))}
+                    placeholder="Worship Session #1" 
+                    className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Artist / Speaker</label>
+                  <input 
+                    required
+                    value={editingTrack?.artist || ''}
+                    onChange={e => setEditingTrack(prev => ({...prev, artist: e.target.value}))}
+                    placeholder="ICC Worship Team" 
+                    className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Type</label>
+                  <select 
+                    value={editingTrack?.type || 'MUSIC'}
+                    onChange={e => setEditingTrack(prev => ({...prev, type: e.target.value as any}))}
+                    className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition appearance-none"
+                  >
+                    <option value="MUSIC">Music / Worship</option>
+                    <option value="PODCAST">Podcast / Talk</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Duration (e.g. 05:30)</label>
+                  <input 
+                    value={editingTrack?.duration || ''}
+                    onChange={e => setEditingTrack(prev => ({...prev, duration: e.target.value}))}
+                    placeholder="MM:SS" 
+                    className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Source Selection</label>
+                <div className="flex gap-2 p-1.5 bg-slate-100 dark:bg-slate-900 rounded-2xl w-fit">
+                  <button 
+                    type="button" 
+                    onClick={() => setUploadMode('pc')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${uploadMode === 'pc' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                  >
+                    <Monitor size={14}/> From PC
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setUploadMode('url')}
+                    className={`flex items-center gap-2 px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${uploadMode === 'url' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm' : 'text-slate-400'}`}
+                  >
+                    <Globe size={14}/> YouTube / URL
+                  </button>
+                </div>
+
+                {uploadMode === 'pc' ? (
+                  <div className="relative">
+                    <input type="file" accept="audio/*,video/*" onChange={handleFileChange} className="hidden" id="media-upload" />
+                    <label htmlFor="media-upload" className="flex flex-col items-center justify-center gap-3 w-full p-8 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
+                      <Upload size={32} className="text-slate-300" />
+                      <div className="text-center">
+                        <span className="text-xs font-black text-slate-500 uppercase tracking-widest block">Choose media file</span>
+                        <span className="text-[10px] text-slate-400">Audio (MP3, WAV) or Video (MP4)</span>
+                      </div>
+                      {editingTrack?.url?.startsWith('data:') && (
+                        <span className="text-[10px] font-black text-green-500 uppercase">File attached! <Check size={12} className="inline"/></span>
+                      )}
+                    </label>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <Globe size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input 
+                      required={uploadMode === 'url'}
+                      value={editingTrack?.url || ''}
+                      onChange={e => setEditingTrack(prev => ({...prev, url: e.target.value}))}
+                      placeholder="https://youtube.com/watch?v=..." 
+                      className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 pl-12 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-6 border-t dark:border-slate-700 flex justify-end gap-3">
+                <button type="button" onClick={() => { setIsFormOpen(false); setEditingTrack(null); }} className="px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition">Cancel</button>
+                <button 
+                  type="submit" 
+                  disabled={loading || uploadProgress}
+                  className="bg-[#0c2d58] text-white px-10 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-blue-900 transition-all disabled:opacity-50 flex items-center gap-2"
+                >
+                  {loading || uploadProgress ? <Loader2 size={16} className="animate-spin" /> : <Save size={16}/>}
+                  {editingTrack?.id ? 'Update Media' : 'Save Media'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 gap-4">
+        {tracks.length === 0 ? (
+          <div className="py-20 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
+            <Music size={48} className="mx-auto text-slate-200 mb-4" />
+            <p className="text-slate-400 font-bold uppercase tracking-widest text-xs">No media uploaded yet</p>
+          </div>
+        ) : (
+          <div className="bg-white dark:bg-slate-800 rounded-3xl border dark:border-slate-700 overflow-hidden shadow-sm">
+            <table className="w-full text-left">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 border-b dark:border-slate-700">
+                <tr>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Media</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Artist</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Type</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y dark:divide-slate-700">
+                {tracks.map(track => (
+                  <tr key={track.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center text-blue-600">
+                          {track.type === 'MUSIC' ? <Music size={18}/> : <Mic size={18}/>}
+                        </div>
+                        <p className="font-black text-sm dark:text-white leading-tight">{track.title}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-[10px] font-black uppercase text-slate-500">
+                        {track.artist}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${track.type === 'MUSIC' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+                        {track.type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-2">
+                        <button onClick={() => { setEditingTrack(track); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={16}/></button>
+                        <button onClick={() => handleDelete(track.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16}/></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1212,7 +1469,7 @@ const GroupManager = () => {
 };
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'blogs' | 'sermons' | 'events' | 'groups'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'users' | 'blogs' | 'sermons' | 'events' | 'groups' | 'media'>('dashboard');
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -1261,6 +1518,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     { id: 'users', icon: Users, label: 'User Management' },
     { id: 'blogs', icon: FileText, label: 'Blog Posts' },
     { id: 'sermons', icon: Video, label: 'Sermons' },
+    { id: 'media', icon: Music, label: 'Media / Music' },
     { id: 'events', icon: Calendar, label: 'Events' },
     { id: 'groups', icon: Users, label: 'Groups' },
   ];
@@ -1302,7 +1560,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       <div className="flex-1 overflow-y-auto p-8">
         <header className="flex justify-between items-center mb-8">
           <div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">{activeTab}</h2>
+            <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">{activeTab === 'media' ? 'Media Management' : activeTab}</h2>
             <p className="text-slate-500 text-sm">Efficiently manage your platform content and users.</p>
           </div>
         </header>
@@ -1317,6 +1575,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
           <BlogManager />
         ) : activeTab === 'sermons' ? (
           <SermonManager />
+        ) : activeTab === 'media' ? (
+          <MediaManager />
         ) : activeTab === 'events' ? (
           <EventManager />
         ) : activeTab === 'groups' ? (

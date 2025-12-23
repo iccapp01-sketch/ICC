@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  Play, Pause, Plus, Trash2, ArrowLeft, Moon, Sun, LogOut,
-  BookOpen, Users, Music, Film, MessageSquare, Share2, Heart,
+  Play, Pause, ArrowLeft, Moon, Sun, LogOut,
+  BookOpen, Users, Music, Film, Video, MessageSquare, Share2, Heart,
   Calendar, Check, X, ChevronRight, Search, Download, Instagram,
-  Facebook, MessageCircle, Send, Sparkles, User as UserIcon, Bell, Phone, Mail,
+  Facebook, MessageCircle, Send, User as UserIcon, Bell, Phone, Mail,
   Clock, MapPin, MoreVertical, ListMusic, Mic, Globe, Loader2, Save,
-  SkipBack, SkipForward, Square, Repeat, RotateCcw
+  SkipBack, SkipForward, Square, Repeat, RotateCcw, Edit2, Shield,
+  ExternalLink
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
-import { explainVerse } from '../services/geminiService';
 import { 
   BlogPost, Sermon, CommunityGroup, GroupPost, 
-  Event, MusicTrack, Playlist, BibleVerse, ReadingPlanDay 
+  Event, MusicTrack, BibleVerse, User, UserRole
 } from '../types';
 import { Logo } from '../components/Logo';
 
@@ -19,7 +19,7 @@ import { Logo } from '../components/Logo';
 const formatDate = (dateString?: string) => {
   if (!dateString) return '';
   const d = new Date(dateString);
-  return isNaN(d.getTime()) ? '' : d.toLocaleDateString();
+  return isNaN(d.getTime()) ? '' : d.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
 };
 
 const getYouTubeID = (url: string) => {
@@ -33,9 +33,14 @@ const shareMedia = async (url: string, title: string) => {
     if (navigator.share) {
       await navigator.share({ title, url });
     } else {
-      window.open(`https://wa.me/?text=${encodeURIComponent(title + ' ' + url)}`, '_blank');
+      const shareUrl = `https://wa.me/?text=${encodeURIComponent(title + ' ' + url)}`;
+      window.open(shareUrl, '_blank');
     }
-  } catch (err) { console.warn("Share failed:", err); }
+  } catch (err) { 
+    console.warn("Share failed:", err); 
+    navigator.clipboard.writeText(`${title} ${url}`);
+    alert("Link copied to clipboard!");
+  }
 };
 
 // --- HOME PAGE ---
@@ -70,7 +75,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
           <h3 className="font-black text-lg mb-3 dark:text-white">Latest Sermon</h3>
           <div onClick={() => onNavigate('sermons')} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border dark:border-slate-700 cursor-pointer">
             <div className="w-32 h-20 bg-slate-200 dark:bg-slate-700 rounded-2xl overflow-hidden flex-shrink-0 relative">
-              <img src={`https://img.youtube.com/vi/${getYouTubeID(sermon.video_url)}/hqdefault.jpg`} className="w-full h-full object-cover" />
+              <img src={`https://img.youtube.com/vi/${getYouTubeID(sermon.video_url)}/hqdefault.jpg`} className="w-full h-full object-cover" alt={sermon.title} />
               <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-white"><Play size={24} fill="currentColor"/></div>
             </div>
             <div className="flex-1 min-w-0">
@@ -88,7 +93,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
           {blogs.map(blog => (
             <div key={blog.id} onClick={() => onNavigate('blogs')} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-3xl shadow-sm border dark:border-slate-700 cursor-pointer">
               <div className="w-24 h-24 bg-slate-200 dark:bg-slate-700 rounded-2xl overflow-hidden flex-shrink-0">
-                <img src={blog.image_url} className="w-full h-full object-cover" />
+                <img src={blog.image_url} className="w-full h-full object-cover" alt={blog.title} />
               </div>
               <div className="flex-1">
                 <h4 className="font-bold text-sm leading-tight mb-2 dark:text-white line-clamp-2">{blog.title}</h4>
@@ -103,7 +108,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
 };
 
 // --- BIBLE PAGE ---
-const BIBLE_BOOKS = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zechariah", "Malachi", "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians", "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians", "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"];
+const BIBLE_BOOKS = ["Genesis", "Exodus", "Leviticus", "Numbers", "Deuteronomy", "Joshua", "Judges", "Ruth", "1 Samuel", "2 Samuel", "1 Kings", "2 Kings", "1 Chronicles", "2 Chronicles", "Ezra", "Nehemiah", "Esther", "Job", "Psalms", "Proverbs", "Ecclesiastes", "Song of Solomon", "Isaiah", "Jeremiah", "Lamentations", "Ezekiel", "Daniel", "Hosea", "Joel", "Amos", "Obadiah", "Jonah", "Micah", "Nahum", "Habakkuk", "Zephaniah", "Haggai", "Zechariah", "Malachi", "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "1 Corinthians", "2 Corinthians", "Galatians", "Ephesians", "Philippians", "Colossians", "1 Thessalonians", "2 Thessalonians", "1 Timothy", "2 Timothy", "Titus", "Philemon", "Hebrews", "James", "1 Peter", "2 Peter", "1 John", "2 John", "3 John", "Jude", "Revelation"];
 
 export const BibleView = () => {
   const [activeTab, setActiveTab] = useState<'bible' | 'plan'>('bible');
@@ -230,7 +235,7 @@ export const MusicView = () => {
 
   return (
     <div className="p-4 flex flex-col h-full pb-48">
-      <h2 className="text-2xl font-black mb-6 dark:text-white">Media</h2>
+      <h2 className="text-2xl font-black mb-6 dark:text-white tracking-tighter uppercase">Media</h2>
       <div className="flex gap-2 mb-6">
         {['music', 'podcast', 'playlists'].map(t => (
           <button 
@@ -298,7 +303,7 @@ export const MusicView = () => {
                   {isPlaying ? <Pause size={32}/> : <Play size={32} fill="currentColor" className="ml-1"/>}
                 </button>
 
-                <button onClick={handleReplay} className="p-3 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-full transition-colors active:scale-90">
+                <button onClick={handleReplay} className="p-3 text-blue-600 hover:bg-blue-50 dark:hover:bg-red-900/20 rounded-full transition-colors active:scale-90">
                   <RotateCcw size={20} />
                 </button>
              </div>
@@ -337,66 +342,40 @@ export const BlogView = () => {
       .then(r => setBlogs(r.data || []));
   }, []);
 
-  const handleShareMediaFile = async (url: string, title: string, type: 'image' | 'video') => {
-    try {
-      const response = await fetch(url);
-      const blob = await response.blob();
-      const extension = url.split('.').pop()?.split('?')[0] || (type === 'image' ? 'jpg' : 'mp4');
-      const file = new File([blob], `icc-${Date.now()}.${extension}`, { type: blob.type });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: title,
-          text: `Check out this ${type} from Isipingo Community Church: ${title}`
-        });
-      } else {
-        await navigator.share({
-          title: title,
-          text: title,
-          url: window.location.href
-        });
-      }
-    } catch (e) {
-      if (navigator.share) {
-        await navigator.share({ title, url: window.location.href });
-      }
-    }
-  };
-
   const filtered = category === 'All' ? blogs : blogs.filter(b => b.category === category);
 
   if (selectedPost) {
+    const ytId = getYouTubeID(selectedPost.video_url || '');
+
     return (
-      <div className="p-4 pb-20 animate-fade-in max-w-4xl mx-auto">
-        <button onClick={() => setSelectedPost(null)} className="flex items-center gap-2 text-blue-600 font-bold mb-6 hover:translate-x-[-4px] transition-transform"><ArrowLeft size={20}/> Back</button>
+      <div className="p-4 pb-24 animate-fade-in max-w-4xl mx-auto">
+        <button 
+          onClick={() => setSelectedPost(null)} 
+          className="flex items-center gap-2 text-blue-600 font-black mb-6 hover:translate-x-[-4px] transition-transform uppercase tracking-widest text-[10px]"
+        >
+          <ArrowLeft size={16}/> Back to Feed
+        </button>
+        
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
-          
-          <div className="relative group bg-slate-100 dark:bg-slate-900">
-            {/* Adjusted Image Display */}
+          <div className="relative group bg-slate-100 dark:bg-slate-900 min-h-[300px] flex items-center justify-center overflow-hidden">
             <img 
               src={selectedPost.image_url} 
-              className="w-full h-auto max-h-[500px] object-contain mx-auto" 
+              className="w-full h-auto max-h-[500px] object-contain mx-auto transition-transform duration-700 group-hover:scale-105" 
               alt={selectedPost.title}
+              onError={(e) => (e.currentTarget.style.display = 'none')}
             />
             
-            {/* Social Share Overlay Next to Image */}
-            <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-              <button onClick={() => handleShareMediaFile(selectedPost.image_url, selectedPost.title, 'image')} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-[#25D366] shadow-lg hover:scale-110 transition"><MessageCircle size={20}/></button>
-              <button onClick={() => handleShareMediaFile(selectedPost.image_url, selectedPost.title, 'image')} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-[#1877F2] shadow-lg hover:scale-110 transition"><Facebook size={20}/></button>
-              <button onClick={() => handleShareMediaFile(selectedPost.image_url, selectedPost.title, 'image')} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-[#E4405F] shadow-lg hover:scale-110 transition"><Instagram size={20}/></button>
-              <button onClick={() => handleShareMediaFile(selectedPost.image_url, selectedPost.title, 'image')} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-slate-900 dark:text-white shadow-lg hover:scale-110 transition">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.04-.1z"/></svg>
-              </button>
+            <div className="absolute top-4 right-4 flex flex-col gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-20">
+              <button onClick={() => shareMedia(window.location.href, selectedPost.title)} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg hover:scale-110 transition"><Share2 size={20}/></button>
             </div>
           </div>
 
-          <div className="p-6 space-y-6">
+          <div className="p-8 space-y-8">
             <div className="flex flex-col gap-2">
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">{selectedPost.category}</span>
-              <h2 className="text-3xl font-black dark:text-white leading-tight tracking-tight">{selectedPost.title}</h2>
-              <div className="flex items-center gap-3 text-xs text-slate-500 font-bold bg-slate-50 dark:bg-slate-900/50 w-fit px-4 py-2 rounded-full">
-                <UserIcon size={14}/> {selectedPost.author} • {formatDate(selectedPost.created_at)}
+              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full w-fit">{selectedPost.category}</span>
+              <h2 className="text-3xl font-black dark:text-white leading-tight tracking-tight mt-2">{selectedPost.title}</h2>
+              <div className="flex items-center gap-3 text-[10px] text-slate-500 font-black uppercase tracking-widest bg-slate-50 dark:bg-slate-900/50 w-fit px-4 py-2 rounded-full mt-2">
+                <UserIcon size={12}/> {selectedPost.author} • {formatDate(selectedPost.created_at)}
               </div>
             </div>
 
@@ -405,23 +384,34 @@ export const BlogView = () => {
             </div>
 
             {selectedPost.video_url && (
-               <div className="mt-8 relative group">
-                  <div className="bg-slate-100 dark:bg-slate-900 rounded-[2rem] overflow-hidden border dark:border-slate-700 shadow-inner">
-                    <video 
-                      src={selectedPost.video_url} 
-                      controls 
-                      className="w-full max-h-[600px]"
-                      poster={selectedPost.image_url}
-                    />
-                  </div>
-                  
-                  {/* Video Social Share Bar */}
-                  <div className="absolute bottom-4 right-4 flex gap-2">
-                    <button onClick={() => handleShareMediaFile(selectedPost.video_url!, selectedPost.title, 'video')} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-[#25D366] shadow-lg hover:scale-110 transition"><MessageCircle size={20}/></button>
-                    <button onClick={() => handleShareMediaFile(selectedPost.video_url!, selectedPost.title, 'video')} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-[#1877F2] shadow-lg hover:scale-110 transition"><Facebook size={20}/></button>
-                    <button onClick={() => handleShareMediaFile(selectedPost.video_url!, selectedPost.title, 'video')} className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-slate-900 dark:text-white shadow-lg hover:scale-110 transition">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1.04-.1z"/></svg>
-                    </button>
+               <div className="mt-12">
+                  <h4 className="text-xs font-black uppercase tracking-widest text-slate-400 mb-4 flex items-center gap-2">
+                    <Video size={14}/> Attached Media
+                  </h4>
+                  <div className="relative rounded-[2rem] overflow-hidden border dark:border-slate-700 shadow-2xl aspect-video bg-black ring-8 ring-slate-50 dark:ring-slate-900/50">
+                    {ytId ? (
+                      <iframe
+                        width="100%"
+                        height="100%"
+                        src={`https://www.youtube.com/embed/${ytId}`}
+                        title={selectedPost.title}
+                        frameBorder="0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                        allowFullScreen
+                        className="w-full h-full"
+                      ></iframe>
+                    ) : (
+                      <video 
+                        src={selectedPost.video_url} 
+                        controls 
+                        playsInline
+                        preload="metadata"
+                        className="w-full h-full object-contain"
+                        poster={selectedPost.image_url}
+                      >
+                        Your browser does not support the video tag.
+                      </video>
+                    )}
                   </div>
                </div>
             )}
@@ -442,16 +432,21 @@ export const BlogView = () => {
 
       <div className="space-y-6">
         {filtered.length > 0 ? filtered.map(blog => (
-          <div key={blog.id} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-colors">
+          <div key={blog.id} onClick={() => setSelectedPost(blog)} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-colors cursor-pointer group">
             <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-3xl overflow-hidden flex-shrink-0">
-              <img src={blog.image_url} className="w-full h-full object-cover" alt={blog.title} />
+              <img src={blog.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={blog.title} />
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-[10px] font-black text-blue-600 uppercase mb-1 block">{blog.category}</span>
               <h3 className="font-black text-sm dark:text-white line-clamp-2 leading-tight mb-2 truncate">{blog.title}</h3>
               <div className="flex gap-2">
-                 <button onClick={() => shareMedia(window.location.href, blog.title)} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition"><Share2 size={14}/></button>
-                 <button onClick={() => setSelectedPost(blog)} className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase transition transform active:scale-95 shadow-md">Read Article</button>
+                 <button 
+                  onClick={(e) => { e.stopPropagation(); shareMedia(window.location.href, blog.title); }} 
+                  className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition"
+                 >
+                   <Share2 size={14}/>
+                 </button>
+                 <span className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase transition transform active:scale-95 shadow-md">Read Article</span>
               </div>
             </div>
           </div>
@@ -478,36 +473,16 @@ export const CommunityView = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Fetch groups
       const { data: groupsData } = await supabase.from('community_groups').select('*');
+      const { data: myMemberships } = await supabase.from('community_group_members').select('*').eq('user_id', user.id);
       
-      // 2. Fetch memberships for current user - with fallback for missing table
-      const { data: myMemberships, error: memError } = await supabase.from('group_memberships').select('*').eq('user_id', user.id);
-      
-      // 3. Fetch count of approved members for all groups - with fallback for missing table
-      const { data: allApprovedMemberships, error: allMemError } = await supabase.from('group_memberships').select('group_id').eq('status', 'Approved');
-      
-      let finalMyMems = myMemberships || [];
-      let finalAllMems = allApprovedMemberships || [];
-
-      // Check for specific "Table not found" error to use local fallback
-      if (memError?.message.includes('not found') || memError?.message.includes('schema cache') || 
-          allMemError?.message.includes('not found') || allMemError?.message.includes('schema cache')) {
-        const local = JSON.parse(localStorage.getItem(`icc_group_mems_${user.id}`) || '[]');
-        finalMyMems = local;
-        finalAllMems = local.filter((m: any) => m.status === 'Approved');
-      }
-
       if (groupsData) {
         const formatted = groupsData.map(g => {
-          const userMem = finalMyMems.find((m: any) => m.group_id === g.id);
-          const groupMems = finalAllMems.filter((m: any) => m.group_id === g.id);
-          
+          const userMem = myMemberships?.find((m: any) => m.group_id === g.id);
           return {
             ...g,
-            membersCount: (g.membersCount || 0) + (groupMems?.length || 0),
-            status: userMem ? userMem.status : 'None',
-            isMember: userMem?.status === 'Approved'
+            status: userMem ? userMem.status : 'none',
+            isMember: userMem?.status === 'approved'
           };
         });
         setGroups(formatted);
@@ -522,7 +497,7 @@ export const CommunityView = () => {
   }, []);
 
   const openGroup = (g: CommunityGroup) => {
-    if (g.status !== 'Approved') return alert("Access pending admin approval.");
+    if (g.status !== 'approved') return alert("Access pending admin approval.");
     setSelected(g);
     supabase.from('group_posts').select('*, profiles(first_name, last_name)').eq('group_id', g.id).order('created_at', { ascending: false })
       .then(r => setPosts(r.data || []));
@@ -531,41 +506,25 @@ export const CommunityView = () => {
   const handleJoin = async (groupId: string) => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return alert("Please sign in to join groups.");
+      if (!user) {
+        alert("Please sign in to join groups.");
+        return;
+      }
 
       setIsJoining(groupId);
-      
-      // Attempt join request via Supabase
-      const { error } = await supabase.from('group_memberships').upsert({ 
+      // Upsert to handle potential re-joins after declines if record persists as 'none' or similar
+      const { error } = await supabase.from('community_group_members').upsert({ 
         group_id: groupId, 
         user_id: user.id, 
-        status: 'Pending' 
+        status: 'pending' 
       }, { onConflict: 'group_id,user_id' });
 
-      // If table is missing from DB, fallback to local persistence
-      if (error && (error.message.includes('not found') || error.message.includes('schema cache'))) {
-         const local = JSON.parse(localStorage.getItem(`icc_group_mems_${user.id}`) || '[]');
-         if (!local.find((m: any) => m.group_id === groupId)) {
-            local.push({ group_id: groupId, user_id: user.id, status: 'Pending' });
-            localStorage.setItem(`icc_group_mems_${user.id}`, JSON.stringify(local));
-         }
-      } else if (error) {
-          throw error;
-      }
-      
-      await fetchGroupsData(); // Refresh statuses and counts
+      if (error) throw error;
+      await fetchGroupsData();
     } catch (err: any) {
-      console.error("Join error:", err);
-      // Even if generic error, let's try local fallback to keep the app functional
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const local = JSON.parse(localStorage.getItem(`icc_group_mems_${user.id}`) || '[]');
-        if (!local.find((m: any) => m.group_id === groupId)) {
-           local.push({ group_id: groupId, user_id: user.id, status: 'Pending' });
-           localStorage.setItem(`icc_group_mems_${user.id}`, JSON.stringify(local));
-           await fetchGroupsData();
-        }
-      }
+      console.error("Join error detail:", err);
+      const errorMsg = err?.message || "An unexpected error occurred.";
+      alert("Join error: " + errorMsg);
     } finally {
       setIsJoining(null);
     }
@@ -581,9 +540,11 @@ export const CommunityView = () => {
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {posts.map(post => (
             <div key={post.id} className="flex gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 uppercase">{post.profiles?.first_name[0]}</div>
+              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center font-bold text-blue-600 uppercase">
+                {(post.profiles?.first_name || 'U')[0]}
+              </div>
               <div className="flex-1">
-                <div className="bg-white dark:bg-slate-8:0 p-3 rounded-2xl rounded-tl-none border dark:border-slate-700 shadow-sm">
+                <div className="bg-white dark:bg-slate-800 p-3 rounded-2xl rounded-tl-none border dark:border-slate-700 shadow-sm">
                   <p className="text-[10px] font-black text-blue-600 uppercase">{post.profiles?.first_name} {post.profiles?.last_name}</p>
                   <p className="text-sm dark:text-slate-200">{post.content}</p>
                 </div>
@@ -591,7 +552,7 @@ export const CommunityView = () => {
             </div>
           ))}
         </div>
-        <div className="p-4 bg-white dark:bg-slate-8:0 border-t dark:border-slate-700 flex gap-2">
+        <div className="p-4 bg-white dark:bg-slate-800 border-t dark:border-slate-700 flex gap-2">
           <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Type a message..." className="flex-1 bg-slate-100 dark:bg-slate-700 p-3 rounded-2xl text-sm outline-none dark:text-white" />
           <button className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"><Send size={20}/></button>
         </div>
@@ -601,7 +562,7 @@ export const CommunityView = () => {
 
   return (
     <div className="p-4 space-y-6 pb-24">
-      <h2 className="text-2xl font-black mb-6 dark:text-white">Community Groups</h2>
+      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Community Groups</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {groups.map(g => (
           <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border dark:border-slate-700 animate-fade-in hover:border-blue-500 transition-colors group">
@@ -613,169 +574,27 @@ export const CommunityView = () => {
                 <div className="flex items-center gap-1.5 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full w-fit">
                   <Users size={12} className="text-blue-600" />
                   <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest">
-                    {g.membersCount} {g.membersCount === 1 ? 'Member' : 'Members'}
+                    {g.membersCount || 0} Members
                   </span>
                 </div>
-                {g.status === 'Pending' && <span className="text-[8px] font-black text-orange-500 uppercase mt-2 animate-pulse tracking-widest">Approval Requested</span>}
+                {g.status === 'pending' && <span className="text-[8px] font-black text-orange-500 uppercase mt-2 animate-pulse tracking-widest">Pending approval</span>}
               </div>
               
-              {g.status === 'Approved' ? (
+              {g.status === 'approved' ? (
                 <button onClick={() => openGroup(g)} className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-lg active:scale-95">Enter Chat</button>
               ) : (
                 <button 
-                  disabled={g.status === 'Pending' || isJoining === g.id}
+                  disabled={g.status === 'pending' || isJoining === g.id}
                   onClick={() => handleJoin(g.id)} 
-                  className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-2 ${g.status === 'Pending' ? 'bg-slate-100 text-slate-400 cursor-not-allowed border dark:border-slate-700 dark:bg-slate-900' : 'bg-[#0c2d58] text-white hover:bg-blue-900'}`}
+                  className={`px-6 py-2 rounded-full text-xs font-black uppercase tracking-widest transition-all shadow-md active:scale-95 flex items-center gap-2 ${g.status === 'pending' ? 'bg-slate-100 text-slate-400 cursor-not-allowed border dark:border-slate-700 dark:bg-slate-900 shadow-none' : 'bg-[#0c2d58] text-white hover:bg-blue-900'}`}
                 >
                   {isJoining === g.id ? <Loader2 size={14} className="animate-spin" /> : null}
-                  {isJoining === g.id ? 'Joining...' : g.status === 'Pending' ? 'Requested' : 'Join Group'}
+                  {isJoining === g.id ? 'Joining...' : g.status === 'pending' ? 'Pending Approval' : 'Join Group'}
                 </button>
               )}
             </div>
           </div>
         ))}
-      </div>
-      {groups.length === 0 && (
-         <div className="py-20 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
-            <Users className="mx-auto text-slate-200 dark:text-slate-700 mb-4" size={48}/>
-            <p className="text-slate-400 font-bold uppercase tracking-widest">No active groups found</p>
-         </div>
-      )}
-    </div>
-  );
-};
-
-// --- EVENTS PAGE ---
-export const EventsView = ({ onBack }: { onBack: () => void }) => {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [savingId, setSavingId] = useState<string | null>(null);
-  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
-
-  useEffect(() => {
-    supabase.from('events').select('*').order('date', { ascending: true }).then(r => setEvents(r.data || []));
-  }, []);
-
-  const handleRsvp = (id: string, status: 'Yes' | 'No' | 'Maybe') => {
-    setEvents(events.map(e => e.id === id ? { ...e, rsvpStatus: status } : e));
-    if (savedIds.has(id)) {
-        const newSaved = new Set(savedIds);
-        newSaved.delete(id);
-        setSavedIds(newSaved);
-    }
-  };
-
-  const handleTransportSelection = (id: string, needsTransport: 'Yes' | 'No') => {
-    setEvents(events.map(e => e.id === id ? { ...e, transportStatus: needsTransport } as any : e));
-    if (savedIds.has(id)) {
-        const newSaved = new Set(savedIds);
-        newSaved.delete(id);
-        setSavedIds(newSaved);
-    }
-  };
-
-  const handleSaveRsvp = (id: string) => {
-    setSavingId(id);
-    setTimeout(() => {
-        setSavedIds(prev => new Set(prev).add(id));
-        setSavingId(null);
-    }, 1000);
-  };
-
-  return (
-    <div className="p-4 pb-20">
-      <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-bold mb-6"><ArrowLeft size={20}/> Back</button>
-      <h2 className="text-2xl font-black mb-6 dark:text-white">Church Events</h2>
-      <div className="space-y-6">
-        {events.map(e => (
-          <div key={e.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border-l-8 border-l-blue-600 dark:border-slate-700 border-t border-r border-b animate-fade-in">
-            <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest block mb-1">{e.type}</span>
-            <h3 className="text-xl font-black mb-2 dark:text-white">{e.title}</h3>
-            <p className="text-xs text-slate-500 mb-4 flex items-center gap-2"><Clock size={14}/> {e.date} • {e.time}</p>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">{e.description}</p>
-            
-            {e.type === 'EVENT' && (
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                   {['Yes', 'No', 'Maybe'].map(opt => (
-                     <button 
-                        key={opt} 
-                        onClick={() => handleRsvp(e.id, opt as any)}
-                        className={`flex-1 py-2 rounded-full text-xs font-black uppercase tracking-widest border transition-all ${e.rsvpStatus === opt ? 'bg-blue-600 text-white border-blue-600 shadow-lg scale-105' : 'bg-slate-50 dark:bg-slate-700 text-slate-500 dark:border-slate-600 hover:bg-slate-100'}`}
-                     >
-                       {opt}
-                     </button>
-                   ))}
-                </div>
-
-                {e.rsvpStatus === 'Yes' && (
-                  <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl flex flex-col gap-3 animate-fade-in">
-                     <div className="flex items-center justify-between">
-                        <span className="text-xs font-bold text-slate-600 dark:text-slate-300">Need Transport?</span>
-                        <div className="flex gap-2">
-                           {['Yes', 'No'].map(tOpt => (
-                             <button 
-                                key={tOpt}
-                                onClick={() => handleTransportSelection(e.id, tOpt as any)}
-                                className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase transition-all ${(e as any).transportStatus === tOpt ? 'bg-blue-600 text-white shadow-md' : 'bg-white dark:bg-slate-800 text-slate-400 border dark:border-slate-700'}`}
-                             >
-                               {tOpt}
-                             </button>
-                           ))}
-                        </div>
-                     </div>
-                     <p className="text-[9px] text-blue-400 font-bold uppercase tracking-tighter">* Transport details will be sent via SMS once confirmed.</p>
-                  </div>
-                )}
-
-                {e.rsvpStatus && e.rsvpStatus !== 'None' && (
-                   <div className="pt-2 animate-fade-in">
-                      <button 
-                        disabled={savingId === e.id || savedIds.has(e.id)}
-                        onClick={() => handleSaveRsvp(e.id)}
-                        className={`w-full py-4 rounded-2xl font-black uppercase tracking-widest transition-all flex items-center justify-center gap-2 shadow-lg ${savedIds.has(e.id) ? 'bg-green-600 text-white' : 'bg-[#0c2d58] text-white hover:bg-blue-900 active:scale-95'}`}
-                      >
-                         {savingId === e.id ? <Loader2 className="animate-spin" size={20}/> : savedIds.has(e.id) ? <Check size={20}/> : <Save size={20}/>}
-                         {savingId === e.id ? 'Saving...' : savedIds.has(e.id) ? 'RSVP Confirmed' : 'Save RSVP Selection'}
-                      </button>
-                   </div>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-        {events.length === 0 && (
-          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-3xl">
-            No upcoming events or announcements
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- PROFILE PAGE ---
-export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
-  return (
-    <div className="p-4 space-y-6">
-      <div className="bg-white dark:bg-slate-800 p-8 rounded-[3rem] text-center shadow-sm border dark:border-slate-700 relative">
-        <button onClick={onLogout} className="absolute top-6 right-6 text-red-500 p-2 bg-red-50 dark:bg-red-900/20 rounded-full"><LogOut size={20}/></button>
-        <div className="w-24 h-24 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white text-3xl font-black mx-auto mb-4">{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
-        <h2 className="text-2xl font-black dark:text-white">{user?.firstName} {user?.lastName}</h2>
-        <p className="text-sm text-slate-500 mb-4">{user?.email}</p>
-        <span className="bg-blue-100 text-blue-600 px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest">{user?.role}</span>
-      </div>
-
-      <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] border dark:border-slate-700 overflow-hidden shadow-sm">
-        <button onClick={toggleTheme} className="w-full flex items-center justify-between p-5 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition">
-          <div className="flex items-center gap-4 dark:text-white"><Sun size={20}/> <span className="font-bold">Light / Dark Mode</span></div>
-          <div className={`w-12 h-6 rounded-full p-1 transition-colors ${isDarkMode ? 'bg-blue-600' : 'bg-slate-200'}`}><div className={`w-4 h-4 bg-white rounded-full transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-0'}`}></div></div>
-        </button>
-        <button className="w-full flex items-center gap-4 p-5 border-b dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700 transition dark:text-white">
-          <Bell size={20}/> <span className="font-bold">Mute Notifications</span>
-        </button>
-        <button onClick={() => onNavigate('contact')} className="w-full flex items-center gap-4 p-5 hover:bg-slate-50 dark:hover:bg-slate-700 transition dark:text-white">
-          <Phone size={20}/> <span className="font-bold">Contact Us</span>
-        </button>
       </div>
     </div>
   );
@@ -785,92 +604,393 @@ export const ProfileView = ({ user, onLogout, toggleTheme, isDarkMode, onNavigat
 export const SermonsView = () => {
   const [sermons, setSermons] = useState<Sermon[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedSermon, setSelectedSermon] = useState<Sermon | null>(null);
 
   useEffect(() => {
-    supabase.from('sermons').select('*').order('date_preached', { ascending: false })
+    supabase.from('sermons')
+      .select('*')
+      .order('date_preached', { ascending: false })
       .then(r => {
-        const data = r.data || [];
-        setSermons(data);
-        if (data.length > 0) setSelectedSermon(data[0]);
+        setSermons(r.data || []);
         setLoading(false);
       });
   }, []);
 
-  const videoId = selectedSermon ? getYouTubeID(selectedSermon.video_url) : null;
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 text-slate-400 gap-4">
+        <Loader2 className="animate-spin text-blue-600" size={40} />
+        <p className="text-xs font-black uppercase tracking-widest">Loading Word...</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="p-4 space-y-6 pb-24 animate-fade-in">
-      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Sermon Library</h2>
+    <div className="p-4 pb-24 space-y-6 max-w-4xl mx-auto animate-fade-in">
+      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Sermon Archive</h2>
       
-      {selectedSermon && videoId && (
-        <div className="space-y-4 animate-fade-in">
-          <div className="aspect-video w-full bg-black rounded-[2rem] overflow-hidden shadow-2xl border dark:border-slate-700 relative z-10">
-            <iframe
-              src={`https://www.youtube.com/embed/${videoId}?autoplay=0&rel=0`}
-              className="w-full h-full"
-              title={selectedSermon.title}
-              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-              allowFullScreen
-            ></iframe>
-          </div>
-          <div className="px-2">
-            <h3 className="text-lg font-black dark:text-white leading-tight">{selectedSermon.title}</h3>
-            <div className="flex justify-between items-center mt-2">
-              <span className="text-xs font-black text-blue-600 uppercase tracking-widest">{selectedSermon.preacher}</span>
-              <span className="text-[10px] text-slate-500 font-bold">{formatDate(selectedSermon.date_preached)}</span>
-            </div>
-          </div>
-          <div className="h-px bg-slate-200 dark:bg-slate-800 my-4"></div>
-        </div>
-      )}
+      {sermons.length > 0 ? (
+        <div className="space-y-8">
+          {sermons.map((sermon) => {
+            const ytId = getYouTubeID(sermon.video_url);
+            return (
+              <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-colors group">
+                <div className="aspect-video w-full bg-black">
+                  {ytId ? (
+                    <iframe
+                      width="100%"
+                      height="100%"
+                      src={`https://www.youtube.com/embed/${ytId}`}
+                      title={sermon.title}
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                      className="w-full h-full"
+                    ></iframe>
+                  ) : (
+                    <div className="w-full h-full flex items-center justify-center text-slate-500 font-bold uppercase tracking-widest text-[10px]">
+                      Invalid Video URL
+                    </div>
+                  )}
+                </div>
 
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="animate-spin text-blue-600" size={40} />
-        </div>
-      ) : sermons.length > 0 ? (
-        <div className="space-y-4">
-          <p className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 ml-1">Archive</p>
-          {sermons.map(s => (
-            <div 
-              key={s.id} 
-              onClick={() => {
-                setSelectedSermon(s);
-                const container = document.querySelector('.overflow-y-auto');
-                if (container) container.scrollTo({ top: 0, behavior: 'smooth' });
-              }}
-              className={`p-4 rounded-[2rem] flex items-center gap-4 border transition-all cursor-pointer ${selectedSermon?.id === s.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' : 'bg-white dark:bg-slate-800 border-transparent dark:border-slate-700 shadow-sm hover:border-slate-200'}`}
-            >
-              <div className="w-24 h-16 bg-slate-200 dark:bg-slate-700 rounded-2xl overflow-hidden flex-shrink-0 relative">
-                <img src={`https://img.youtube.com/vi/${getYouTubeID(s.video_url)}/hqdefault.jpg`} className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-black/20 flex items-center justify-center text-white">
-                  <Play size={16} fill="currentColor"/>
+                <div className="p-6">
+                  <div className="flex justify-between items-start mb-3">
+                    <h3 className="text-xl font-black dark:text-white leading-tight pr-4">{sermon.title}</h3>
+                    <button 
+                      onClick={() => shareMedia(sermon.video_url, sermon.title)}
+                      className="p-3 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-600 hover:text-white transition shadow-sm active:scale-90"
+                      title="Share Sermon"
+                    >
+                      <Share2 size={16} />
+                    </button>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-4 items-center text-[10px] font-black uppercase tracking-widest">
+                    <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-full">
+                      <UserIcon size={12}/>
+                      <span>{sermon.preacher}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1.5 rounded-full">
+                      <Calendar size={12}/>
+                      <span>{formatDate(sermon.date_preached)}</span>
+                    </div>
+                    {sermon.duration && (
+                      <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-700/50 px-3 py-1.5 rounded-full">
+                        <Clock size={12}/>
+                        <span>{sermon.duration}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h4 className={`font-bold text-sm truncate ${selectedSermon?.id === s.id ? 'text-blue-700 dark:text-blue-400' : 'dark:text-white'}`}>{s.title}</h4>
-                <p className="text-[10px] text-slate-500 font-bold uppercase">{s.preacher}</p>
-              </div>
-              <ChevronRight size={18} className={selectedSermon?.id === s.id ? 'text-blue-600' : 'text-slate-300'} />
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
-        <div className="py-20 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-700">
-           <Film className="mx-auto text-slate-200 dark:text-slate-700 mb-4" size={48}/>
-           <p className="text-slate-400 font-bold uppercase tracking-widest">No sermons found</p>
+        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
+          <Video className="mx-auto text-slate-300 mb-4" size={48} />
+          <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No sermons found in our archive</p>
         </div>
       )}
     </div>
   );
 };
 
-// --- STUB VIEWS (Required by switch) ---
+// --- EVENTS PAGE ---
+export const EventsView = ({ onBack }: { onBack: () => void }) => {
+  const [events, setEvents] = useState<Event[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.from('events')
+      .select('*')
+      .order('date', { ascending: true })
+      .then(r => {
+        setEvents(r.data || []);
+        setLoading(false);
+      });
+  }, []);
+
+  return (
+    <div className="p-4 pb-24 space-y-6 max-w-4xl mx-auto animate-fade-in">
+      <div className="flex items-center gap-4 mb-6">
+        <button onClick={onBack} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition"><ArrowLeft/></button>
+        <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter">Church Events</h2>
+      </div>
+
+      {loading ? (
+        <div className="flex justify-center py-20"><Loader2 className="animate-spin text-blue-600" size={40}/></div>
+      ) : events.length > 0 ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {events.map(event => (
+            <div key={event.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] p-6 border dark:border-slate-700 shadow-sm hover:shadow-xl transition-all relative overflow-hidden group">
+              <div className="absolute top-0 right-0 w-24 h-24 bg-blue-600/5 rounded-bl-[4rem] group-hover:bg-blue-600 transition-colors duration-500 -z-0"></div>
+              
+              <div className="relative z-10 space-y-4">
+                 <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center shadow-lg shadow-blue-200 dark:shadow-none mb-4">
+                    <Calendar size={24}/>
+                 </div>
+                 
+                 <div>
+                    <h3 className="text-xl font-black dark:text-white leading-tight mb-2">{event.title}</h3>
+                    <p className="text-sm text-slate-500 dark:text-slate-400 line-clamp-3">{event.description}</p>
+                 </div>
+
+                 <div className="space-y-2 pt-4 border-t dark:border-slate-700">
+                    <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-blue-600">
+                       <Calendar size={14}/> {formatDate(event.date)}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
+                       <Clock size={14}/> {event.time || 'TBA'}
+                    </div>
+                    <div className="flex items-center gap-3 text-xs font-black uppercase tracking-widest text-slate-400">
+                       <MapPin size={14}/> {event.location || 'Church Main Hall'}
+                    </div>
+                 </div>
+
+                 <button className="w-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 py-4 rounded-2xl text-[10px] font-black uppercase tracking-widest shadow-lg transform group-hover:-translate-y-1 transition duration-300 flex items-center justify-center gap-2">
+                   <Check size={14}/> Save in My Events
+                 </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <div className="py-24 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
+          <Calendar className="mx-auto text-slate-300 mb-4" size={48} />
+          <p className="text-slate-400 font-black uppercase tracking-widest text-xs">No upcoming events scheduled</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- PROFILE PAGE ---
+export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
+  const [editing, setEditing] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: user?.firstName || '',
+    lastName: user?.lastName || '',
+    phone: user?.phone || '',
+    dob: user?.dob || '',
+    gender: user?.gender || 'Female'
+  });
+
+  useEffect(() => {
+    if (user) {
+      setFormData({
+        firstName: user.firstName,
+        lastName: user.lastName,
+        phone: user.phone,
+        dob: user.dob,
+        gender: user.gender || 'Female'
+      });
+    }
+  }, [user]);
+
+  const handleSave = async () => {
+    await onUpdateUser(formData);
+    setEditing(false);
+  };
+
+  return (
+    <div className="p-4 pb-24 max-w-2xl mx-auto animate-fade-in">
+      {/* Header Profile Card */}
+      <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-8 rounded-[3rem] text-white shadow-2xl relative overflow-hidden mb-8">
+        <Logo className="absolute -bottom-8 -right-8 w-48 h-48 opacity-10 pointer-events-none" />
+        
+        <div className="flex flex-col items-center text-center relative z-10">
+          <div className="w-24 h-24 bg-white/20 backdrop-blur-xl border-4 border-white/30 rounded-[2.5rem] flex items-center justify-center text-4xl font-black mb-4 shadow-2xl">
+            {user?.firstName?.[0]}{user?.lastName?.[0]}
+          </div>
+          <h2 className="text-2xl font-black tracking-tight leading-none mb-2">{user?.firstName} {user?.lastName}</h2>
+          <div className="flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full backdrop-blur-md">
+            <Shield size={12} className="text-blue-300"/>
+            <p className="text-blue-100 font-black text-[10px] uppercase tracking-widest opacity-90">{user?.role} • Joined {formatDate(user?.joinedDate)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Info Card */}
+      <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-8 border dark:border-slate-700 shadow-sm space-y-8">
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2">
+            <UserIcon size={14}/> Personal Details
+          </h3>
+          <button 
+            onClick={() => setEditing(!editing)}
+            className={`p-3 rounded-2xl transition flex items-center gap-2 text-[10px] font-black uppercase tracking-widest ${editing ? 'bg-red-50 text-red-500' : 'bg-blue-50 text-blue-600 dark:bg-blue-900/20'}`}
+          >
+            {editing ? <X size={14}/> : <Edit2 size={14}/>}
+            {editing ? 'Cancel' : 'Edit Info'}
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6">
+          {[
+            { label: 'First Name', key: 'firstName', icon: UserIcon },
+            { label: 'Last Name', key: 'lastName', icon: UserIcon },
+            { label: 'Phone', key: 'phone', icon: Phone },
+            { label: 'Date of Birth', key: 'dob', icon: Calendar, type: 'date' },
+            { label: 'Gender', key: 'gender', icon: Users, type: 'select', options: ['Male', 'Female'] }
+          ].map(field => (
+            <div key={field.key} className="space-y-2">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-4">{field.label}</label>
+              <div className="relative">
+                <field.icon size={18} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300 dark:text-slate-600"/>
+                {editing ? (
+                  field.type === 'select' ? (
+                    <select 
+                      className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 p-4 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold dark:text-white appearance-none"
+                      value={(formData as any)[field.key]}
+                      onChange={e => setFormData({...formData, [field.key]: e.target.value})}
+                    >
+                      {field.options?.map(opt => <option key={opt}>{opt}</option>)}
+                    </select>
+                  ) : (
+                    <input 
+                      type={field.type || 'text'}
+                      className="w-full bg-slate-50 dark:bg-slate-900 border dark:border-slate-700 p-4 pl-14 rounded-2xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold dark:text-white"
+                      value={(formData as any)[field.key]}
+                      onChange={e => setFormData({...formData, [field.key]: e.target.value})}
+                    />
+                  )
+                ) : (
+                  <div className="w-full bg-slate-50 dark:bg-slate-900 border border-transparent dark:border-slate-700 p-4 pl-14 rounded-2xl text-sm font-bold dark:text-white">
+                    {(user as any)[field.key] || 'Not specified'}
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {editing && (
+          <button 
+            onClick={handleSave}
+            className="w-full bg-blue-600 text-white py-4 rounded-2xl font-black uppercase tracking-widest shadow-lg shadow-blue-200 dark:shadow-none flex items-center justify-center gap-3 transition hover:bg-blue-700"
+          >
+            <Save size={18}/> Save Changes
+          </button>
+        )}
+      </div>
+
+      {/* Settings/Actions List */}
+      <div className="mt-8 space-y-3">
+        <button 
+          onClick={toggleTheme}
+          className="w-full bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 flex items-center justify-between group transition-transform active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300">
+              {isDarkMode ? <Sun size={20}/> : <Moon size={20}/>}
+            </div>
+            <div className="text-left">
+              <p className="font-black text-sm dark:text-white">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Toggle Appearance</p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-slate-300 group-hover:translate-x-1 transition"/>
+        </button>
+
+        <button 
+          onClick={() => onNavigate('contact')}
+          className="w-full bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 flex items-center justify-between group transition-transform active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-10 h-10 bg-slate-100 dark:bg-slate-700 rounded-xl flex items-center justify-center text-slate-600 dark:text-slate-300">
+              <Phone size={20}/>
+            </div>
+            <div className="text-left">
+              <p className="font-black text-sm dark:text-white">Help & Support</p>
+              <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Contact Office</p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-slate-300 group-hover:translate-x-1 transition"/>
+        </button>
+
+        <button 
+          onClick={onLogout}
+          className="w-full bg-red-50 dark:bg-red-900/10 p-6 rounded-[2rem] border border-red-100 dark:border-red-900/20 flex items-center justify-between group transition-transform active:scale-[0.98]"
+        >
+          <div className="flex items-center gap-4 text-red-600">
+            <div className="w-10 h-10 bg-red-600 text-white rounded-xl flex items-center justify-center shadow-lg shadow-red-200 dark:shadow-none">
+              <LogOut size={20}/>
+            </div>
+            <div className="text-left">
+              <p className="font-black text-sm">Sign Out</p>
+              <p className="text-[10px] opacity-60 font-black uppercase tracking-widest">Securely Logout</p>
+            </div>
+          </div>
+          <ChevronRight size={20} className="text-red-300 group-hover:translate-x-1 transition"/>
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// --- NOTIFICATIONS VIEW ---
 export const NotificationsView = () => (
-  <div className="p-4"><h2 className="text-2xl font-black mb-6 dark:text-white">Notifications</h2><p className="text-slate-400 text-center py-20">No new messages.</p></div>
+  <div className="p-4 max-w-2xl mx-auto animate-fade-in">
+    <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Notifications</h2>
+    <div className="py-24 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
+      <div className="relative inline-block mb-6">
+        <Bell className="mx-auto text-slate-200" size={64} />
+        <div className="absolute top-0 right-0 w-4 h-4 bg-blue-600 rounded-full border-4 border-white dark:border-slate-900"></div>
+      </div>
+      <p className="text-slate-400 font-black uppercase tracking-widest text-xs">Your Inbox is clean</p>
+      <p className="text-slate-300 dark:text-slate-600 text-[10px] mt-2 px-8 font-medium">We'll notify you when there's an update from the community.</p>
+    </div>
+  </div>
 );
 
+// --- CONTACT VIEW ---
 export const ContactView = ({ onBack }: { onBack: () => void }) => (
-  <div className="p-4"><button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-bold mb-6"><ArrowLeft size={20}/> Back</button><h2 className="text-2xl font-black dark:text-white">Contact Us</h2></div>
+  <div className="p-4 pb-24 max-w-2xl mx-auto animate-fade-in">
+    <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-black mb-6 hover:translate-x-[-4px] transition-transform uppercase tracking-widest text-[10px]"><ArrowLeft size={16}/> Back to Profile</button>
+    <h2 className="text-2xl font-black dark:text-white uppercase tracking-tighter mb-8">Contact Us</h2>
+    
+    <div className="bg-white dark:bg-slate-800 rounded-[3rem] p-8 border dark:border-slate-700 shadow-sm space-y-12">
+      <div className="space-y-6">
+        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Our Location</h3>
+        <div className="flex gap-4 items-start">
+           <div className="w-12 h-12 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-2xl flex items-center justify-center shrink-0"><MapPin size={24}/></div>
+           <div>
+              <p className="font-black text-sm dark:text-white">Isipingo Community Church</p>
+              <p className="text-sm text-slate-500 font-medium leading-relaxed">123 Church Avenue, Isipingo Beach<br/>Durban, 4115, South Africa</p>
+           </div>
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <h3 className="text-xs font-black uppercase tracking-widest text-slate-400">Contact Channels</h3>
+        <div className="grid grid-cols-1 gap-4">
+          <a href="tel:+27123456789" className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl group transition-all hover:bg-blue-600 hover:text-white">
+             <div className="w-10 h-10 bg-white dark:bg-slate-800 text-blue-600 rounded-xl flex items-center justify-center group-hover:text-blue-600 group-hover:bg-white transition-colors"><Phone size={20}/></div>
+             <div className="flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Call us</p>
+                <p className="text-sm font-black">+27 12 345 6789</p>
+             </div>
+             <ExternalLink size={14} className="opacity-40 group-hover:opacity-100"/>
+          </a>
+          <a href="mailto:info@icc.com" className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl group transition-all hover:bg-blue-600 hover:text-white">
+             <div className="w-10 h-10 bg-white dark:bg-slate-800 text-blue-600 rounded-xl flex items-center justify-center group-hover:text-blue-600 group-hover:bg-white transition-colors"><Mail size={20}/></div>
+             <div className="flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Email us</p>
+                <p className="text-sm font-black">info@icc.com</p>
+             </div>
+             <ExternalLink size={14} className="opacity-40 group-hover:opacity-100"/>
+          </a>
+          <a href="https://wa.me/27123456789" className="flex items-center gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl group transition-all hover:bg-green-600 hover:text-white">
+             <div className="w-10 h-10 bg-white dark:bg-slate-800 text-green-600 rounded-xl flex items-center justify-center group-hover:text-green-600 group-hover:bg-white transition-colors"><MessageCircle size={20}/></div>
+             <div className="flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest opacity-60">WhatsApp</p>
+                <p className="text-sm font-black">Open Chat</p>
+             </div>
+             <ExternalLink size={14} className="opacity-40 group-hover:opacity-100"/>
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
 );

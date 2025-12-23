@@ -1,4 +1,5 @@
 
+
 export enum UserRole {
   GUEST = 'GUEST',
   MEMBER = 'MEMBER',
@@ -52,7 +53,8 @@ export interface CommunityGroup {
   image?: string;
   membersCount: number;
   isMember: boolean;
-  status?: 'Approved' | 'Pending' | 'None';
+  // Fixed: Updated to lowercase to match database values and usage in UserViews.tsx
+  status?: 'approved' | 'pending' | 'none';
 }
 
 export interface GroupPost {

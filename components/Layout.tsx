@@ -1,6 +1,6 @@
-
 import React from 'react';
 import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar, User, Menu } from 'lucide-react';
+import { Logo } from './Logo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,12 +34,15 @@ export const Layout: React.FC<LayoutProps> = ({
       <div className="absolute top-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)] pointer-events-none">
         <div className="h-16 flex items-center justify-between px-4 pointer-events-auto">
           
-          {/* Left: Personalized Greeting */}
-          <div className="flex flex-col justify-center">
-             <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Welcome back,</span>
-             <span className="text-lg font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[200px]">
-               {userName}
-             </span>
+          {/* Left: Logo and Greeting */}
+          <div className="flex items-center gap-3">
+             <Logo className="w-10 h-10" />
+             <div className="flex flex-col justify-center">
+                <span className="text-[10px] font-medium text-slate-500 dark:text-slate-400">Welcome,</span>
+                <span className="text-sm font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[120px]">
+                  {userName}
+                </span>
+             </div>
           </div>
 
           {/* Right: Events, Notifications & Profile */}

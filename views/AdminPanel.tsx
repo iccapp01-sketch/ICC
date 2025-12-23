@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download, TrendingUp, Activity
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download, TrendingUp, Activity, Send, Zap
 } from 'lucide-react';
 import { BlogPost, User, Sermon, Event, CommunityGroup } from '../types';
 import { supabase } from '../lib/supabaseClient';
@@ -677,6 +677,7 @@ const BlogManager = () => {
   const [editingBlog, setEditingBlog] = useState<Partial<BlogPost> | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(false);
+  const [publishMode, setPublishMode] = useState<'now' | 'scheduled'>('now');
 
   const fetchBlogs = async () => {
     setLoading(true);
@@ -715,7 +716,7 @@ const BlogManager = () => {
       excerpt: editingBlog.content.substring(0, 150) + '...',
       image_url: editingBlog.image_url || 'https://images.unsplash.com/photo-1504052434569-70ad5836ab65?auto=format&fit=crop&q=80&w=800',
       video_url: editingBlog.video_url || null,
-      created_at: editingBlog.created_at || new Date().toISOString()
+      created_at: publishMode === 'now' ? new Date().toISOString() : editingBlog.created_at || new Date().toISOString()
     };
 
     try {
@@ -748,7 +749,11 @@ const BlogManager = () => {
           <p className="text-sm text-slate-500">Create, schedule and manage church articles.</p>
         </div>
         <button 
-          onClick={() => { setEditingBlog({ category: 'All', author: 'Church Admin', created_at: new Date().toISOString() }); setIsFormOpen(true); }}
+          onClick={() => { 
+            setEditingBlog({ category: 'All', author: 'Church Admin', created_at: new Date().toISOString() }); 
+            setPublishMode('now');
+            setIsFormOpen(true); 
+          }}
           className="bg-blue-600 text-white px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-95"
         >
           <Plus size={18}/> New Article
@@ -799,18 +804,43 @@ const BlogManager = () => {
                     className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none"
                   />
                 </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Schedule Post (Next 7 Days)</label>
-                  <input 
-                    type="datetime-local"
-                    min={new Date().toISOString().slice(0, 16)}
-                    max={new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 16)}
-                    value={editingBlog?.created_at?.slice(0, 16) || ''}
-                    onChange={e => setEditingBlog(prev => ({...prev, created_at: new Date(e.target.value).toISOString()}))}
-                    className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none"
-                  />
+                
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Publishing Option</label>
+                  <div className="flex gap-2 bg-slate-100 dark:bg-slate-900 p-1.5 rounded-2xl w-fit border dark:border-slate-700">
+                    <button 
+                      type="button"
+                      onClick={() => setPublishMode('now')}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${publishMode === 'now' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border dark:border-slate-700' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      <Zap size={14}/> Publish Now
+                    </button>
+                    <button 
+                      type="button"
+                      onClick={() => setPublishMode('scheduled')}
+                      className={`flex items-center gap-2 px-5 py-2.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${publishMode === 'scheduled' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-sm border dark:border-slate-700' : 'text-slate-400 hover:text-slate-600'}`}
+                    >
+                      <Clock size={14}/> Schedule
+                    </button>
+                  </div>
                 </div>
               </div>
+
+              {publishMode === 'scheduled' && (
+                <div className="space-y-2 animate-fade-in">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Release Date & Time</label>
+                  <div className="relative">
+                     <Calendar size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                     <input 
+                        type="datetime-local"
+                        min={new Date().toISOString().slice(0, 16)}
+                        value={editingBlog?.created_at?.slice(0, 16) || ''}
+                        onChange={e => setEditingBlog(prev => ({...prev, created_at: new Date(e.target.value).toISOString()}))}
+                        className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 pl-12 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                      />
+                  </div>
+                </div>
+              )}
 
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Content Body</label>
@@ -871,8 +901,8 @@ const BlogManager = () => {
                   disabled={loading || uploadProgress}
                   className="bg-[#0c2d58] text-white px-10 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-blue-900 transition-all disabled:opacity-50 flex items-center gap-2"
                 >
-                  {loading ? <Loader2 size={16} className="animate-spin" /> : <Save size={16}/>}
-                  {editingBlog?.id ? 'Update Post' : 'Publish Post'}
+                  {loading ? <Loader2 size={16} className="animate-spin" /> : publishMode === 'now' ? <Send size={16}/> : <Clock size={16}/>}
+                  {editingBlog?.id ? 'Update Post' : publishMode === 'now' ? 'Publish Now' : 'Schedule Post'}
                 </button>
               </div>
             </form>
@@ -893,43 +923,48 @@ const BlogManager = () => {
                 <tr>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Article</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Category</th>
-                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Scheduled</th>
+                  <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400">Published/Scheduled</th>
                   <th className="px-6 py-4 text-[10px] font-black uppercase tracking-widest text-slate-400 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y dark:divide-slate-700">
-                {blogs.map(blog => (
-                  <tr key={blog.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
-                          <img src={blog.image_url} className="w-full h-full object-cover" alt="" />
+                {blogs.map(blog => {
+                  const isScheduled = new Date(blog.created_at) > new Date();
+                  return (
+                    <tr key={blog.id} className="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-4">
+                          <div className="w-12 h-12 rounded-xl bg-slate-100 overflow-hidden flex-shrink-0">
+                            <img src={blog.image_url} className="w-full h-full object-cover" alt="" />
+                          </div>
+                          <div>
+                            <p className="font-black text-sm dark:text-white leading-tight">{blog.title}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">By {blog.author}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-black text-sm dark:text-white leading-tight">{blog.title}</p>
-                          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest">By {blog.author}</p>
+                      </td>
+                      <td className="px-6 py-4">
+                        <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">
+                          {blog.category}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-2">
+                           {isScheduled ? <Clock size={12} className="text-orange-500"/> : <Check size={12} className="text-green-500"/>}
+                           <span className={`text-xs font-bold ${isScheduled ? 'text-orange-600 dark:text-orange-400' : 'text-slate-600 dark:text-slate-400'}`}>
+                             {formatDate(blog.created_at)}
+                           </span>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="text-[10px] font-black uppercase text-blue-600 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">
-                        {blog.category}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                         <Calendar size={12} className="text-slate-400"/>
-                         <span className="text-xs font-bold text-slate-600 dark:text-slate-400">{formatDate(blog.created_at)}</span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button onClick={() => { setEditingBlog(blog); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={16}/></button>
-                        <button onClick={() => handleDelete(blog.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16}/></button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex justify-end gap-2">
+                          <button onClick={() => { setEditingBlog(blog); setIsFormOpen(true); }} className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={16}/></button>
+                          <button onClick={() => handleDelete(blog.id)} className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16}/></button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

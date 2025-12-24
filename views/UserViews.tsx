@@ -6,7 +6,7 @@ import {
   Facebook, MessageCircle, Send, User as UserIcon, Bell, Phone, Mail,
   Clock, MapPin, MoreVertical, ListMusic, Mic, Globe, Loader2, Save,
   SkipBack, SkipForward, Square, Repeat, RotateCcw, Edit2, Shield,
-  ExternalLink, Info, Trash2, Pencil, CornerDownRight, Plus, FolderPlus
+  ExternalLink, Info, Trash2, Pencil, CornerDownRight, Plus, FolderPlus, FileText
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { 
@@ -641,30 +641,169 @@ export const SermonsView = () => {
   );
 };
 
-// --- EVENTS PAGE ---
+// --- EVENTS PAGE (REFINED TO MATCH SCREENSHOT) ---
 export const EventsView = ({ onBack }: { onBack: () => void }) => {
   const [events, setEvents] = useState<Event[]>([]);
+  const [rsvps, setRsvps] = useState<Record<string, { status: string, transport: boolean, guests: number }>>({});
+  const [submitting, setSubmitting] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.from('events').select('*').order('date', { ascending: true }).then(r => setEvents(r.data || []));
+    supabase.from('events').select('*').order('date', { ascending: true })
+      .then(r => setEvents(r.data || []));
   }, []);
 
+  const handleRSVPChange = (eventId: string, status: string) => {
+    setRsvps(prev => ({
+      ...prev,
+      [eventId]: { ...(prev[eventId] || { transport: false, guests: 0 }), status }
+    }));
+  };
+
+  const handleTransportToggle = (eventId: string) => {
+    setRsvps(prev => ({
+      ...prev,
+      [eventId]: { ...(prev[eventId] || { status: 'None', guests: 0 }), transport: !prev[eventId]?.transport }
+    }));
+  };
+
+  const handleGuestsChange = (eventId: string, count: number) => {
+    setRsvps(prev => ({
+      ...prev,
+      [eventId]: { ...(prev[eventId] || { status: 'None', transport: false }), guests: count }
+    }));
+  };
+
+  const submitRSVP = async (eventId: string) => {
+    const data = rsvps[eventId];
+    if (!data || data.status === 'None') return alert("Please select an RSVP option first.");
+
+    setSubmitting(eventId);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Please log in to RSVP.");
+
+      const { error } = await supabase.from('event_rsvps').upsert({
+        event_id: eventId,
+        user_id: user.id,
+        status: data.status,
+        transport_required: data.transport,
+        plus_guests: data.guests
+      }, { onConflict: 'event_id,user_id' });
+
+      if (error) throw error;
+      alert("RSVP Submitted Successfully!");
+    } catch (err: any) {
+      alert("RSVP failed: " + err.message);
+    } finally {
+      setSubmitting(null);
+    }
+  };
+
   return (
-    <div className="p-4 space-y-6 pb-24 animate-fade-in">
-      <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-black uppercase text-[10px]"><ArrowLeft size={16}/> Back</button>
-      <h2 className="text-2xl font-black dark:text-white uppercase">Events & News</h2>
-      <div className="space-y-4">
-        {events.map(event => (
-          <div key={event.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 shadow-sm">
-            <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${event.type === 'EVENT' ? 'bg-blue-50 text-blue-600' : 'bg-orange-50 text-orange-600'}`}>{event.type}</span>
-            <h4 className="text-lg font-black dark:text-white mt-4 mb-2 leading-tight">{event.title}</h4>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-4">{event.description}</p>
-            <div className="flex justify-between items-center text-[10px] font-black text-slate-400 uppercase">
-              <span>{formatDate(event.date)} at {event.time}</span>
-              <span className="text-blue-600">{event.location}</span>
+    <div className="flex flex-col h-full bg-[#08182e] animate-fade-in overflow-hidden">
+      {/* Header matching screenshot */}
+      <div className="p-6 flex items-center gap-6 bg-[#08182e] sticky top-0 z-10">
+        <button onClick={onBack} className="p-2 text-white hover:bg-white/10 rounded-full transition">
+          <ArrowLeft size={28}/>
+        </button>
+        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">COMMUNITY UPDATES</h2>
+      </div>
+
+      <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24 no-scrollbar">
+        {events.map(event => {
+          const isEvent = event.type === 'EVENT';
+          const currentRSVP = rsvps[event.id] || { status: 'None', transport: false, guests: 0 };
+          
+          return (
+            <div key={event.id} className="bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] p-8 border border-white/5 shadow-2xl transition-all hover:border-white/10">
+              <div className="flex justify-between items-start mb-6">
+                <div className={`w-16 h-16 rounded-3xl flex items-center justify-center shadow-lg ${isEvent ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'}`}>
+                  {isEvent ? <Calendar size={32}/> : <Info size={32}/>}
+                </div>
+                <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${isEvent ? 'bg-white text-blue-600' : 'bg-[#fff5f0] text-orange-600'}`}>
+                  {event.type}
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-3xl font-black text-white leading-tight mb-2 tracking-tight">{event.title}</h3>
+                <p className="text-sm text-slate-400 font-medium leading-relaxed">{event.description}</p>
+              </div>
+
+              <div className="border-t border-white/5 pt-6 pb-6 flex flex-wrap gap-x-8 gap-y-4 items-center">
+                 <div className="flex items-center gap-2.5 text-blue-500 font-black text-xs uppercase tracking-widest">
+                   <Calendar size={18}/> <span>{formatDate(event.date).toUpperCase()}</span>
+                 </div>
+                 <div className="flex items-center gap-2.5 text-slate-400 font-bold text-xs uppercase tracking-widest">
+                   <Clock size={18}/> <span>{event.time}</span>
+                 </div>
+                 <div className="flex items-center gap-2.5 text-slate-400 font-bold text-xs uppercase tracking-widest">
+                   <MapPin size={18}/> <span>{event.location}</span>
+                 </div>
+              </div>
+
+              {isEvent && (
+                <div className="bg-[#0c1f38] rounded-[2rem] p-8 space-y-6 border border-white/5 animate-slide-up">
+                  <div className="flex flex-col gap-4">
+                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RSVP CONFIRMATION</p>
+                    <div className="flex bg-[#112a4a] rounded-2xl p-1.5 border border-white/5">
+                      {['YES', 'MAYBE', 'NO'].map((status) => (
+                        <button 
+                          key={status}
+                          onClick={() => handleRSVPChange(event.id, status)}
+                          className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${currentRSVP.status === status ? 'bg-[#1a3b63] text-blue-400 shadow-inner ring-1 ring-white/10' : 'text-slate-500 hover:text-slate-300'}`}
+                        >
+                          {status}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-black text-white tracking-tight">Transport Needed?</p>
+                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Let us help you get here</p>
+                    </div>
+                    <button 
+                      onClick={() => handleTransportToggle(event.id)}
+                      className={`w-14 h-8 rounded-full relative transition-colors p-1 ${currentRSVP.transport ? 'bg-blue-600' : 'bg-slate-700'}`}
+                    >
+                      <div className={`w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform ${currentRSVP.transport ? 'translate-x-6' : 'translate-x-0'}`}></div>
+                    </button>
+                  </div>
+
+                  {/* Plus Guest Dropdown as requested */}
+                  <div className="flex items-center justify-between pt-2">
+                    <p className="text-sm font-black text-white tracking-tight">Plus Guest?</p>
+                    <select 
+                      value={currentRSVP.guests}
+                      onChange={(e) => handleGuestsChange(event.id, parseInt(e.target.value))}
+                      className="bg-[#112a4a] text-blue-400 font-black text-xs uppercase tracking-widest px-4 py-2 rounded-xl border border-white/5 outline-none focus:ring-1 focus:ring-blue-500"
+                    >
+                      {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} Guests</option>)}
+                    </select>
+                  </div>
+
+                  <button 
+                    disabled={submitting === event.id}
+                    onClick={() => submitRSVP(event.id)}
+                    className="w-full bg-white text-[#08182e] py-5 rounded-2xl flex items-center justify-center gap-3 shadow-2xl hover:bg-slate-100 transition-all transform active:scale-[0.98]"
+                  >
+                    {submitting === event.id ? <Loader2 size={24} className="animate-spin" /> : <FileText size={24}/>}
+                    <span className="font-black text-sm uppercase tracking-widest">{submitting === event.id ? 'SUBMITTING...' : 'SUBMIT RSVP'}</span>
+                  </button>
+                </div>
+              )}
             </div>
+          );
+        })}
+
+        {events.length === 0 && (
+          <div className="py-24 text-center">
+            <Calendar size={64} className="mx-auto text-slate-800 mb-6 opacity-20" />
+            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">No updates at the moment</p>
           </div>
-        ))}
+        )}
       </div>
     </div>
   );

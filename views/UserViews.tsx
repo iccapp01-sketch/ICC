@@ -1096,18 +1096,89 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
   );
 };
 
-// --- MISC VIEWS ---
-export const NotificationsView = () => (
-  <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 text-center animate-fade-in">
-    <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-4">Notifications</h2>
-    <div className="py-24 flex flex-col items-center bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] border border-white/5 shadow-2xl">
-      <div className="w-20 h-20 bg-[#0c1f38] rounded-3xl flex items-center justify-center text-slate-700 mb-6 shadow-lg">
-        <Bell size={40}/>
+// --- NOTIFICATIONS VIEW (DYNAMICALLY UPDATED) ---
+export const NotificationsView = () => {
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      setLoading(true);
+      try {
+        const [blogs, sermons, events] = await Promise.all([
+          supabase.from('blog_posts').select('id, title, created_at').order('created_at', { ascending: false }).limit(5),
+          supabase.from('sermons').select('id, title, created_at').order('created_at', { ascending: false }).limit(5),
+          supabase.from('events').select('id, title, created_at, type').order('created_at', { ascending: false }).limit(5)
+        ]);
+
+        const combined = [
+          ...(blogs.data || []).map(b => ({ ...b, type: 'BLOG', icon: FileText, label: 'New Article' })),
+          ...(sermons.data || []).map(s => ({ ...s, type: 'SERMON', icon: Video, label: 'New Sermon' })),
+          ...(events.data || []).map(e => ({ ...e, type: e.type, icon: Calendar, label: e.type === 'EVENT' ? 'New Event' : 'Announcement' }))
+        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+        setNotifications(combined);
+      } catch (err) {
+        console.error("Notifications error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchNotifications();
+
+    // PWA Push Notification Permission Request
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+  }, []);
+
+  return (
+    <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 animate-fade-in overflow-hidden">
+      <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-4 ml-2">Notifications</h2>
+      
+      <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-24 px-2">
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 gap-4">
+            <Loader2 className="animate-spin text-blue-500" size={32}/>
+            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fetching updates...</p>
+          </div>
+        ) : notifications.length === 0 ? (
+          <div className="py-24 flex flex-col items-center bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] border border-white/5 shadow-2xl">
+            <div className="w-20 h-20 bg-[#0c1f38] rounded-3xl flex items-center justify-center text-slate-700 mb-6 shadow-lg">
+              <Bell size={40}/>
+            </div>
+            <p className="text-slate-500 font-black uppercase tracking-widest text-[10px]">No new notifications for you</p>
+          </div>
+        ) : (
+          notifications.map((n, i) => (
+            <div key={`${n.type}-${n.id}`} className="bg-[#112a4a]/40 backdrop-blur-md p-6 rounded-[2.5rem] border border-white/5 shadow-xl flex items-center gap-5 group transition-all hover:bg-white/5 active:scale-[0.98]">
+              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transform transition-transform group-hover:scale-110 ${
+                n.type === 'BLOG' ? 'bg-purple-600 text-white shadow-purple-500/20' :
+                n.type === 'SERMON' ? 'bg-rose-600 text-white shadow-rose-500/20' :
+                n.type === 'EVENT' ? 'bg-blue-600 text-white shadow-blue-500/20' : 'bg-orange-600 text-white shadow-orange-500/20'
+              }`}>
+                <n.icon size={24}/>
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex justify-between items-start mb-1">
+                  <span className={`text-[9px] font-black uppercase tracking-widest ${
+                    n.type === 'BLOG' ? 'text-purple-400' :
+                    n.type === 'SERMON' ? 'text-rose-400' :
+                    n.type === 'EVENT' ? 'text-blue-400' : 'text-orange-400'
+                  }`}>{n.label}</span>
+                  <span className="text-[9px] font-bold text-slate-500">{new Date(n.created_at).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span>
+                </div>
+                <h4 className="font-black text-white text-sm leading-tight truncate">{n.title}</h4>
+              </div>
+              <ChevronRight className="text-slate-600 group-hover:text-blue-400 transition-colors" size={20}/>
+            </div>
+          ))
+        )}
       </div>
-      <p className="text-slate-500 font-black uppercase tracking-widest text-[10px]">No new notifications for you</p>
     </div>
-  </div>
-);
+  );
+};
 
 export const ContactView = ({ onBack }: { onBack: () => void }) => (
   <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 animate-fade-in">

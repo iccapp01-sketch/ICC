@@ -305,7 +305,6 @@ export const MusicView = () => {
               </div>
             ))}
           </div>
-        // Fixed: Mapping tracks property from selectedPlaylist instead of the object itself
         ) : (selectedPlaylist?.tracks || filtered).map(track => (
           <div key={track.id} onClick={() => toggleTrack(track, selectedPlaylist?.tracks || filtered)} className={`p-4 rounded-3xl flex items-center gap-4 border ${current?.id === track.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200' : 'bg-white dark:bg-slate-800 border-transparent dark:border-slate-700'}`}>
             <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-blue-100 dark:bg-blue-900 text-blue-600">
@@ -333,7 +332,7 @@ export const MusicView = () => {
 
       {isCreatingPlaylist && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-[100]">
-          <div className="bg-white dark:bg-slate-800 w-full max-sm rounded-[2rem] p-6">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] p-6">
             <h3 className="text-lg font-black mb-4 dark:text-white">New Playlist</h3>
             <input value={newPlaylistTitle} onChange={e => setNewPlaylistTitle(e.target.value)} placeholder="Title" className="w-full p-3 bg-slate-100 dark:bg-slate-900 rounded-xl mb-4 dark:text-white"/>
             <div className="flex gap-2"><button onClick={() => setIsCreatingPlaylist(false)} className="flex-1">Cancel</button><button onClick={createPlaylist} className="flex-1 bg-blue-600 text-white rounded-xl py-2">Create</button></div>
@@ -343,7 +342,7 @@ export const MusicView = () => {
 
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-[100]">
-          <div className="bg-white dark:bg-slate-800 w-full max-sm rounded-[2rem] p-6 max-h-[70vh] overflow-y-auto">
+          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] p-6 max-h-[70vh] overflow-y-auto">
             <h3 className="text-lg font-black mb-4 dark:text-white">Add to Playlist</h3>
             {userPlaylists.map(pl => (
               <button key={pl.id} onClick={() => addToPlaylist(pl.id)} className="w-full p-3 text-left border-b dark:border-slate-700 dark:text-white">{pl.title}</button>
@@ -361,8 +360,6 @@ export const BlogView = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [category, setCategory] = useState('All');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
-  
-  // Articles now strictly organized under these church-defined categories
   const categories = ['All', 'Sermon Devotional', 'Psalm Devotional', 'Community News'];
 
   useEffect(() => {
@@ -370,61 +367,22 @@ export const BlogView = () => {
       .then(r => setBlogs(r.data || []));
   }, []);
 
-  // Robust filtering logic: trimmed and case-insensitive to ensure reliable data matching
   const filtered = blogs.filter(b => {
     if (category === 'All') return true;
-    const itemCat = (b.category || '').toString().toLowerCase().trim();
-    const activeCat = category.toLowerCase().trim();
-    return itemCat === activeCat;
+    return (b.category || '').toString().toLowerCase().trim() === category.toLowerCase().trim();
   });
 
   if (selectedPost) {
     const ytId = getYouTubeID(selectedPost.video_url || '');
-
     return (
       <div className="p-4 pb-24 animate-fade-in max-w-4xl mx-auto">
-        <button 
-          onClick={() => setSelectedPost(null)} 
-          className="flex items-center gap-2 text-blue-600 font-black mb-6 hover:translate-x-[-4px] transition-transform uppercase tracking-widest text-[10px]"
-        >
-          <ArrowLeft size={16}/> Back to Feed
-        </button>
-        
+        <button onClick={() => setSelectedPost(null)} className="flex items-center gap-2 text-blue-600 font-black mb-6 uppercase tracking-widest text-[10px]"><ArrowLeft size={16}/> Back</button>
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
-          <div className="relative group bg-slate-100 dark:bg-slate-900 min-h-[300px] flex items-center justify-center overflow-hidden aspect-video bg-black">
+          <div className="relative aspect-video bg-black">
             {selectedPost.video_url ? (
-               ytId ? (
-                <iframe
-                  width="100%"
-                  height="100%"
-                  src={`https://www.youtube.com/embed/${ytId}?rel=0&modestbranding=1`}
-                  title={selectedPost.title}
-                  frameBorder="0"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                  allowFullScreen
-                  className="w-full h-full"
-                ></iframe>
-               ) : (
-                <video src={selectedPost.video_url} controls playsInline preload="metadata" className="w-full h-full object-contain" poster={selectedPost.image_url} />
-               )
-            ) : (
-              <img src={selectedPost.image_url} className="w-full h-full object-cover" alt={selectedPost.title} />
-            )}
-            
-            <div className="absolute top-4 right-4 z-20">
-              <button 
-                onClick={() => {
-                   const isYT = selectedPost.video_url && (selectedPost.video_url.includes('youtube.com') || selectedPost.video_url.includes('youtu.be'));
-                   const shareTarget = isYT ? selectedPost.image_url : (selectedPost.video_url || selectedPost.image_url);
-                   shareMediaFile(shareTarget, selectedPost.title, selectedPost.title.replace(/\s+/g, '-').toLowerCase());
-                }} 
-                className="w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg"
-              >
-                <Share2 size={20}/>
-              </button>
-            </div>
+               ytId ? <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${ytId}?rel=0`} frameBorder="0" allowFullScreen></iframe> : <video src={selectedPost.video_url} controls className="w-full h-full" />
+            ) : <img src={selectedPost.image_url} className="w-full h-full object-cover" alt={selectedPost.title} />}
           </div>
-
           <div className="p-8 space-y-8">
             <div>
               <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">{selectedPost.category}</span>
@@ -442,54 +400,33 @@ export const BlogView = () => {
     <div className="p-4 pb-20 max-w-4xl mx-auto relative">
       <Logo className="absolute top-10 right-4 w-24 h-24 opacity-5 pointer-events-none" />
       <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Articles & Inspiration</h2>
-      
-      {/* Category Tabs */}
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
         {categories.map(c => (
-          <button 
-            key={c} 
-            onClick={() => setCategory(c)} 
-            className={`px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap transition ${category === c ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500 border dark:border-slate-700'}`}
-          >
-            {c}
-          </button>
+          <button key={c} onClick={() => setCategory(c)} className={`px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap transition ${category === c ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 border dark:border-slate-700'}`}>{c}</button>
         ))}
       </div>
-
       <div className="space-y-6">
         {filtered.length > 0 ? filtered.map(blog => (
-          <div key={blog.id} onClick={() => setSelectedPost(blog)} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700 hover:border-blue-500 transition-colors cursor-pointer group">
+          <div key={blog.id} onClick={() => setSelectedPost(blog)} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700 cursor-pointer group">
             <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-3xl overflow-hidden flex-shrink-0 relative">
-              <img src={blog.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" alt={blog.title} />
-              {blog.video_url && (
-                <div className="absolute inset-0 flex items-center justify-center bg-black/10">
-                   <div className="bg-white/30 backdrop-blur-md p-2 rounded-full"><Play size={20} fill="white" className="text-white ml-0.5" /></div>
-                </div>
-              )}
+              <img src={blog.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
             </div>
             <div className="flex-1 min-w-0">
               <span className="text-[10px] font-black text-blue-600 uppercase mb-1 block">{blog.category}</span>
               <h3 className="font-black text-sm dark:text-white line-clamp-2 leading-tight mb-2">{blog.title}</h3>
               <div className="flex gap-2">
-                 <button onClick={(e) => { 
-                   e.stopPropagation(); 
-                   const isYT = blog.video_url && (blog.video_url.includes('youtube.com') || blog.video_url.includes('youtu.be'));
-                   const shareTarget = isYT ? blog.image_url : (blog.video_url || blog.image_url);
-                   shareMediaFile(shareTarget, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase()); 
-                 }} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full"><Share2 size={14}/></button>
+                 <button onClick={(e) => { e.stopPropagation(); shareMediaFile(blog.image_url, blog.title); }} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full"><Share2 size={14}/></button>
                  <button className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase">Read</button>
               </div>
             </div>
           </div>
-        )) : (
-          <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed rounded-3xl border-slate-200">No articles found in this category</div>
-        )}
+        )) : <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed rounded-3xl">No articles found</div>}
       </div>
     </div>
   );
 };
 
-// --- GROUPS PAGE ---
+// --- GROUPS PAGE (REFINED CHAT INTERFACE) ---
 export const CommunityView = () => {
   const [groups, setGroups] = useState<CommunityGroup[]>([]);
   const [selected, setSelected] = useState<CommunityGroup | null>(null);
@@ -497,9 +434,13 @@ export const CommunityView = () => {
   const [comment, setComment] = useState('');
   const [isJoining, setIsJoining] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
 
   const fetchPosts = async (groupId: string) => {
-    const { data } = await supabase.from('group_posts').select('*, profiles(first_name, last_name), group_post_likes(user_id)').eq('group_id', groupId).order('created_at', { ascending: true });
+    const { data } = await supabase.from('group_posts')
+      .select('*, profiles(first_name, last_name, avatar_url), group_post_likes(user_id)')
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: true });
     setPosts(data || []);
   };
 
@@ -519,37 +460,117 @@ export const CommunityView = () => {
 
   const handleSendMessage = async () => {
     if (!comment.trim() || !selected || !currentUserId) return;
-    const { error } = await supabase.from('group_posts').insert([{ group_id: selected.id, user_id: currentUserId, content: comment }]);
-    if (error) return alert(error.message);
-    setComment(''); fetchPosts(selected.id);
+    
+    if (editingPostId) {
+      await supabase.from('group_posts').update({ content: comment }).eq('id', editingPostId);
+      setEditingPostId(null);
+    } else {
+      await supabase.from('group_posts').insert([{ group_id: selected.id, user_id: currentUserId, content: comment }]);
+    }
+    
+    setComment('');
+    fetchPosts(selected.id);
+  };
+
+  const handleLikePost = async (postId: string) => {
+    if (!currentUserId) return;
+    const post = posts.find(p => p.id === postId);
+    const isLiked = post?.group_post_likes?.some(l => l.user_id === currentUserId);
+    if (isLiked) {
+      await supabase.from('group_post_likes').delete().eq('post_id', postId).eq('user_id', currentUserId);
+    } else {
+      await supabase.from('group_post_likes').insert([{ post_id: postId, user_id: currentUserId }]);
+    }
+    fetchPosts(selected!.id);
+  };
+
+  const handleDeletePost = async (id: string) => {
+    if (!confirm("Delete message?")) return;
+    await supabase.from('group_posts').delete().eq('id', id);
+    fetchPosts(selected!.id);
   };
 
   const handleJoin = async (groupId: string) => {
     setIsJoining(groupId);
     await supabase.from('community_group_members').upsert({ group_id: groupId, user_id: currentUserId, status: 'pending' }, { onConflict: 'group_id,user_id' });
-    setIsJoining(null); fetchGroupsData();
+    setIsJoining(null); 
+    fetchGroupsData();
   };
 
   if (selected) {
     return (
-      <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-900 pb-20 relative">
-        <div className="p-4 flex items-center bg-white dark:bg-slate-800 border-b dark:border-slate-700">
-          <button onClick={() => setSelected(null)} className="p-2"><ArrowLeft size={20}/></button>
-          <h3 className="font-black text-lg dark:text-white ml-2">{selected.name}</h3>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 pb-24">
-          {posts.map(p => (
-            <div key={p.id} className={`flex flex-col ${p.user_id === currentUserId ? 'items-end' : 'items-start'}`}>
-               <span className="text-[8px] font-black text-slate-400 uppercase mb-1">{p.profiles?.first_name}</span>
-               <div className={`p-4 rounded-2xl max-w-[80%] ${p.user_id === currentUserId ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-white dark:bg-slate-800 dark:text-white rounded-tl-none'}`}>
-                 <p className="text-sm">{p.content}</p>
-               </div>
+      <div className="flex flex-col h-full bg-[#08182e] pb-24 relative animate-fade-in overflow-hidden">
+        {/* Header matching screenshot */}
+        <div className="p-4 flex items-center justify-between bg-[#08182e] border-b border-slate-800/50 sticky top-0 z-10 h-20">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelected(null)} className="p-2 text-white hover:bg-slate-800 rounded-full transition"><ArrowLeft size={24}/></button>
+            <div className="flex flex-col">
+              <h3 className="font-black text-xl text-white leading-none mb-1">{selected.name}</h3>
+              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{posts.length} MESSAGES</p>
             </div>
-          ))}
+          </div>
+          <button className="p-2 text-slate-400"><MoreVertical size={24}/></button>
         </div>
-        <div className="fixed bottom-20 left-0 right-0 p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md flex gap-2">
-          <input value={comment} onChange={e => setComment(e.target.value)} placeholder="Type a message..." className="flex-1 p-4 bg-slate-100 dark:bg-slate-800 rounded-full outline-none dark:text-white"/>
-          <button onClick={handleSendMessage} className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center"><Send size={20}/></button>
+
+        {/* Chat Area */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-8 scroll-smooth no-scrollbar">
+          {posts.map(p => {
+            const isMe = p.user_id === currentUserId;
+            const isLiked = p.group_post_likes?.some(l => l.user_id === currentUserId);
+            return (
+              <div key={p.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
+                <div className={`flex gap-3 max-w-[85%] ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
+                  {/* Bubble Container */}
+                  <div className="flex flex-col">
+                    <div className={`p-4 rounded-[2rem] shadow-xl relative min-w-[100px] ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#112a4a] text-white rounded-tl-none'}`}>
+                      <p className="text-base font-medium leading-relaxed">{p.content}</p>
+                      <p className={`text-[9px] font-bold mt-2 opacity-60 text-right`}>
+                        {new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
+                    </div>
+
+                    {/* Interactions Row matching screenshot exactly */}
+                    <div className={`flex items-center gap-3 mt-2 px-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
+                      <button onClick={() => handleLikePost(p.id)} className={`flex items-center gap-1.5 text-[11px] font-black transition-colors ${isLiked ? 'text-rose-500' : 'text-slate-400'}`}>
+                        <Heart size={14} fill={isLiked ? "currentColor" : "none"}/> {p.group_post_likes?.length || 0}
+                      </button>
+                      <button className="text-slate-400 hover:text-blue-500"><CornerDownRight size={14}/></button>
+                      {isMe && (
+                        <>
+                          <button onClick={() => { setEditingPostId(p.id); setComment(p.content); }} className="text-slate-400 hover:text-blue-400"><Pencil size={14}/></button>
+                          <button onClick={() => handleDeletePost(p.id)} className="text-slate-400 hover:text-rose-500"><Trash2 size={14}/></button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Initials Avatar matching screenshot */}
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-lg border border-white/5 ${isMe ? 'bg-[#112a4a] text-blue-400' : 'bg-blue-600 text-white'}`}>
+                    {(p.profiles?.first_name?.[0] || 'U').toUpperCase()}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Bottom Input Area matching screenshot */}
+        <div className="fixed bottom-20 left-0 right-0 p-4 bg-transparent z-20 flex items-center gap-3">
+          <div className="flex-1 relative">
+            <input 
+              value={comment} 
+              onChange={e => setComment(e.target.value)} 
+              onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+              placeholder="Type a message..." 
+              className="w-full bg-[#112a4a]/80 backdrop-blur-xl border border-white/10 p-4 rounded-full text-sm font-medium text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-blue-500/50 shadow-2xl transition-all" 
+            />
+          </div>
+          <button 
+            onClick={handleSendMessage}
+            className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-blue-500/20 active:scale-90 transition-transform transform shrink-0"
+          >
+            <Send size={24} className="ml-1" />
+          </button>
         </div>
       </div>
     );
@@ -557,7 +578,7 @@ export const CommunityView = () => {
 
   return (
     <div className="p-4 space-y-6 pb-24">
-      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase">Community Groups</h2>
+      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Community Groups</h2>
       <div className="grid gap-6">
         {groups.map(g => (
           <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border dark:border-slate-700">
@@ -630,7 +651,7 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
 
   return (
     <div className="p-4 space-y-6 pb-24 animate-fade-in">
-      <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-black mb-6 uppercase text-[10px]"><ArrowLeft size={16}/> Back</button>
+      <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-black uppercase text-[10px]"><ArrowLeft size={16}/> Back</button>
       <h2 className="text-2xl font-black dark:text-white uppercase">Events & News</h2>
       <div className="space-y-4">
         {events.map(event => (

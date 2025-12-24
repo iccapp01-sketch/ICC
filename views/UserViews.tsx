@@ -550,7 +550,7 @@ export const BlogView = () => {
   );
 };
 
-// --- GROUPS PAGE (REFINED CHAT INTERFACE) ---
+// --- GROUPS PAGE (THREAD-LIKE CHAT INTERFACE) ---
 export const CommunityView = () => {
   const [groups, setGroups] = useState<CommunityGroup[]>([]);
   const [selected, setSelected] = useState<CommunityGroup | null>(null);
@@ -559,6 +559,7 @@ export const CommunityView = () => {
   const [isJoining, setIsJoining] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [replyingTo, setReplyingTo] = useState<GroupPost | null>(null);
 
   const fetchPosts = async (groupId: string) => {
     const { data } = await supabase.from('group_posts')
@@ -589,7 +590,10 @@ export const CommunityView = () => {
       await supabase.from('group_posts').update({ content: comment }).eq('id', editingPostId);
       setEditingPostId(null);
     } else {
-      await supabase.from('group_posts').insert([{ group_id: selected.id, user_id: currentUserId, content: comment }]);
+      const payload: any = { group_id: selected.id, user_id: currentUserId, content: comment };
+      if (replyingTo) payload.parent_id = replyingTo.id;
+      await supabase.from('group_posts').insert([payload]);
+      setReplyingTo(null);
     }
     
     setComment('');
@@ -624,7 +628,7 @@ export const CommunityView = () => {
   if (selected) {
     return (
       <div className="flex flex-col h-full bg-[#08182e] pb-24 relative animate-fade-in overflow-hidden">
-        {/* Header matching screenshot */}
+        {/* Header */}
         <div className="p-4 flex items-center justify-between bg-[#08182e] border-b border-slate-800/50 sticky top-0 z-10 h-20">
           <div className="flex items-center gap-4">
             <button onClick={() => setSelected(null)} className="p-2 text-white hover:bg-slate-800 rounded-full transition"><ArrowLeft size={24}/></button>
@@ -636,29 +640,40 @@ export const CommunityView = () => {
           <button className="p-2 text-slate-400"><MoreVertical size={24}/></button>
         </div>
 
-        {/* Chat Area */}
+        {/* Chat Area with Thread Logic */}
         <div className="flex-1 overflow-y-auto p-4 space-y-8 scroll-smooth no-scrollbar">
           {posts.map(p => {
             const isMe = p.user_id === currentUserId;
             const isLiked = p.group_post_likes?.some(l => l.user_id === currentUserId);
+            const parentPost = p.parent_id ? posts.find(x => x.id === p.parent_id) : null;
+
             return (
               <div key={p.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
                 <div className={`flex gap-3 max-w-[85%] ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
                   {/* Bubble Container */}
                   <div className="flex flex-col">
-                    <div className={`p-4 rounded-[2rem] shadow-xl relative min-w-[100px] ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#112a4a] text-white rounded-tl-none'}`}>
+                    <div className={`p-4 rounded-[2rem] shadow-xl relative min-w-[120px] ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#112a4a] text-white rounded-tl-none'}`}>
+                      
+                      {/* Quoted Reply Part (Thread style) */}
+                      {p.parent_id && (
+                        <div className={`mb-3 p-3 rounded-2xl border-l-4 text-[11px] leading-tight ${isMe ? 'bg-black/10 border-blue-300' : 'bg-white/5 border-blue-500'}`}>
+                           <p className="font-black text-blue-400 mb-1">{(parentPost?.profiles?.first_name || 'User')}</p>
+                           <p className="opacity-70 line-clamp-2 italic">{(parentPost?.content || 'Original message unavailable')}</p>
+                        </div>
+                      )}
+
                       <p className="text-base font-medium leading-relaxed">{p.content}</p>
                       <p className={`text-[9px] font-bold mt-2 opacity-60 text-right`}>
                         {new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </p>
                     </div>
 
-                    {/* Interactions Row matching screenshot exactly */}
+                    {/* Interactions Row */}
                     <div className={`flex items-center gap-3 mt-2 px-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
                       <button onClick={() => handleLikePost(p.id)} className={`flex items-center gap-1.5 text-[11px] font-black transition-colors ${isLiked ? 'text-rose-500' : 'text-slate-400'}`}>
                         <Heart size={14} fill={isLiked ? "currentColor" : "none"}/> {p.group_post_likes?.length || 0}
                       </button>
-                      <button className="text-slate-400 hover:text-blue-500"><CornerDownRight size={14}/></button>
+                      <button onClick={() => setReplyingTo(p)} className="text-slate-400 hover:text-blue-500"><CornerDownRight size={14}/></button>
                       {isMe && (
                         <>
                           <button onClick={() => { setEditingPostId(p.id); setComment(p.content); }} className="text-slate-400 hover:text-blue-400"><Pencil size={14}/></button>
@@ -668,7 +683,7 @@ export const CommunityView = () => {
                     </div>
                   </div>
 
-                  {/* Initials Avatar matching screenshot */}
+                  {/* Initials Avatar */}
                   <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-lg border border-white/5 ${isMe ? 'bg-[#112a4a] text-blue-400' : 'bg-blue-600 text-white'}`}>
                     {(p.profiles?.first_name?.[0] || 'U').toUpperCase()}
                   </div>
@@ -678,23 +693,37 @@ export const CommunityView = () => {
           })}
         </div>
 
-        {/* Bottom Input Area matching screenshot */}
-        <div className="fixed bottom-20 left-0 right-0 p-4 bg-transparent z-20 flex items-center gap-3">
-          <div className="flex-1 relative">
-            <input 
-              value={comment} 
-              onChange={e => setComment(e.target.value)} 
-              onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-              placeholder="Type a message..." 
-              className="w-full bg-[#112a4a]/80 backdrop-blur-xl border border-white/10 p-4 rounded-full text-sm font-medium text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-blue-500/50 shadow-2xl transition-all" 
-            />
+        {/* Bottom Input Area with Reply Preview */}
+        <div className="fixed bottom-20 left-0 right-0 p-4 bg-transparent z-20 flex flex-col gap-2">
+          
+          {/* Reply Context Bar */}
+          {replyingTo && (
+            <div className="bg-[#112a4a] backdrop-blur-xl border border-white/10 rounded-2xl p-3 flex justify-between items-center animate-slide-up mx-2">
+               <div className="border-l-2 border-blue-500 pl-3">
+                 <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Replying to {replyingTo.profiles?.first_name}</p>
+                 <p className="text-xs text-white/60 line-clamp-1 italic">{replyingTo.content}</p>
+               </div>
+               <button onClick={() => setReplyingTo(null)} className="p-1.5 hover:bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3">
+            <div className="flex-1 relative">
+              <input 
+                value={comment} 
+                onChange={e => setComment(e.target.value)} 
+                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
+                placeholder={editingPostId ? "Edit message..." : "Type a message..."} 
+                className="w-full bg-[#112a4a]/80 backdrop-blur-xl border border-white/10 p-4 rounded-full text-sm font-medium text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-blue-500/50 shadow-2xl transition-all" 
+              />
+            </div>
+            <button 
+              onClick={handleSendMessage}
+              className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-blue-500/20 active:scale-90 transition-transform transform shrink-0"
+            >
+              <Send size={24} className="ml-1" />
+            </button>
           </div>
-          <button 
-            onClick={handleSendMessage}
-            className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-blue-500/20 active:scale-90 transition-transform transform shrink-0"
-          >
-            <Send size={24} className="ml-1" />
-          </button>
         </div>
       </div>
     );
@@ -841,7 +870,7 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
           return (
             <div key={event.id} className="bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] p-8 border border-white/5 shadow-2xl transition-all hover:border-white/10">
               <div className="flex justify-between items-start mb-6">
-                <div className={`w-16 h-16 rounded-3xl flex items-center justify-center shadow-lg ${isEvent ? 'bg-blue-600 text-white' : 'bg-orange-500 text-white'}`}>
+                <div className={`w-16 h-16 rounded-3xl flex items-center justify-center shadow-lg ${isEvent ? 'bg-blue-600 text-white' : 'bg-orange-50 text-white'}`}>
                   {isEvent ? <Calendar size={32}/> : <Info size={32}/>}
                 </div>
                 <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${isEvent ? 'bg-white text-blue-600' : 'bg-[#fff5f0] text-orange-600'}`}>
@@ -953,7 +982,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 shadow-sm space-y-6">
-        <div className="flex justify-between items-center"><h3 className="font-black dark:text-white uppercase text-lg">My Information</h3><button onClick={() => setIsEditing(!isEditing)} className="p-2 bg-blue-50 rounded-full text-blue-600">{isEditing ? <X size={20}/> : <Edit2 size={20}/>}</button></div>
+        <div className="flex justify-between items-center"><h3 className="font-black dark:text-white uppercase text-lg">My Information</h3><button onClick={() => setIsEditing(!isEditing)} className="p-2 bg-blue-50 rounded-full text-blue-600">{isEditing ? <X size={20}/ : <Edit2 size={20}/></button></div>
         {isEditing ? (
           <div className="space-y-4">
             <input value={editData.firstName || ''} onChange={e => setEditData({...editData, firstName: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl dark:text-white" placeholder="First Name"/>

@@ -29,10 +29,28 @@ const getYouTubeID = (url: string) => {
 };
 
 /**
+ * Environment Detection for PWA / APK
+ */
+const isAPKMode = () => {
+  return (
+    window.matchMedia('(display-mode: standalone)').matches || 
+    (window.navigator as any).standalone === true ||
+    /wv/.test(navigator.userAgent) ||
+    document.referrer.includes('android-app://')
+  );
+};
+
+/**
  * Enhanced Share Utility
  */
-const shareMediaFile = async (mediaUrl: string, title: string, fileName: string = 'share-content') => {
+const shareMediaFile = async (mediaUrl: string, title: string, fileName: string = 'share-content', onAPKShare?: (data: {url: string, title: string}) => void) => {
   if (!mediaUrl) return;
+
+  // In APK/WebView mode, we prefer the custom share dialog if provided
+  if (isAPKMode() && onAPKShare) {
+    onAPKShare({ url: mediaUrl, title });
+    return;
+  }
 
   try {
     const response = await fetch(mediaUrl, { mode: 'cors' });
@@ -62,7 +80,74 @@ const shareMediaFile = async (mediaUrl: string, title: string, fileName: string 
     } catch (e) {}
   }
 
+  // Final fallback to WhatsApp web if all else fails in browser
   window.open(`https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`, '_blank');
+};
+
+// --- SHARE MODAL COMPONENT ---
+const ShareModal = ({ isOpen, onClose, shareData }: { isOpen: boolean, onClose: () => void, shareData: { url: string, title: string } | null }) => {
+  if (!isOpen || !shareData) return null;
+
+  const encodedTitle = encodeURIComponent(shareData.title);
+  const encodedUrl = encodeURIComponent(shareData.url);
+
+  const handleDeepLink = (platform: string) => {
+    switch (platform) {
+      case 'whatsapp':
+        window.open(`https://wa.me/?text=${encodedTitle}%20${encodedUrl}`, '_blank');
+        break;
+      case 'facebook':
+        window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, '_blank');
+        break;
+      case 'instagram':
+        // Try to open Instagram app via intent
+        window.location.href = `intent://share#Intent;package=com.instagram.android;end`;
+        break;
+      case 'tiktok':
+        // Try to open TikTok app via intent
+        window.location.href = `intent://#Intent;package=com.zhiliaoapp.musically;end`;
+        break;
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-end justify-center animate-fade-in bg-black/60 backdrop-blur-sm p-4">
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2.5rem] p-8 shadow-2xl animate-slide-up border border-slate-100 dark:border-slate-800">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-black dark:text-white uppercase tracking-tighter">Share to Socials</h3>
+          <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><X size={20}/></button>
+        </div>
+
+        <div className="grid grid-cols-2 gap-4 mb-8">
+          <button onClick={() => handleDeepLink('whatsapp')} className="flex flex-col items-center gap-2 p-4 bg-green-50 dark:bg-green-900/10 rounded-3xl transition-transform active:scale-95">
+            <div className="w-12 h-12 bg-green-500 text-white rounded-2xl flex items-center justify-center"><MessageCircle size={24}/></div>
+            <span className="text-[10px] font-black uppercase text-green-600">WhatsApp</span>
+          </button>
+          <button onClick={() => handleDeepLink('facebook')} className="flex flex-col items-center gap-2 p-4 bg-blue-50 dark:bg-blue-900/10 rounded-3xl transition-transform active:scale-95">
+            <div className="w-12 h-12 bg-blue-600 text-white rounded-2xl flex items-center justify-center"><Facebook size={24}/></div>
+            <span className="text-[10px] font-black uppercase text-blue-600">Facebook</span>
+          </button>
+          <button onClick={() => handleDeepLink('instagram')} className="flex flex-col items-center gap-2 p-4 bg-pink-50 dark:bg-pink-900/10 rounded-3xl transition-transform active:scale-95">
+            <div className="w-12 h-12 bg-gradient-to-tr from-amber-400 via-pink-500 to-purple-600 text-white rounded-2xl flex items-center justify-center"><Instagram size={24}/></div>
+            <span className="text-[10px] font-black uppercase text-pink-600">Instagram</span>
+          </button>
+          <button onClick={() => handleDeepLink('tiktok')} className="flex flex-col items-center gap-2 p-4 bg-slate-50 dark:bg-slate-900 rounded-3xl transition-transform active:scale-95">
+            <div className="w-12 h-12 bg-black text-white rounded-2xl flex items-center justify-center"><Globe size={24}/></div>
+            <span className="text-[10px] font-black uppercase text-slate-900 dark:text-white">TikTok</span>
+          </button>
+        </div>
+
+        <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800/30">
+          <div className="flex gap-3">
+            <Info size={18} className="text-blue-600 shrink-0"/>
+            <p className="text-[11px] font-bold text-blue-700 dark:text-blue-300 leading-tight">
+              Note: Instagram and TikTok will open the app. You may need to manually select the media from your gallery after the app opens.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 // --- HOME PAGE ---
@@ -70,6 +155,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
   const [verse, setVerse] = useState<BibleVerse | null>(null);
   const [sermon, setSermon] = useState<Sermon | null>(null);
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
+  const [apkShareData, setApkShareData] = useState<{url: string, title: string} | null>(null);
 
   useEffect(() => {
     fetch('https://bible-api.com/philippians+4:13')
@@ -85,6 +171,8 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
 
   return (
     <div className="p-4 space-y-6 animate-fade-in">
+      <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
+      
       <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-6 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
         <Logo className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 pointer-events-none" />
         <h2 className="text-xs font-bold uppercase tracking-widest mb-2 opacity-80">Daily Verse</h2>
@@ -119,7 +207,15 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
               </div>
               <div className="flex-1">
                 <h4 className="font-bold text-sm leading-tight mb-2 dark:text-white line-clamp-2">{blog.title}</h4>
-                <button onClick={(e) => { e.stopPropagation(); shareMediaFile(blog.image_url, blog.title); }} className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1"><Share2 size={12}/> Share</button>
+                <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    shareMediaFile(blog.image_url, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase(), setApkShareData); 
+                  }} 
+                  className="text-[10px] font-black text-blue-600 uppercase flex items-center gap-1 hover:bg-blue-50 p-2 rounded-xl"
+                >
+                  <Share2 size={12}/> Share
+                </button>
               </div>
             </div>
           ))}
@@ -360,6 +456,8 @@ export const BlogView = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [category, setCategory] = useState('All');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
+  const [apkShareData, setApkShareData] = useState<{url: string, title: string} | null>(null);
+
   const categories = ['All', 'Sermon Devotional', 'Psalm Devotional', 'Community News'];
 
   useEffect(() => {
@@ -376,12 +474,26 @@ export const BlogView = () => {
     const ytId = getYouTubeID(selectedPost.video_url || '');
     return (
       <div className="p-4 pb-24 animate-fade-in max-w-4xl mx-auto">
+        <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
+        
         <button onClick={() => setSelectedPost(null)} className="flex items-center gap-2 text-blue-600 font-black mb-6 uppercase tracking-widest text-[10px]"><ArrowLeft size={16}/> Back</button>
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
           <div className="relative aspect-video bg-black">
             {selectedPost.video_url ? (
                ytId ? <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${ytId}?rel=0`} frameBorder="0" allowFullScreen></iframe> : <video src={selectedPost.video_url} controls className="w-full h-full" />
             ) : <img src={selectedPost.image_url} className="w-full h-full object-cover" alt={selectedPost.title} />}
+            
+            <button 
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                const isYT = selectedPost.video_url && (selectedPost.video_url.includes('youtube.com') || selectedPost.video_url.includes('youtu.be'));
+                const shareTarget = isYT ? selectedPost.image_url : (selectedPost.video_url || selectedPost.image_url);
+                shareMediaFile(shareTarget, selectedPost.title, selectedPost.title.replace(/\s+/g, '-').toLowerCase(), setApkShareData); 
+              }} 
+              className="absolute top-4 right-4 w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg"
+            >
+              <Share2 size={20}/>
+            </button>
           </div>
           <div className="p-8 space-y-8">
             <div>
@@ -398,6 +510,8 @@ export const BlogView = () => {
 
   return (
     <div className="p-4 pb-20 max-w-4xl mx-auto relative">
+      <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
+      
       <Logo className="absolute top-10 right-4 w-24 h-24 opacity-5 pointer-events-none" />
       <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Articles & Inspiration</h2>
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
@@ -415,7 +529,17 @@ export const BlogView = () => {
               <span className="text-[10px] font-black text-blue-600 uppercase mb-1 block">{blog.category}</span>
               <h3 className="font-black text-sm dark:text-white line-clamp-2 leading-tight mb-2">{blog.title}</h3>
               <div className="flex gap-2">
-                 <button onClick={(e) => { e.stopPropagation(); shareMediaFile(blog.image_url, blog.title); }} className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full"><Share2 size={14}/></button>
+                 <button 
+                  onClick={(e) => { 
+                    e.stopPropagation(); 
+                    const isYT = blog.video_url && (blog.video_url.includes('youtube.com') || blog.video_url.includes('youtu.be'));
+                    const shareTarget = isYT ? blog.image_url : (blog.video_url || blog.image_url);
+                    shareMediaFile(shareTarget, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase(), setApkShareData); 
+                  }} 
+                  className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-100"
+                >
+                   <Share2 size={14}/>
+                 </button>
                  <button className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase">Read</button>
               </div>
             </div>

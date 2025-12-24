@@ -6,7 +6,7 @@ import {
   Facebook, MessageCircle, Send, User as UserIcon, Bell, Phone, Mail,
   Clock, MapPin, MoreVertical, ListMusic, Mic, Globe, Loader2, Save,
   SkipBack, SkipForward, Square, Repeat, RotateCcw, Edit2, Shield,
-  ExternalLink, Info, Trash2, Pencil, CornerDownRight, Plus, FolderPlus, FileText
+  ExternalLink, Info, Trash2, Pencil, CornerDownRight, Plus, FolderPlus, FileText, ChevronLeft
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { 
@@ -962,75 +962,192 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-// --- PROFILE PAGE ---
+// --- PROFILE PAGE (REFINED TO MATCH SCREENSHOTS) ---
 export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<User>>({});
 
   useEffect(() => {
-    if (user) setEditData({ firstName: user.firstName, lastName: user.lastName, phone: user.phone });
+    if (user) setEditData({ firstName: user.firstName, lastName: user.lastName, phone: user.phone, dob: user.dob, gender: user.gender });
   }, [user]);
 
+  const initials = user ? `${user.firstName?.[0] || ''}${user.lastName?.[0] || ''}` : 'U';
+
   return (
-    <div className="p-4 space-y-6 pb-24 animate-fade-in">
-      <div className="bg-[#0c2d58] p-8 rounded-[2.5rem] text-white relative overflow-hidden">
-        <Logo className="absolute -bottom-8 -right-8 w-40 h-40 opacity-10" />
-        <div className="flex items-center gap-6 relative z-10">
-          <div className="w-20 h-20 bg-white/10 rounded-[1.5rem] flex items-center justify-center text-3xl font-black">{user?.firstName?.[0]}{user?.lastName?.[0]}</div>
-          <div><h2 className="text-2xl font-black">{user?.firstName} {user?.lastName}</h2><p className="text-xs uppercase font-black opacity-60">{user?.role}</p></div>
+    <div className="flex flex-col h-full bg-[#08182e] animate-fade-in overflow-hidden">
+      <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8 no-scrollbar pb-24">
+        
+        {/* Header matching screenshot */}
+        <div className="bg-[#0c2d58] rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl flex flex-col items-center justify-center">
+          <Logo className="absolute -bottom-10 -right-10 w-48 h-48 opacity-10 pointer-events-none" />
+          
+          <div className="w-24 h-24 bg-[#112a4a] border-4 border-white/5 rounded-full flex items-center justify-center text-3xl font-black mb-4 shadow-xl">
+             {initials.toUpperCase()}
+          </div>
+          
+          <h2 className="text-2xl font-black tracking-tight mb-3">
+            {user?.firstName} {user?.lastName}
+          </h2>
+          
+          <div className="flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full border border-white/10">
+            <Shield size={12} className="text-blue-400" />
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
+              MEMBER • JOINED {formatDate(user?.joinedDate).toUpperCase()}
+            </span>
+          </div>
         </div>
-      </div>
 
-      <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 shadow-sm space-y-6">
-        <div className="flex justify-between items-center"><h3 className="font-black dark:text-white uppercase text-lg">My Information</h3><button onClick={() => setIsEditing(!isEditing)} className="p-2 bg-blue-50 rounded-full text-blue-600">{isEditing ? <X size={20}/ : <Edit2 size={20}/></button></div>
-        {isEditing ? (
-          <div className="space-y-4">
-            <input value={editData.firstName || ''} onChange={e => setEditData({...editData, firstName: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl dark:text-white" placeholder="First Name"/>
-            <input value={editData.lastName || ''} onChange={e => setEditData({...editData, lastName: e.target.value})} className="w-full p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl dark:text-white" placeholder="Last Name"/>
-            <button onClick={() => { onUpdateUser(editData); setIsEditing(false); }} className="w-full bg-[#0c2d58] text-white p-4 rounded-2xl font-black uppercase">Save Changes</button>
+        {/* Details Card matching screenshot */}
+        <div className="bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] p-8 border border-white/5 shadow-2xl space-y-6">
+          <div className="flex justify-between items-center mb-2">
+             <div className="flex items-center gap-2.5">
+               <UserIcon size={20} className="text-blue-400"/>
+               <h3 className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em]">PERSONAL DETAILS</h3>
+             </div>
+             <button onClick={() => setIsEditing(!isEditing)} className="flex items-center gap-2 px-4 py-2 bg-white/5 hover:bg-white/10 rounded-xl transition-colors border border-white/5">
+               <Pencil size={14} className="text-blue-400"/>
+               <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">EDIT INFO</span>
+             </button>
           </div>
-        ) : (
-          <div className="space-y-4 text-sm font-bold dark:text-white">
-            <div className="flex justify-between py-2 border-b dark:border-slate-700"><span className="text-slate-400">Email</span><span>{user?.email}</span></div>
-            <div className="flex justify-between py-2 border-b dark:border-slate-700"><span className="text-slate-400">Phone</span><span>{user?.phone || 'Not set'}</span></div>
-          </div>
-        )}
-      </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <button onClick={toggleTheme} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 flex flex-col items-center gap-2">
-          {isDarkMode ? <Sun className="text-amber-500"/> : <Moon className="text-indigo-600"/>}
-          <span className="text-[10px] font-black uppercase dark:text-white">{isDarkMode ? 'Light' : 'Dark'}</span>
-        </button>
-        <button onClick={() => onNavigate('contact')} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] border dark:border-slate-700 flex flex-col items-center gap-2">
-          <Phone className="text-blue-600"/>
-          <span className="text-[10px] font-black uppercase dark:text-white">Support</span>
-        </button>
-      </div>
+          {isEditing ? (
+            <div className="space-y-4 animate-slide-up">
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">FIRST NAME</label>
+                <input value={editData.firstName || ''} onChange={e => setEditData({...editData, firstName: e.target.value})} className="w-full p-4 bg-[#0c1f38] border border-white/5 rounded-2xl text-sm font-bold text-white outline-none focus:ring-1 focus:ring-blue-500" placeholder="First Name"/>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">LAST NAME</label>
+                <input value={editData.lastName || ''} onChange={e => setEditData({...editData, lastName: e.target.value})} className="w-full p-4 bg-[#0c1f38] border border-white/5 rounded-2xl text-sm font-bold text-white outline-none focus:ring-1 focus:ring-blue-500" placeholder="Last Name"/>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">PHONE</label>
+                <input value={editData.phone || ''} onChange={e => setEditData({...editData, phone: e.target.value})} className="w-full p-4 bg-[#0c1f38] border border-white/5 rounded-2xl text-sm font-bold text-white outline-none focus:ring-1 focus:ring-blue-500" placeholder="Phone"/>
+              </div>
+              <button onClick={() => { onUpdateUser(editData); setIsEditing(false); }} className="w-full bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-2xl font-black uppercase tracking-widest text-xs shadow-xl transition-all active:scale-95">Save Changes</button>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {[
+                { label: 'FIRST NAME', value: user?.firstName, icon: UserIcon },
+                { label: 'LAST NAME', value: user?.lastName, icon: UserIcon },
+                { label: 'PHONE', value: user?.phone || 'Not set', icon: Phone },
+                { label: 'DATE OF BIRTH', value: user?.dob || 'Not set', icon: Calendar },
+                { label: 'GENDER', value: user?.gender || 'Not specified', icon: Users },
+              ].map((field, i) => (
+                <div key={i} className="flex flex-col gap-1">
+                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest ml-1">{field.label}</p>
+                  <div className="bg-[#0c1f38] border border-white/5 rounded-2xl p-4 flex items-center gap-4 group">
+                    <div className="w-10 h-10 rounded-xl bg-[#112a4a] flex items-center justify-center text-slate-400">
+                      <field.icon size={18}/>
+                    </div>
+                    <span className="text-sm font-bold text-white tracking-tight">{field.value}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
 
-      <button onClick={onLogout} className="w-full bg-rose-50 text-rose-600 p-6 rounded-[2.5rem] font-black uppercase border border-rose-100 flex items-center justify-center gap-3"><LogOut size={24}/> Sign Out</button>
+        {/* Action Rows matching screenshot */}
+        <div className="space-y-4">
+          <button onClick={toggleTheme} className="w-full bg-[#112a4a]/40 backdrop-blur-md rounded-[2.5rem] p-6 border border-white/5 flex items-center justify-between group transition-all hover:bg-white/5 active:scale-[0.98]">
+             <div className="flex items-center gap-5">
+               <div className="w-14 h-14 bg-[#0c1f38] border border-white/5 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-blue-400 transition-colors">
+                 {isDarkMode ? <Sun size={24}/> : <Moon size={24}/>}
+               </div>
+               <div className="text-left">
+                 <p className="text-sm font-black text-white tracking-tight">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</p>
+                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">TOGGLE APPEARANCE</p>
+               </div>
+             </div>
+             <ChevronRight className="text-slate-500" size={24}/>
+          </button>
+
+          <button onClick={() => onNavigate('contact')} className="w-full bg-[#112a4a]/40 backdrop-blur-md rounded-[2.5rem] p-6 border border-white/5 flex items-center justify-between group transition-all hover:bg-white/5 active:scale-[0.98]">
+             <div className="flex items-center gap-5">
+               <div className="w-14 h-14 bg-[#0c1f38] border border-white/5 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-blue-400 transition-colors">
+                 <Phone size={24}/>
+               </div>
+               <div className="text-left">
+                 <p className="text-sm font-black text-white tracking-tight">Help & Support</p>
+                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">CONTACT OFFICE</p>
+               </div>
+             </div>
+             <ChevronRight className="text-slate-500" size={24}/>
+          </button>
+
+          <button onClick={onLogout} className="w-full bg-rose-500/10 backdrop-blur-md rounded-[2.5rem] p-6 border border-rose-500/20 flex items-center justify-between group transition-all hover:bg-rose-500/20 active:scale-[0.98]">
+             <div className="flex items-center gap-5">
+               <div className="w-14 h-14 bg-[#0c1f38] border border-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500">
+                 <LogOut size={24}/>
+               </div>
+               <div className="text-left">
+                 <p className="text-sm font-black text-rose-500 tracking-tight">Sign Out</p>
+                 <p className="text-[9px] font-black text-rose-500/60 uppercase tracking-widest">SECURELY LOGOUT</p>
+               </div>
+             </div>
+             <ChevronRight className="text-rose-500/60" size={24}/>
+          </button>
+        </div>
+
+      </div>
     </div>
   );
 };
 
 // --- MISC VIEWS ---
 export const NotificationsView = () => (
-  <div className="p-4 space-y-6 pb-24 text-center">
-    <h2 className="text-2xl font-black dark:text-white uppercase">Notifications</h2>
-    <div className="py-24 flex flex-col items-center bg-white dark:bg-slate-800 rounded-[2.5rem] border dark:border-slate-700">
-      <Bell size={48} className="text-slate-200 mb-4"/>
-      <p className="text-slate-400 font-black uppercase text-xs">No new notifications</p>
+  <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 text-center animate-fade-in">
+    <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-4">Notifications</h2>
+    <div className="py-24 flex flex-col items-center bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] border border-white/5 shadow-2xl">
+      <div className="w-20 h-20 bg-[#0c1f38] rounded-3xl flex items-center justify-center text-slate-700 mb-6 shadow-lg">
+        <Bell size={40}/>
+      </div>
+      <p className="text-slate-500 font-black uppercase tracking-widest text-[10px]">No new notifications for you</p>
     </div>
   </div>
 );
 
 export const ContactView = ({ onBack }: { onBack: () => void }) => (
-  <div className="p-4 space-y-6 pb-24">
-    <button onClick={onBack} className="flex items-center gap-2 text-blue-600 font-black uppercase text-[10px]"><ArrowLeft size={16}/> Back</button>
-    <h2 className="text-2xl font-black dark:text-white uppercase">Contact Us</h2>
-    <div className="bg-white dark:bg-slate-800 p-8 rounded-[2.5rem] border dark:border-slate-700 space-y-8">
-      <div className="flex items-center gap-5"><Phone className="text-blue-600" size={24}/><div><p className="text-[10px] font-black text-slate-400 uppercase">Call Us</p><p className="font-bold dark:text-white">+27 31 123 4567</p></div></div>
-      <div className="flex items-center gap-5"><Mail className="text-blue-600" size={24}/><div><p className="text-[10px] font-black text-slate-400 uppercase">Email Us</p><p className="font-bold dark:text-white">info@icc.com</p></div></div>
+  <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 animate-fade-in">
+    <div className="flex items-center gap-6 mt-4">
+      <button onClick={onBack} className="p-2 text-white hover:bg-white/10 rounded-full transition">
+        <ArrowLeft size={28}/>
+      </button>
+      <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Contact Us</h2>
+    </div>
+    
+    <div className="bg-[#112a4a]/40 backdrop-blur-md p-10 rounded-[3rem] border border-white/5 shadow-2xl space-y-10">
+      <div className="flex items-center gap-6 group">
+        <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
+          <Phone size={28}/>
+        </div>
+        <div>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Call Our Office</p>
+          <p className="text-lg font-black text-white tracking-tight">+27 31 123 4567</p>
+        </div>
+      </div>
+      
+      <div className="flex items-center gap-6 group">
+        <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
+          <Mail size={28}/>
+        </div>
+        <div>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Send an Email</p>
+          <p className="text-lg font-black text-white tracking-tight">info@icc.com</p>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-6 group">
+        <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
+          <MapPin size={28}/>
+        </div>
+        <div>
+          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Visit Us</p>
+          <p className="text-lg font-black text-white tracking-tight">Isipingo, Durban</p>
+        </div>
+      </div>
     </div>
   </div>
 );

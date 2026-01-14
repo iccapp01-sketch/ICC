@@ -28,9 +28,6 @@ const getYouTubeID = (url: string) => {
   return match && match[2].length === 11 ? match[2] : null;
 };
 
-/**
- * Environment Detection for PWA / APK
- */
 const isAPKMode = () => {
   return (
     window.matchMedia('(display-mode: standalone)').matches || 
@@ -40,13 +37,9 @@ const isAPKMode = () => {
   );
 };
 
-/**
- * Enhanced Share Utility
- */
 const shareMediaFile = async (mediaUrl: string, title: string, fileName: string = 'share-content', onAPKShare?: (data: {url: string, title: string}) => void) => {
   if (!mediaUrl) return;
 
-  // In APK/WebView mode, we prefer the custom share dialog if provided
   if (isAPKMode() && onAPKShare) {
     onAPKShare({ url: mediaUrl, title });
     return;
@@ -80,11 +73,9 @@ const shareMediaFile = async (mediaUrl: string, title: string, fileName: string 
     } catch (e) {}
   }
 
-  // Final fallback to WhatsApp web if all else fails in browser
   window.open(`https://wa.me/?text=${encodeURIComponent(title + ' ' + mediaUrl)}`, '_blank');
 };
 
-// --- SHARE MODAL COMPONENT ---
 const ShareModal = ({ isOpen, onClose, shareData }: { isOpen: boolean, onClose: () => void, shareData: { url: string, title: string } | null }) => {
   if (!isOpen || !shareData) return null;
 
@@ -100,11 +91,9 @@ const ShareModal = ({ isOpen, onClose, shareData }: { isOpen: boolean, onClose: 
         window.open(`https://www.facebook.com/sharer/sharer.php?u=${encodedUrl}`, '_blank');
         break;
       case 'instagram':
-        // Try to open Instagram app via intent
         window.location.href = `intent://share#Intent;package=com.instagram.android;end`;
         break;
       case 'tiktok':
-        // Try to open TikTok app via intent
         window.location.href = `intent://#Intent;package=com.zhiliaoapp.musically;end`;
         break;
     }
@@ -117,7 +106,6 @@ const ShareModal = ({ isOpen, onClose, shareData }: { isOpen: boolean, onClose: 
           <h3 className="text-xl font-black dark:text-white uppercase tracking-tighter">Share to Socials</h3>
           <button onClick={onClose} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full"><X size={20}/></button>
         </div>
-
         <div className="grid grid-cols-2 gap-4 mb-8">
           <button onClick={() => handleDeepLink('whatsapp')} className="flex flex-col items-center gap-2 p-4 bg-green-50 dark:bg-green-900/10 rounded-3xl transition-transform active:scale-95">
             <div className="w-12 h-12 bg-green-500 text-white rounded-2xl flex items-center justify-center"><MessageCircle size={24}/></div>
@@ -136,7 +124,6 @@ const ShareModal = ({ isOpen, onClose, shareData }: { isOpen: boolean, onClose: 
             <span className="text-[10px] font-black uppercase text-slate-900 dark:text-white">TikTok</span>
           </button>
         </div>
-
         <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-2xl border border-blue-100 dark:border-blue-800/30">
           <div className="flex gap-3">
             <Info size={18} className="text-blue-600 shrink-0"/>
@@ -172,14 +159,12 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
   return (
     <div className="p-4 space-y-6 animate-fade-in">
       <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
-      
       <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-6 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
         <Logo className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 pointer-events-none" />
         <h2 className="text-xs font-bold uppercase tracking-widest mb-2 opacity-80">Daily Verse</h2>
         <p className="text-lg font-serif mb-3 leading-relaxed">"{verse?.text}"</p>
         <p className="font-bold text-blue-300 text-sm">{verse?.reference}</p>
       </div>
-
       {sermon && (
         <section>
           <h3 className="font-black text-lg mb-3 dark:text-white">Latest Sermon</h3>
@@ -196,7 +181,6 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
           </div>
         </section>
       )}
-
       <section>
         <h3 className="font-black text-lg mb-3 dark:text-white">Recent Articles</h3>
         <div className="space-y-4">
@@ -247,7 +231,6 @@ export const BibleView = () => {
         <button onClick={() => setActiveTab('bible')} className={`flex-1 py-2 rounded-xl text-sm font-bold ${activeTab === 'bible' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow' : 'text-slate-500'}`}>Bible</button>
         <button onClick={() => setActiveTab('plan')} className={`flex-1 py-2 rounded-xl text-sm font-bold ${activeTab === 'plan' ? 'bg-white dark:bg-slate-700 text-blue-600 shadow' : 'text-slate-500'}`}>Reading Plan</button>
       </div>
-
       {activeTab === 'bible' ? (
         <div className="flex-1 flex flex-col p-4 overflow-hidden">
           <div className="flex gap-2 mb-4">
@@ -384,13 +367,11 @@ export const MusicView = () => {
           <button onClick={() => setIsCreatingPlaylist(true)} className="p-2 bg-blue-600 text-white rounded-xl shadow-lg"><FolderPlus size={20}/></button>
         )}
       </div>
-
       <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar">
         {['music', 'podcast', 'playlists'].map(t => (
           <button key={t} onClick={() => { setActiveTab(t as any); setSelectedPlaylist(null); }} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500 border dark:border-slate-700'}`}>{t}</button>
         ))}
       </div>
-
       <div className="space-y-3 overflow-y-auto no-scrollbar">
         {activeTab === 'playlists' && !selectedPlaylist ? (
           <div className="grid grid-cols-2 gap-4">
@@ -414,7 +395,6 @@ export const MusicView = () => {
           </div>
         ))}
       </div>
-
       {current && (
         <div className="fixed bottom-20 left-4 right-4 bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-xl border dark:border-slate-700 z-40">
            <div className="flex items-center gap-4 mb-4">
@@ -425,7 +405,6 @@ export const MusicView = () => {
            <audio ref={audioRef} src={current.url} onEnded={handleNext}/>
         </div>
       )}
-
       {isCreatingPlaylist && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-[100]">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] p-6">
@@ -435,7 +414,6 @@ export const MusicView = () => {
           </div>
         </div>
       )}
-
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-[100]">
           <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] p-6 max-h-[70vh] overflow-y-auto">
@@ -463,7 +441,6 @@ export const BlogView = () => {
     supabase.from('blog_posts').select('*').order('created_at', { ascending: false })
       .then(r => setBlogs(r.data || []));
 
-    // Fetch categories from the Supabase table instead of static array
     supabase.from('blog_categories').select('name').order('name', { ascending: true })
       .then(r => {
         if (r.data) {
@@ -482,14 +459,12 @@ export const BlogView = () => {
     return (
       <div className="p-4 pb-24 animate-fade-in max-w-4xl mx-auto">
         <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
-        
         <button onClick={() => setSelectedPost(null)} className="flex items-center gap-2 text-blue-600 font-black mb-6 uppercase tracking-widest text-[10px]"><ArrowLeft size={16}/> Back</button>
         <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
           <div className="relative aspect-video bg-black">
             {selectedPost.video_url ? (
                ytId ? <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${ytId}?rel=0`} frameBorder="0" allowFullScreen></iframe> : <video src={selectedPost.video_url} controls className="w-full h-full" />
             ) : <img src={selectedPost.image_url} className="w-full h-full object-cover" alt={selectedPost.title} />}
-            
             <button 
               onClick={(e) => { 
                 e.stopPropagation(); 
@@ -518,7 +493,6 @@ export const BlogView = () => {
   return (
     <div className="p-4 pb-20 max-w-4xl mx-auto relative">
       <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
-      
       <Logo className="absolute top-10 right-4 w-24 h-24 opacity-5 pointer-events-none" />
       <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Articles & Inspiration</h2>
       <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
@@ -557,7 +531,86 @@ export const BlogView = () => {
   );
 };
 
-// --- GROUPS PAGE (THREAD-LIKE CHAT INTERFACE) ---
+// --- GROUPS PAGE (THREADED INTERFACE) ---
+
+const ThreadPost = ({ 
+  post, 
+  allPosts, 
+  currentUserId, 
+  onReply, 
+  onEdit, 
+  onDelete, 
+  onLike,
+  depth = 0 
+}: { 
+  post: GroupPost, 
+  allPosts: GroupPost[], 
+  currentUserId: string | null, 
+  onReply: (post: GroupPost) => void,
+  onEdit: (post: GroupPost) => void,
+  onDelete: (id: string) => void,
+  onLike: (id: string) => void,
+  depth?: number 
+}) => {
+  const isMe = post.user_id === currentUserId;
+  const isLiked = post.group_post_likes?.some(l => l.user_id === currentUserId);
+  const replies = allPosts.filter(p => p.parent_id === post.id);
+
+  return (
+    <div className={`flex flex-col w-full ${depth > 0 ? 'mt-4' : 'mt-6'}`}>
+      <div className={`flex gap-3 ${depth > 0 ? 'ml-6 md:ml-12 border-l-2 border-slate-700/50 pl-4' : ''}`}>
+        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-lg border border-white/5 ${isMe ? 'bg-[#112a4a] text-blue-400' : 'bg-blue-600 text-white'}`}>
+          {(post.profiles?.first_name?.[0] || 'U').toUpperCase()}
+        </div>
+        <div className="flex-1 flex flex-col min-w-0">
+          <div className={`p-4 rounded-[2rem] shadow-xl relative min-w-[120px] ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#112a4a] text-white rounded-tl-none'}`}>
+             <div className="flex justify-between items-center mb-1">
+                <p className={`text-[10px] font-black uppercase tracking-widest ${isMe ? 'text-blue-100' : 'text-blue-400'}`}>
+                  {post.profiles?.first_name} {post.profiles?.last_name}
+                </p>
+                <p className="text-[8px] font-bold opacity-60">
+                  {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+             </div>
+             <p className="text-sm font-medium leading-relaxed break-words">{post.content}</p>
+          </div>
+          <div className={`flex items-center gap-4 mt-2 px-2`}>
+            <button onClick={() => onLike(post.id)} className={`flex items-center gap-1.5 text-[11px] font-black transition-colors ${isLiked ? 'text-rose-500' : 'text-slate-400'}`}>
+              <Heart size={14} fill={isLiked ? "currentColor" : "none"}/> {post.group_post_likes?.length || 0}
+            </button>
+            <button onClick={() => onReply(post)} className="flex items-center gap-1.5 text-[11px] font-black text-slate-400 hover:text-blue-500">
+              <MessageSquare size={14}/> Reply
+            </button>
+            {isMe && (
+              <>
+                <button onClick={() => onEdit(post)} className="text-slate-400 hover:text-blue-400"><Pencil size={14}/></button>
+                <button onClick={() => onDelete(post.id)} className="text-slate-400 hover:text-rose-500"><Trash2 size={14}/></button>
+              </>
+            )}
+          </div>
+          {replies.length > 0 && (
+            <div className="flex flex-col">
+              {replies.map(reply => (
+                <ThreadPost 
+                  key={reply.id} 
+                  post={reply} 
+                  allPosts={allPosts} 
+                  currentUserId={currentUserId} 
+                  onReply={onReply}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  onLike={onLike}
+                  depth={depth + 1}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CommunityView = () => {
   const [groups, setGroups] = useState<CommunityGroup[]>([]);
   const [selected, setSelected] = useState<CommunityGroup | null>(null);
@@ -565,7 +618,7 @@ export const CommunityView = () => {
   const [comment, setComment] = useState('');
   const [isJoining, setIsJoining] = useState<string | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editingPost, setEditingPost] = useState<GroupPost | null>(null);
   const [replyingTo, setReplyingTo] = useState<GroupPost | null>(null);
 
   const fetchPosts = async (groupId: string) => {
@@ -593,9 +646,9 @@ export const CommunityView = () => {
   const handleSendMessage = async () => {
     if (!comment.trim() || !selected || !currentUserId) return;
     
-    if (editingPostId) {
-      await supabase.from('group_posts').update({ content: comment }).eq('id', editingPostId);
-      setEditingPostId(null);
+    if (editingPost) {
+      await supabase.from('group_posts').update({ content: comment }).eq('id', editingPost.id);
+      setEditingPost(null);
     } else {
       const payload: any = { group_id: selected.id, user_id: currentUserId, content: comment };
       if (replyingTo) payload.parent_id = replyingTo.id;
@@ -633,9 +686,9 @@ export const CommunityView = () => {
   };
 
   if (selected) {
+    const rootPosts = posts.filter(p => !p.parent_id);
     return (
       <div className="flex flex-col h-full bg-[#08182e] pb-24 relative animate-fade-in overflow-hidden">
-        {/* Header */}
         <div className="p-4 flex items-center justify-between bg-[#08182e] border-b border-slate-800/50 sticky top-0 z-10 h-20">
           <div className="flex items-center gap-4">
             <button onClick={() => setSelected(null)} className="p-2 text-white hover:bg-slate-800 rounded-full transition"><ArrowLeft size={24}/></button>
@@ -644,66 +697,28 @@ export const CommunityView = () => {
               <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{posts.length} MESSAGES</p>
             </div>
           </div>
-          <button className="p-2 text-slate-400"><MoreVertical size={24}/></button>
         </div>
-
-        {/* Chat Area with Thread Logic */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-8 scroll-smooth no-scrollbar">
-          {posts.map(p => {
-            const isMe = p.user_id === currentUserId;
-            const isLiked = p.group_post_likes?.some(l => l.user_id === currentUserId);
-            const parentPost = p.parent_id ? posts.find(x => x.id === p.parent_id) : null;
-
-            return (
-              <div key={p.id} className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}>
-                <div className={`flex gap-3 max-w-[85%] ${isMe ? 'flex-row' : 'flex-row-reverse'}`}>
-                  {/* Bubble Container */}
-                  <div className="flex flex-col">
-                    <div className={`p-4 rounded-[2rem] shadow-xl relative min-w-[120px] ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#112a4a] text-white rounded-tl-none'}`}>
-                      
-                      {/* Quoted Reply Part (Thread style) */}
-                      {p.parent_id && (
-                        <div className={`mb-3 p-3 rounded-2xl border-l-4 text-[11px] leading-tight ${isMe ? 'bg-black/10 border-blue-300' : 'bg-white/5 border-blue-500'}`}>
-                           <p className="font-black text-blue-400 mb-1">{(parentPost?.profiles?.first_name || 'User')}</p>
-                           <p className="opacity-70 line-clamp-2 italic">{(parentPost?.content || 'Original message unavailable')}</p>
-                        </div>
-                      )}
-
-                      <p className="text-base font-medium leading-relaxed">{p.content}</p>
-                      <p className={`text-[9px] font-bold mt-2 opacity-60 text-right`}>
-                        {new Date(p.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-
-                    {/* Interactions Row */}
-                    <div className={`flex items-center gap-3 mt-2 px-2 ${isMe ? 'justify-end' : 'justify-start'}`}>
-                      <button onClick={() => handleLikePost(p.id)} className={`flex items-center gap-1.5 text-[11px] font-black transition-colors ${isLiked ? 'text-rose-500' : 'text-slate-400'}`}>
-                        <Heart size={14} fill={isLiked ? "currentColor" : "none"}/> {p.group_post_likes?.length || 0}
-                      </button>
-                      <button onClick={() => setReplyingTo(p)} className="text-slate-400 hover:text-blue-500"><CornerDownRight size={14}/></button>
-                      {isMe && (
-                        <>
-                          <button onClick={() => { setEditingPostId(p.id); setComment(p.content); }} className="text-slate-400 hover:text-blue-400"><Pencil size={14}/></button>
-                          <button onClick={() => handleDeletePost(p.id)} className="text-slate-400 hover:text-rose-500"><Trash2 size={14}/></button>
-                        </>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Initials Avatar */}
-                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-lg border border-white/5 ${isMe ? 'bg-[#112a4a] text-blue-400' : 'bg-blue-600 text-white'}`}>
-                    {(p.profiles?.first_name?.[0] || 'U').toUpperCase()}
-                  </div>
-                </div>
-              </div>
-            );
-          })}
+        <div className="flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth no-scrollbar">
+          {rootPosts.map(p => (
+            <ThreadPost 
+              key={p.id} 
+              post={p} 
+              allPosts={posts} 
+              currentUserId={currentUserId}
+              onReply={setReplyingTo}
+              onEdit={(post) => { setEditingPost(post); setComment(post.content); }}
+              onDelete={handleDeletePost}
+              onLike={handleLikePost}
+            />
+          ))}
+          {posts.length === 0 && (
+            <div className="py-20 text-center opacity-40">
+              <MessageCircle size={48} className="mx-auto mb-4 text-slate-500"/>
+              <p className="text-xs font-black uppercase tracking-widest text-slate-500">No conversations yet</p>
+            </div>
+          )}
         </div>
-
-        {/* Bottom Input Area with Reply Preview */}
         <div className="fixed bottom-20 left-0 right-0 p-4 bg-transparent z-20 flex flex-col gap-2">
-          
-          {/* Reply Context Bar */}
           {replyingTo && (
             <div className="bg-[#112a4a] backdrop-blur-xl border border-white/10 rounded-2xl p-3 flex justify-between items-center animate-slide-up mx-2">
                <div className="border-l-2 border-blue-500 pl-3">
@@ -713,14 +728,22 @@ export const CommunityView = () => {
                <button onClick={() => setReplyingTo(null)} className="p-1.5 hover:bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
             </div>
           )}
-
+          {editingPost && (
+            <div className="bg-blue-900/40 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-3 flex justify-between items-center animate-slide-up mx-2">
+               <div className="border-l-2 border-blue-400 pl-3">
+                 <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Editing Message</p>
+                 <p className="text-xs text-white/60 line-clamp-1 italic">{editingPost.content}</p>
+               </div>
+               <button onClick={() => { setEditingPost(null); setComment(''); }} className="p-1.5 hover:bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
+            </div>
+          )}
           <div className="flex items-center gap-3">
             <div className="flex-1 relative">
               <input 
                 value={comment} 
                 onChange={e => setComment(e.target.value)} 
                 onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                placeholder={editingPostId ? "Edit message..." : "Type a message..."} 
+                placeholder={editingPost ? "Update message..." : "Type a message..."} 
                 className="w-full bg-[#112a4a]/80 backdrop-blur-xl border border-white/10 p-4 rounded-full text-sm font-medium text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-blue-500/50 shadow-2xl transition-all" 
               />
             </div>
@@ -728,6 +751,7 @@ export const CommunityView = () => {
               onClick={handleSendMessage}
               className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-blue-500/20 active:scale-90 transition-transform transform shrink-0"
             >
+              <span className="sr-only">Send message</span>
               <Send size={24} className="ml-1" />
             </button>
           </div>
@@ -801,7 +825,7 @@ export const SermonsView = () => {
   );
 };
 
-// --- EVENTS PAGE (REFINED TO MATCH SCREENSHOT) ---
+// --- EVENTS PAGE ---
 export const EventsView = ({ onBack }: { onBack: () => void }) => {
   const [events, setEvents] = useState<Event[]>([]);
   const [rsvps, setRsvps] = useState<Record<string, { status: string, transport: boolean, guests: number }>>({});
@@ -861,19 +885,16 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
 
   return (
     <div className="flex flex-col h-full bg-[#08182e] animate-fade-in overflow-hidden">
-      {/* Header matching screenshot */}
       <div className="p-6 flex items-center gap-6 bg-[#08182e] sticky top-0 z-10">
         <button onClick={onBack} className="p-2 text-white hover:bg-white/10 rounded-full transition">
           <ArrowLeft size={28}/>
         </button>
         <h2 className="text-2xl font-black text-white uppercase tracking-tighter">COMMUNITY UPDATES</h2>
       </div>
-
       <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24 no-scrollbar">
         {events.map(event => {
           const isEvent = event.type === 'EVENT';
           const currentRSVP = rsvps[event.id] || { status: 'None', transport: false, guests: 0 };
-          
           return (
             <div key={event.id} className="bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] p-8 border border-white/5 shadow-2xl transition-all hover:border-white/10">
               <div className="flex justify-between items-start mb-6">
@@ -884,12 +905,10 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
                   {event.type}
                 </div>
               </div>
-
               <div className="mb-6">
                 <h3 className="text-3xl font-black text-white leading-tight mb-2 tracking-tight">{event.title}</h3>
                 <p className="text-sm text-slate-400 font-medium leading-relaxed">{event.description}</p>
               </div>
-
               <div className="border-t border-white/5 pt-6 pb-6 flex flex-wrap gap-x-8 gap-y-4 items-center">
                  <div className="flex items-center gap-2.5 text-blue-500 font-black text-xs uppercase tracking-widest">
                    <Calendar size={18}/> <span>{formatDate(event.date).toUpperCase()}</span>
@@ -901,7 +920,6 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
                    <MapPin size={18}/> <span>{event.location}</span>
                  </div>
               </div>
-
               {isEvent && (
                 <div className="bg-[#0c1f38] rounded-[2rem] p-8 space-y-6 border border-white/5 animate-slide-up">
                   <div className="flex flex-col gap-4">
@@ -918,7 +936,6 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
                       ))}
                     </div>
                   </div>
-
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-black text-white tracking-tight">Transport Needed?</p>
@@ -931,8 +948,6 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
                       <div className={`w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform ${currentRSVP.transport ? 'translate-x-6' : 'translate-x-0'}`}></div>
                     </button>
                   </div>
-
-                  {/* Plus Guest Dropdown as requested */}
                   <div className="flex items-center justify-between pt-2">
                     <p className="text-sm font-black text-white tracking-tight">Plus Guest?</p>
                     <select 
@@ -943,7 +958,6 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
                       {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} Guests</option>)}
                     </select>
                   </div>
-
                   <button 
                     disabled={submitting === event.id}
                     onClick={() => submitRSVP(event.id)}
@@ -957,7 +971,6 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
             </div>
           );
         })}
-
         {events.length === 0 && (
           <div className="py-24 text-center">
             <Calendar size={64} className="mx-auto text-slate-800 mb-6 opacity-20" />
@@ -969,7 +982,7 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => {
   );
 };
 
-// --- PROFILE PAGE (REFINED TO MATCH SCREENSHOTS) ---
+// --- PROFILE PAGE ---
 export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<User>>({});
@@ -983,19 +996,14 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
   return (
     <div className="flex flex-col h-full bg-[#08182e] animate-fade-in overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8 no-scrollbar pb-24">
-        
-        {/* Header matching screenshot */}
         <div className="bg-[#0c2d58] rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl flex flex-col items-center justify-center">
           <Logo className="absolute -bottom-10 -right-10 w-48 h-48 opacity-10 pointer-events-none" />
-          
           <div className="w-24 h-24 bg-[#112a4a] border-4 border-white/5 rounded-full flex items-center justify-center text-3xl font-black mb-4 shadow-xl">
              {initials.toUpperCase()}
           </div>
-          
           <h2 className="text-2xl font-black tracking-tight mb-3">
             {user?.firstName} {user?.lastName}
           </h2>
-          
           <div className="flex items-center gap-2 bg-white/10 px-4 py-1.5 rounded-full border border-white/10">
             <Shield size={12} className="text-blue-400" />
             <span className="text-[10px] font-black uppercase tracking-widest opacity-80">
@@ -1003,8 +1011,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
             </span>
           </div>
         </div>
-
-        {/* Details Card matching screenshot */}
         <div className="bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] p-8 border border-white/5 shadow-2xl space-y-6">
           <div className="flex justify-between items-center mb-2">
              <div className="flex items-center gap-2.5">
@@ -1016,7 +1022,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">EDIT INFO</span>
              </button>
           </div>
-
           {isEditing ? (
             <div className="space-y-4 animate-slide-up">
               <div className="space-y-1.5">
@@ -1055,8 +1060,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
             </div>
           )}
         </div>
-
-        {/* Action Rows matching screenshot */}
         <div className="space-y-4">
           <button onClick={toggleTheme} className="w-full bg-[#112a4a]/40 backdrop-blur-md rounded-[2.5rem] p-6 border border-white/5 flex items-center justify-between group transition-all hover:bg-white/5 active:scale-[0.98]">
              <div className="flex items-center gap-5">
@@ -1070,7 +1073,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
              </div>
              <ChevronRight className="text-slate-500" size={24}/>
           </button>
-
           <button onClick={() => onNavigate('contact')} className="w-full bg-[#112a4a]/40 backdrop-blur-md rounded-[2.5rem] p-6 border border-white/5 flex items-center justify-between group transition-all hover:bg-white/5 active:scale-[0.98]">
              <div className="flex items-center gap-5">
                <div className="w-14 h-14 bg-[#0c1f38] border border-white/5 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-blue-400 transition-colors">
@@ -1083,7 +1085,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
              </div>
              <ChevronRight className="text-slate-500" size={24}/>
           </button>
-
           <button onClick={onLogout} className="w-full bg-rose-500/10 backdrop-blur-md rounded-[2.5rem] p-6 border border-rose-500/20 flex items-center justify-between group transition-all hover:bg-rose-500/20 active:scale-[0.98]">
              <div className="flex items-center gap-5">
                <div className="w-14 h-14 bg-[#0c1f38] border border-rose-500/20 rounded-2xl flex items-center justify-center text-rose-500">
@@ -1097,13 +1098,12 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
              <ChevronRight className="text-rose-500/60" size={24}/>
           </button>
         </div>
-
       </div>
     </div>
   );
 };
 
-// --- NOTIFICATIONS VIEW (DYNAMICALLY UPDATED) ---
+// --- NOTIFICATIONS VIEW ---
 export const NotificationsView = () => {
   const [notifications, setNotifications] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1117,13 +1117,11 @@ export const NotificationsView = () => {
           supabase.from('sermons').select('id, title, created_at').order('created_at', { ascending: false }).limit(5),
           supabase.from('events').select('id, title, created_at, type').order('created_at', { ascending: false }).limit(5)
         ]);
-
         const combined = [
           ...(blogs.data || []).map(b => ({ ...b, type: 'BLOG', icon: FileText, label: 'New Article' })),
           ...(sermons.data || []).map(s => ({ ...s, type: 'SERMON', icon: Video, label: 'New Sermon' })),
           ...(events.data || []).map(e => ({ ...e, type: e.type, icon: Calendar, label: e.type === 'EVENT' ? 'New Event' : 'Announcement' }))
         ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
         setNotifications(combined);
       } catch (err) {
         console.error("Notifications error:", err);
@@ -1131,10 +1129,7 @@ export const NotificationsView = () => {
         setLoading(false);
       }
     };
-
     fetchNotifications();
-
-    // PWA Push Notification Permission Request
     if ("Notification" in window && Notification.permission === "default") {
       Notification.requestPermission();
     }
@@ -1143,7 +1138,6 @@ export const NotificationsView = () => {
   return (
     <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 animate-fade-in overflow-hidden">
       <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-4 ml-2">Notifications</h2>
-      
       <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-24 px-2">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
@@ -1195,7 +1189,6 @@ export const ContactView = ({ onBack }: { onBack: () => void }) => (
       </button>
       <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Contact Us</h2>
     </div>
-    
     <div className="bg-[#112a4a]/40 backdrop-blur-md p-10 rounded-[3rem] border border-white/5 shadow-2xl space-y-10">
       <div className="flex items-center gap-6 group">
         <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
@@ -1206,7 +1199,6 @@ export const ContactView = ({ onBack }: { onBack: () => void }) => (
           <p className="text-lg font-black text-white tracking-tight">+27 31 123 4567</p>
         </div>
       </div>
-      
       <div className="flex items-center gap-6 group">
         <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
           <Mail size={28}/>
@@ -1216,7 +1208,6 @@ export const ContactView = ({ onBack }: { onBack: () => void }) => (
           <p className="text-lg font-black text-white tracking-tight">info@icc.com</p>
         </div>
       </div>
-
       <div className="flex items-center gap-6 group">
         <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
           <MapPin size={28}/>

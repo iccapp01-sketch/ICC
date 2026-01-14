@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { 
   LayoutDashboard, Users, FileText, Calendar, Video, LogOut, 
-  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download, TrendingUp, Activity, Send, Zap, Monitor
+  Edit, Check, X, Search, Save, Trash2, Music, MessageCircle, Bell, Upload, Play, Loader2, ListMusic, Plus, Megaphone, MapPin, FileSpreadsheet, AlertTriangle, UserX, Film, Camera, Image as ImageIcon, Globe, Headphones, Mic, Volume2, Clock, Download, TrendingUp, Activity, Send, Zap, Monitor, Settings, Tag
 } from 'lucide-react';
-import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack } from '../types';
+import { BlogPost, User, Sermon, Event, CommunityGroup, MusicTrack, UserRole } from '../types';
 import { supabase } from '../lib/supabaseClient';
 import { Logo } from '../components/Logo';
 
@@ -930,9 +930,12 @@ const SermonManager = () => {
 
 const BlogManager = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All', 'Sermon Devotional', 'Psalm Devotional', 'Community News']);
   const [loading, setLoading] = useState(false);
   const [editingBlog, setEditingBlog] = useState<Partial<BlogPost> | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [isCategoryManagerOpen, setIsCategoryManagerOpen] = useState(false);
+  const [newCategory, setNewCategory] = useState('');
   const [uploadProgress, setUploadProgress] = useState(false);
   const [publishMode, setPublishMode] = useState<'now' | 'scheduled'>('now');
 
@@ -940,6 +943,13 @@ const BlogManager = () => {
     setLoading(true);
     const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
     setBlogs(data || []);
+    
+    // Dynamically update categories from existing posts if needed, or keep defaults
+    const { data: catData } = await supabase.from('blog_posts').select('category');
+    if (catData) {
+      const uniqueCats = Array.from(new Set([...categories, ...catData.map(c => c.category).filter(Boolean)]));
+      setCategories(uniqueCats);
+    }
     setLoading(false);
   };
 
@@ -998,6 +1008,20 @@ const BlogManager = () => {
     fetchBlogs();
   };
 
+  const handleAddCategory = () => {
+    if (!newCategory.trim()) return;
+    if (categories.includes(newCategory.trim())) return alert("Category already exists.");
+    setCategories(prev => [...prev, newCategory.trim()]);
+    setNewCategory('');
+  };
+
+  const handleDeleteCategory = (cat: string) => {
+    if (cat === 'All') return alert("Cannot delete 'All' category.");
+    if (blogs.some(b => b.category === cat)) return alert("Cannot delete category being used by blog posts.");
+    if (!confirm(`Delete category '${cat}'?`)) return;
+    setCategories(prev => prev.filter(c => c !== cat));
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
       <div className="flex justify-between items-center">
@@ -1005,17 +1029,57 @@ const BlogManager = () => {
           <h3 className="text-xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">Blog Management</h3>
           <p className="text-sm text-slate-500">Create, schedule and manage church articles.</p>
         </div>
-        <button 
-          onClick={() => { 
-            setEditingBlog({ category: 'All', author: 'Church Admin', created_at: new Date().toISOString() }); 
-            setPublishMode('now');
-            setIsFormOpen(true); 
-          }}
-          className="bg-blue-600 text-white px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-95"
-        >
-          <Plus size={18}/> New Article
-        </button>
+        <div className="flex gap-3">
+          <button 
+            onClick={() => setIsCategoryManagerOpen(true)}
+            className="bg-white dark:bg-slate-800 text-slate-600 dark:text-white px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm border dark:border-slate-700 flex items-center gap-2 hover:bg-slate-50 transition-all active:scale-95"
+          >
+            <Tag size={18}/> Categories
+          </button>
+          <button 
+            onClick={() => { 
+              setEditingBlog({ category: 'All', author: 'Church Admin', created_at: new Date().toISOString() }); 
+              setPublishMode('now');
+              setIsFormOpen(true); 
+            }}
+            className="bg-blue-600 text-white px-6 py-2.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-all active:scale-95"
+          >
+            <Plus size={18}/> New Article
+          </button>
+        </div>
       </div>
+
+      {isCategoryManagerOpen && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
+           <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up border dark:border-slate-700">
+             <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
+                <h4 className="font-black dark:text-white uppercase tracking-tighter">Category Manager</h4>
+                <button onClick={() => setIsCategoryManagerOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
+             </div>
+             <div className="p-8 space-y-6">
+                <div className="flex gap-2">
+                   <input 
+                      value={newCategory}
+                      onChange={e => setNewCategory(e.target.value)}
+                      placeholder="Add new category..."
+                      className="flex-1 bg-slate-100 dark:bg-slate-900 border-none p-3 rounded-xl text-sm font-bold dark:text-white outline-none"
+                   />
+                   <button onClick={handleAddCategory} className="bg-blue-600 text-white p-3 rounded-xl hover:bg-blue-700 transition"><Plus size={20}/></button>
+                </div>
+                <div className="max-h-60 overflow-y-auto space-y-2 pr-2 custom-scrollbar">
+                   {categories.map(cat => (
+                      <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-700">
+                         <span className="text-sm font-bold dark:text-white">{cat}</span>
+                         {cat !== 'All' && (
+                            <button onClick={() => handleDeleteCategory(cat)} className="text-slate-400 hover:text-red-500 transition"><Trash2 size={16}/></button>
+                         )}
+                      </div>
+                   ))}
+                </div>
+             </div>
+           </div>
+        </div>
+      )}
 
       {isFormOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
@@ -1044,10 +1108,9 @@ const BlogManager = () => {
                     onChange={e => setEditingBlog(prev => ({...prev, category: e.target.value}))}
                     className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition appearance-none"
                   >
-                    <option value="All">All Categories</option>
-                    <option value="Sermon Devotional">Sermon Devotional</option>
-                    <option value="Psalm Devotional">Psalm Devotional</option>
-                    <option value="Community News">Community News</option>
+                    {categories.map(cat => (
+                       <option key={cat} value={cat}>{cat}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -1328,7 +1391,7 @@ const GroupManager = () => {
           onClick={() => { setEditingGroup({ name: '', description: '' }); setIsFormOpen(true); }}
           className="bg-blue-600 text-white px-6 py-2 rounded-xl text-xs font-black uppercase tracking-widest shadow-lg flex items-center gap-2 hover:bg-blue-700 transition-colors"
         >
-          <Plus size={16}/> Create Group
+          <span className="font-bold">+</span> Create Group
         </button>
       </div>
 
@@ -1473,6 +1536,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [editingUser, setEditingUser] = useState<Partial<User> | null>(null);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isUpdatingUser, setIsUpdatingUser] = useState(false);
 
   useEffect(() => {
     if (activeTab === 'users') {
@@ -1504,12 +1570,51 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
     }
   };
 
+  const handleUpdateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingUser?.id) return;
+
+    setIsUpdatingUser(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          first_name: editingUser.firstName,
+          last_name: editingUser.lastName,
+          phone: editingUser.phone,
+          role: editingUser.role
+        })
+        .eq('id', editingUser.id);
+
+      if (error) throw error;
+      
+      setIsUserModalOpen(false);
+      setEditingUser(null);
+      fetchUsers();
+    } catch (err: any) {
+      alert("Error updating user: " + err.message);
+    } finally {
+      setIsUpdatingUser(false);
+    }
+  };
+
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this user profile?")) return;
+    try {
+      const { error } = await supabase.from('profiles').delete().eq('id', id);
+      if (error) throw error;
+      fetchUsers();
+    } catch (err: any) {
+      alert("Error deleting user: " + err.message);
+    }
+  };
+
   const filteredUsers = users.filter(u => {
     const term = searchQuery.toLowerCase();
     return (
-      u.firstName.toLowerCase().includes(term) ||
-      u.lastName.toLowerCase().includes(term) ||
-      u.email.toLowerCase().includes(term)
+      u.firstName?.toLowerCase().includes(term) ||
+      u.lastName?.toLowerCase().includes(term) ||
+      u.email?.toLowerCase().includes(term)
     );
   });
 
@@ -1524,7 +1629,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
   ];
 
   return (
-    <div className="flex h-screen bg-slate-100 dark:bg-slate-900">
+    <div className="flex h-screen bg-slate-100 dark:bg-slate-900 font-sans">
       {/* Sidebar */}
       <div className="w-64 bg-slate-900 text-white p-6 flex flex-col">
         <div className="flex items-center gap-3 mb-10">
@@ -1595,6 +1700,75 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
               />
             </div>
 
+            {/* User Edit Modal */}
+            {isUserModalOpen && editingUser && (
+              <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
+                <div className="bg-white dark:bg-slate-800 w-full max-w-lg rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up border dark:border-slate-700">
+                  <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center bg-slate-50 dark:bg-slate-900/50">
+                    <h4 className="font-black dark:text-white uppercase tracking-tighter">Edit User Profile</h4>
+                    <button onClick={() => { setIsUserModalOpen(false); setEditingUser(null); }} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
+                  </div>
+                  
+                  <form onSubmit={handleUpdateUser} className="p-8 space-y-6">
+                    <div className="grid grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">First Name</label>
+                        <input 
+                          required
+                          value={editingUser.firstName || ''}
+                          onChange={e => setEditingUser(prev => ({...prev, firstName: e.target.value}))}
+                          className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Last Name</label>
+                        <input 
+                          required
+                          value={editingUser.lastName || ''}
+                          onChange={e => setEditingUser(prev => ({...prev, lastName: e.target.value}))}
+                          className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">Phone</label>
+                      <input 
+                        value={editingUser.phone || ''}
+                        onChange={e => setEditingUser(prev => ({...prev, phone: e.target.value}))}
+                        className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-slate-400 ml-2">User Role</label>
+                      <select 
+                        value={editingUser.role || UserRole.MEMBER}
+                        onChange={e => setEditingUser(prev => ({...prev, role: e.target.value as UserRole}))}
+                        className="w-full bg-slate-100 dark:bg-slate-900 border-none p-4 rounded-2xl text-sm font-bold dark:text-white outline-none focus:ring-2 focus:ring-blue-500 transition appearance-none"
+                      >
+                        {Object.values(UserRole).map(role => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="pt-6 border-t dark:border-slate-700 flex justify-end gap-3">
+                      <button type="button" onClick={() => { setIsUserModalOpen(false); setEditingUser(null); }} className="px-8 py-3 rounded-2xl text-xs font-black uppercase tracking-widest text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 transition">Cancel</button>
+                      <button 
+                        type="submit" 
+                        disabled={isUpdatingUser}
+                        className="bg-[#0c2d58] text-white px-10 py-3 rounded-2xl text-xs font-black uppercase tracking-widest shadow-xl hover:bg-blue-900 transition-all disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {isUpdatingUser ? <Loader2 size={16} className="animate-spin" /> : <Save size={16}/>}
+                        Update Profile
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            )}
+
             <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
               <table className="w-full text-left">
                 <thead className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
@@ -1626,8 +1800,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex justify-end gap-2">
-                          <button className="p-2 text-slate-400 hover:text-blue-600 transition-colors"><Edit size={16}/></button>
-                          <button className="p-2 text-slate-400 hover:text-red-600 transition-colors"><Trash2 size={16}/></button>
+                          <button 
+                            onClick={() => { setEditingUser(u); setIsUserModalOpen(true); }}
+                            className="p-2 text-slate-400 hover:text-blue-600 transition-colors"
+                          >
+                            <Edit size={16}/>
+                          </button>
+                          <button 
+                            onClick={() => handleDeleteUser(u.id)}
+                            className="p-2 text-slate-400 hover:text-red-600 transition-colors"
+                          >
+                            <Trash2 size={16}/>
+                          </button>
                         </div>
                       </td>
                     </tr>

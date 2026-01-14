@@ -596,66 +596,6 @@ const EventManager = () => {
         </div>
       )}
 
-      {showRSVPs && (
-        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-[110]">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-4xl rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up flex flex-col max-h-[90vh]">
-            <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
-              <div>
-                <h4 className="font-black dark:text-white uppercase tracking-tighter">RSVP Management</h4>
-                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Guest list and logistics tracking</p>
-              </div>
-              <div className="flex gap-2">
-                <button 
-                  onClick={() => exportToCSV(events.find(e => e.id === currentEventRSVPs[0]?.event_id)?.title || 'Event')} 
-                  className="p-2.5 bg-green-50 text-green-600 rounded-xl hover:bg-green-600 hover:text-white transition flex items-center gap-2 text-[10px] font-black uppercase tracking-widest"
-                >
-                  <FileSpreadsheet size={16}/> Export CSV
-                </button>
-                <button onClick={() => setShowRSVPs(false)} className="p-2.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition"><X size={20}/></button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto p-6">
-              {rsvpLoading ? (
-                <div className="flex items-center justify-center py-20"><Loader2 size={40} className="animate-spin text-blue-600"/></div>
-              ) : currentEventRSVPs.length === 0 ? (
-                <div className="py-20 text-center text-slate-400 font-black uppercase tracking-widest text-xs border-2 border-dashed rounded-[2rem] border-slate-200">No RSVPs collected for this event yet</div>
-              ) : (
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="text-[10px] font-black uppercase tracking-widest text-slate-400 border-b dark:border-slate-700">
-                      <th className="px-4 py-3">Member</th>
-                      <th className="px-4 py-3">Status</th>
-                      <th className="px-4 py-3">Transport</th>
-                      <th className="px-4 py-3">Email</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y dark:divide-slate-700">
-                    {currentEventRSVPs.map(r => (
-                      <tr key={r.id} className="text-sm dark:text-white">
-                        <td className="px-4 py-4 font-bold">{r.profiles?.first_name} {r.profiles?.last_name}</td>
-                        <td className="px-4 py-4">
-                           <span className={`px-3 py-1 rounded-full text-[10px] font-black uppercase ${r.status === 'Yes' ? 'bg-green-100 text-green-600' : r.status === 'Maybe' ? 'bg-orange-100 text-orange-600' : 'bg-red-100 text-red-600'}`}>
-                             {r.status}
-                           </span>
-                        </td>
-                        <td className="px-4 py-4">
-                          {r.transport_required ? (
-                            <span className="flex items-center gap-1.5 text-blue-600 font-black text-[10px] uppercase"><MapPin size={12}/> Required</span>
-                          ) : (
-                            <span className="text-slate-400 font-black text-[10px] uppercase">Not Needed</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-4 text-xs text-slate-500">{r.profiles?.email}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
-
       <div className="grid grid-cols-1 gap-4">
         {events.length === 0 ? (
           <div className="py-20 text-center border-2 border-dashed rounded-[3rem] border-slate-200 dark:border-slate-800">
@@ -930,7 +870,7 @@ const SermonManager = () => {
 
 const BlogManager = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
-  const [categories, setCategories] = useState<string[]>(['All', 'Sermon Devotional', 'Psalm Devotional', 'Community News']);
+  const [categories, setCategories] = useState<string[]>(['All']);
   const [loading, setLoading] = useState(false);
   const [editingBlog, setEditingBlog] = useState<Partial<BlogPost> | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -943,17 +883,20 @@ const BlogManager = () => {
     setLoading(true);
     const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
     setBlogs(data || []);
-    
-    // Dynamically update categories from existing posts if needed, or keep defaults
-    const { data: catData } = await supabase.from('blog_posts').select('category');
-    if (catData) {
-      const uniqueCats = Array.from(new Set([...categories, ...catData.map(c => c.category).filter(Boolean)]));
-      setCategories(uniqueCats);
-    }
     setLoading(false);
   };
 
-  useEffect(() => { fetchBlogs(); }, []);
+  const fetchCategories = async () => {
+    const { data, error } = await supabase.from('blog_categories').select('name').order('name', { ascending: true });
+    if (data) {
+      setCategories(['All', ...data.map(c => c.name)]);
+    }
+  };
+
+  useEffect(() => { 
+    fetchBlogs();
+    fetchCategories();
+  }, []);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>, field: 'image_url' | 'video_url') => {
     const file = e.target.files?.[0];
@@ -1008,18 +951,35 @@ const BlogManager = () => {
     fetchBlogs();
   };
 
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     if (!newCategory.trim()) return;
-    if (categories.includes(newCategory.trim())) return alert("Category already exists.");
-    setCategories(prev => [...prev, newCategory.trim()]);
-    setNewCategory('');
+    const catName = newCategory.trim();
+    if (categories.includes(catName)) return alert("Category already exists.");
+    
+    setLoading(true);
+    const { error } = await supabase.from('blog_categories').insert([{ name: catName }]);
+    if (error) {
+      alert("Error adding category: " + error.message);
+    } else {
+      setNewCategory('');
+      fetchCategories();
+    }
+    setLoading(false);
   };
 
-  const handleDeleteCategory = (cat: string) => {
+  const handleDeleteCategory = async (cat: string) => {
     if (cat === 'All') return alert("Cannot delete 'All' category.");
-    if (blogs.some(b => b.category === cat)) return alert("Cannot delete category being used by blog posts.");
+    if (blogs.some(b => b.category === cat)) return alert("Cannot delete category being used by blog posts. Reassign those posts first.");
     if (!confirm(`Delete category '${cat}'?`)) return;
-    setCategories(prev => prev.filter(c => c !== cat));
+    
+    setLoading(true);
+    const { error } = await supabase.from('blog_categories').delete().eq('name', cat);
+    if (error) {
+      alert("Error deleting category: " + error.message);
+    } else {
+      fetchCategories();
+    }
+    setLoading(false);
   };
 
   return (

@@ -454,15 +454,22 @@ export const MusicView = () => {
 // --- BLOG PAGE ---
 export const BlogView = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
+  const [categories, setCategories] = useState<string[]>(['All']);
   const [category, setCategory] = useState('All');
   const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
   const [apkShareData, setApkShareData] = useState<{url: string, title: string} | null>(null);
 
-  const categories = ['All', 'Sermon Devotional', 'Psalm Devotional', 'Community News'];
-
   useEffect(() => {
     supabase.from('blog_posts').select('*').order('created_at', { ascending: false })
       .then(r => setBlogs(r.data || []));
+
+    // Fetch categories from the Supabase table instead of static array
+    supabase.from('blog_categories').select('name').order('name', { ascending: true })
+      .then(r => {
+        if (r.data) {
+          setCategories(['All', ...r.data.map(c => c.name)]);
+        }
+      });
   }, []);
 
   const filtered = blogs.filter(b => {

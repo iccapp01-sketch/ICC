@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, Pause, ArrowLeft, Moon, Sun, LogOut,
@@ -336,8 +337,24 @@ export const MusicView = () => {
   const handleNext = () => {
     if (!current || playingList.length === 0) return;
     const currentIndex = playingList.findIndex(t => t.id === current.id);
-    setCurrent(playingList[(currentIndex + 1) % playingList.length]);
+    const nextIndex = (currentIndex + 1) % playingList.length;
+    setCurrent(playingList[nextIndex]);
     setIsPlaying(true);
+  };
+
+  const handleBack = () => {
+    if (!current || playingList.length === 0) return;
+    const currentIndex = playingList.findIndex(t => t.id === current.id);
+    const prevIndex = (currentIndex - 1 + playingList.length) % playingList.length;
+    setCurrent(playingList[prevIndex]);
+    setIsPlaying(true);
+  };
+
+  const handleStop = () => {
+    setIsPlaying(false);
+    if (audioRef.current) {
+      audioRef.current.currentTime = 0;
+    }
   };
 
   const createPlaylist = async () => {
@@ -360,7 +377,7 @@ export const MusicView = () => {
                    activeTab === 'podcast' ? tracks.filter(t => t.type === 'PODCAST') : [];
 
   return (
-    <div className="p-4 flex flex-col h-full pb-48 animate-fade-in relative">
+    <div className="p-4 flex flex-col h-full pb-56 animate-fade-in relative">
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-2xl font-black dark:text-white tracking-tighter uppercase">Media Hub</h2>
         {activeTab === 'playlists' && (
@@ -396,13 +413,52 @@ export const MusicView = () => {
         ))}
       </div>
       {current && (
-        <div className="fixed bottom-20 left-4 right-4 bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-xl border dark:border-slate-700 z-40">
-           <div className="flex items-center gap-4 mb-4">
-             <Music size={20} className="text-blue-600"/>
-             <div className="flex-1 truncate"><p className="font-black text-sm dark:text-white">{current.title}</p></div>
-             <button onClick={() => setIsPlaying(!isPlaying)} className="w-12 h-12 bg-blue-600 text-white rounded-full flex items-center justify-center"><Pause size={24}/></button>
+        <div className="fixed bottom-20 left-4 right-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl p-5 rounded-[2.5rem] shadow-2xl border dark:border-slate-700 z-40 animate-slide-up">
+           <div className="flex flex-col gap-4">
+             <div className="flex items-center gap-4">
+               <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-lg">
+                 <Music size={24}/>
+               </div>
+               <div className="flex-1 min-w-0">
+                 <p className="font-black text-sm dark:text-white truncate">{current.title}</p>
+                 <p className="text-[10px] font-bold text-blue-500 uppercase truncate">{current.artist}</p>
+               </div>
+               <div className="flex items-center gap-1">
+                 <button 
+                  onClick={() => setIsLooping(!isLooping)} 
+                  className={`p-2 rounded-full transition ${isLooping ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/40' : 'text-slate-400'}`}
+                 >
+                   <Repeat size={18}/>
+                 </button>
+                 <button onClick={handleStop} className="p-2 text-slate-400 hover:text-red-500 transition">
+                   <Square size={18}/>
+                 </button>
+               </div>
+             </div>
+             
+             <div className="flex items-center justify-center gap-6">
+                <button onClick={handleBack} className="p-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition active:scale-90">
+                  <SkipBack size={28} fill="currentColor"/>
+                </button>
+                
+                <button 
+                  onClick={() => setIsPlaying(!isPlaying)} 
+                  className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-500/30 active:scale-95 transition-transform"
+                >
+                  {isPlaying ? <Pause size={32} fill="currentColor"/> : <Play size={32} fill="currentColor" className="ml-1"/>}
+                </button>
+
+                <button onClick={handleNext} className="p-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition active:scale-90">
+                  <SkipForward size={28} fill="currentColor"/>
+                </button>
+             </div>
            </div>
-           <audio ref={audioRef} src={current.url} onEnded={handleNext}/>
+           <audio 
+            ref={audioRef} 
+            src={current.url} 
+            loop={isLooping}
+            onEnded={() => !isLooping && handleNext()}
+           />
         </div>
       )}
       {isCreatingPlaylist && (
@@ -533,7 +589,19 @@ export const BlogView = () => {
 
 // --- GROUPS PAGE (THREADED INTERFACE) ---
 
-const ThreadPost = ({ 
+// Fixed: Correctly defined ThreadPost props to avoid TS assignment errors
+interface ThreadPostProps {
+  post: GroupPost;
+  allPosts: GroupPost[];
+  currentUserId: string | null;
+  onReply: (post: GroupPost) => void;
+  onEdit: (post: GroupPost) => void;
+  onDelete: (id: string) => void;
+  onLike: (id: string) => void;
+  depth?: number;
+}
+
+const ThreadPost: React.FC<ThreadPostProps> = ({ 
   post, 
   allPosts, 
   currentUserId, 
@@ -542,15 +610,6 @@ const ThreadPost = ({
   onDelete, 
   onLike,
   depth = 0 
-}: { 
-  post: GroupPost, 
-  allPosts: GroupPost[], 
-  currentUserId: string | null, 
-  onReply: (post: GroupPost) => void,
-  onEdit: (post: GroupPost) => void,
-  onDelete: (id: string) => void,
-  onLike: (id: string) => void,
-  depth?: number 
 }) => {
   const isMe = post.user_id === currentUserId;
   const isLiked = post.group_post_likes?.some(l => l.user_id === currentUserId);

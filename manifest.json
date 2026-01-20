@@ -1,6 +1,7 @@
 {
   "name": "Isipingo Community Church",
   "short_name": "Isipingo CC",
+  "description": "Isipingo Community Church community app for sermons, events, groups, and announcements",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -22,3 +23,4 @@
     }
   ]
 }
+

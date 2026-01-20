@@ -4,6 +4,10 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>Isipingo Community Church</title>
+
+    <!-- PWA manifest -->
+    <link rel="manifest" href="/manifest.json">
+
     <!-- Tailwind CSS CDN (Kept for simplicity over setting up PostCSS) -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
@@ -70,7 +74,7 @@
         border: 1px solid rgba(255, 255, 255, 0.05);
       }
     </style>
-  <script type="importmap">
+    <script type="importmap">
 {
   "imports": {
     "react/": "https://aistudiocdn.com/react@^19.2.1/",
@@ -84,9 +88,18 @@
   }
 }
 </script>
-</head>
+  </head>
   <body class="bg-slate-50 dark:bg-slate-900 text-slate-900 dark:text-white h-screen overflow-hidden">
     <div id="root" class="h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
+
+    <!-- Register Service Worker for PWA -->
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/service-worker.js")
+          .then(() => console.log("Service Worker registered successfully"))
+          .catch(err => console.error("Service Worker registration failed:", err));
+      }
+    </script>
   </body>
 </html>

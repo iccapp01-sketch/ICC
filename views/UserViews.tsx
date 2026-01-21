@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Play, Pause, ArrowLeft, Moon, Sun, LogOut,
@@ -589,7 +588,6 @@ export const BlogView = () => {
 
 // --- GROUPS PAGE (THREADED INTERFACE) ---
 
-// Fixed: Correctly defined ThreadPost props to avoid TS assignment errors
 interface ThreadPostProps {
   post: GroupPost;
   allPosts: GroupPost[];

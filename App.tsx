@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Auth } from './views/Auth';
 import { AdminPanel } from './views/AdminPanel';
@@ -6,6 +5,7 @@ import { Layout } from './components/Layout';
 import { HomeView, BibleView, BlogView, MusicView, SermonsView, CommunityView, EventsView, ProfileView, NotificationsView, ContactView } from './views/UserViews';
 import { User, UserRole } from './types';
 import { supabase } from './lib/supabaseClient';
+import { Bell } from 'lucide-react';
 
 const App: React.FC = () => {
   // 'auth', 'admin', 'user'
@@ -14,6 +14,7 @@ const App: React.FC = () => {
   const [isDarkMode, setIsDarkMode] = useState(true);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showNotificationPrompt, setShowNotificationPrompt] = useState(false);
 
   // Initialize Theme
   useEffect(() => {
@@ -23,6 +24,36 @@ const App: React.FC = () => {
       document.documentElement.classList.remove('dark');
     }
   }, [isDarkMode]);
+
+  // Handle Notification Permission Check
+  useEffect(() => {
+    if ("Notification" in window && Notification.permission === "default") {
+      setShowNotificationPrompt(true);
+    }
+  }, []);
+
+  const requestNotificationPermission = async () => {
+    if (!("Notification" in window)) {
+      alert("This browser does not support notifications.");
+      return;
+    }
+
+    try {
+      const permission = await Notification.requestPermission();
+      if (permission === "granted") {
+        new Notification("Notifications Enabled!", {
+          body: "You will now receive updates from Isipingo Community Church.",
+          icon: "/icon-192.png"
+        });
+        setShowNotificationPrompt(false);
+      } else {
+        alert("Notification permission denied. You can enable them later in your browser settings.");
+        setShowNotificationPrompt(false);
+      }
+    } catch (error) {
+      console.error("Permission request error:", error);
+    }
+  };
 
   // Handle Supabase Auth Session
   useEffect(() => {
@@ -156,16 +187,46 @@ const App: React.FC = () => {
 
   // User App State
   return (
-    <Layout 
-      activeTab={activeTab} 
-      onTabChange={setActiveTab} 
-      onLogout={handleLogout}
-      toggleTheme={toggleTheme}
-      isDarkMode={isDarkMode}
-      userName={user?.firstName}
-    >
-      {renderUserView()}
-    </Layout>
+    <div className="relative h-full w-full">
+      {showNotificationPrompt && (
+        <div className="fixed top-20 left-4 right-4 z-[60] bg-[#0c2d58] text-white p-4 rounded-3xl shadow-2xl flex justify-between items-center animate-slide-up border border-white/10 backdrop-blur-md">
+          <div className="flex items-center gap-3">
+            <div className="bg-blue-500/20 p-2 rounded-xl">
+              <Bell size={20} className="text-blue-400" />
+            </div>
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest">Stay Updated</p>
+              <p className="text-[10px] text-blue-200">Enable notifications for church news.</p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button 
+              onClick={() => setShowNotificationPrompt(false)}
+              className="px-3 py-2 text-[10px] font-black uppercase text-slate-400"
+            >
+              Later
+            </button>
+            <button 
+              onClick={requestNotificationPermission}
+              className="bg-blue-600 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-lg"
+            >
+              Enable
+            </button>
+          </div>
+        </div>
+      )}
+
+      <Layout 
+        activeTab={activeTab} 
+        onTabChange={setActiveTab} 
+        onLogout={handleLogout}
+        toggleTheme={toggleTheme}
+        isDarkMode={isDarkMode}
+        userName={user?.firstName}
+      >
+        {renderUserView()}
+      </Layout>
+    </div>
   );
 };
 

@@ -1076,7 +1076,7 @@ const BlogManager = () => {
 
       {isCategoryManagerOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4 z-[110]">
-           <div className="bg-white dark:bg-slate-800 w-full max-w-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up border dark:border-slate-700">
+           <div className="bg-white dark:bg-slate-800 w-full max-md rounded-[2.5rem] shadow-2xl overflow-hidden animate-slide-up border dark:border-slate-700">
              <div className="p-6 border-b dark:border-slate-700 flex justify-between items-center">
                 <h4 className="font-black dark:text-white uppercase tracking-tighter">Category Manager</h4>
                 <button onClick={() => setIsCategoryManagerOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition"><X size={20}/></button>
@@ -1689,9 +1689,12 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({ onLogout }) => {
       {/* Main Content Area */}
       <div className="flex-1 overflow-y-auto p-8">
         <header className="flex justify-between items-center mb-8">
-          <div>
-            <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">{activeTab === 'media' ? 'Media Management' : activeTab}</h2>
-            <p className="text-slate-500 text-sm">Efficiently manage your platform content and users.</p>
+          <div className="flex items-center gap-4">
+             <Logo className="w-12 h-12 md:hidden" />
+             <div>
+                <h2 className="text-2xl font-black text-slate-800 dark:text-white uppercase tracking-tighter">{activeTab === 'media' ? 'Media Management' : activeTab}</h2>
+                <p className="text-slate-500 text-sm">Efficiently manage your platform content and users.</p>
+             </div>
           </div>
         </header>
 

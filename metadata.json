@@ -2,6 +2,7 @@
   "name": "Isipingo Community Church",
   "description": "A community-focused church app with sermons, bible study tools, blogs, and group messaging.",
   "requestFramePermissions": [
-    "microphone"
+    "microphone",
+    "camera"
   ]
 }

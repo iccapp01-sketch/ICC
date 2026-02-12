@@ -3,7 +3,7 @@
   "name": "Isipingo Community Church",
   "short_name": "ICC",
   "description": "The official app for Isipingo Community Church.",
-  "start_url": ".",
+  "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "background_color": "#ffffff",

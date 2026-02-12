@@ -12,21 +12,6 @@
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- OneSignal SDK -->
-    <script src="https://cdn.onesignal.com" defer></script>
-    <script>
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: "72bf3af9-75ff-4d8d-8d84-4ce1bc38ca04",
-          safari_web_id: "web.onesignal.auto.10427357-1960-4416-8686-35368a5c6899",
-          notifyButton: {
-            enable: true,
-          },
-          allowLocalhostAsSecureOrigin: true,
-        });
-      });
-    </script>
   <script type="importmap">
 {
   "imports": {

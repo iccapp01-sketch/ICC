@@ -1,6 +1,8 @@
 {
+  "id": "/",
   "name": "Isipingo Community Church",
   "short_name": "ICC",
+  "description": "The official app for Isipingo Community Church.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

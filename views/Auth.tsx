@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Lock, Mail, User as UserIcon, Calendar, Phone, ChevronDown, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
@@ -36,7 +35,7 @@ export const Auth: React.FC<AuthProps> = () => {
     setIsLoading(true);
 
     try {
-      // Admin Bypass for specific credentials
+      // Admin password is 'admin123'
       if (isLogin && formData.email === 'admin@icc.com' && formData.password === 'admin123') {
           const { error: signInError } = await supabase.auth.signInWithPassword({
             email: formData.email,
@@ -100,14 +99,14 @@ export const Auth: React.FC<AuthProps> = () => {
 
   if (needsVerification) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#04152d] p-4 z-50 font-sans">
-        <div className="w-full max-w-sm bg-white/10 backdrop-blur-xl border border-white/5 rounded-[40px] p-10 shadow-2xl text-center">
-            <div className="w-20 h-20 bg-green-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Mail className="text-green-400 w-10 h-10" />
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#051121] p-4 z-50 font-sans">
+        <div className="w-full max-w-sm bg-[#081c37] border border-white/5 rounded-[40px] p-10 shadow-2xl text-center">
+            <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Mail className="text-blue-400 w-10 h-10" />
             </div>
-            <h2 className="text-2xl font-bold text-white mb-2">Check your Inbox</h2>
+            <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">Check your Inbox</h2>
             <p className="text-blue-200 text-sm mb-8 leading-relaxed">We've sent a verification link to <br/><span className="font-bold text-white">{verificationEmail}</span></p>
-            <button onClick={() => { setNeedsVerification(false); setIsLogin(true); }} className="w-full bg-[#0c2d58] text-white font-bold py-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
+            <button onClick={() => { setNeedsVerification(false); setIsLogin(true); }} className="w-full bg-[#112a4a] text-white font-bold py-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
               <ArrowLeft size={18} /> Back to Login
             </button>
         </div>
@@ -116,88 +115,83 @@ export const Auth: React.FC<AuthProps> = () => {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col h-full bg-[#04152d] overflow-hidden font-sans">
+    <div className="fixed inset-0 flex flex-col h-full bg-[#051121] overflow-hidden font-sans">
       <div 
-        className="flex-1 overflow-y-auto w-full scroll-smooth"
+        className="flex-1 overflow-y-auto w-full scroll-smooth no-scrollbar"
         style={{ 
             WebkitOverflowScrolling: 'touch',
             paddingTop: 'env(safe-area-inset-top)',
             paddingBottom: 'env(safe-area-inset-bottom)'
         }}
       >
-        <div className="min-h-full flex flex-col items-center justify-center p-6 py-12">
+        <div className="min-h-full flex flex-col items-center justify-center p-6 py-10 space-y-8 animate-fade-in">
             
-            {/* Branding Card */}
-            <div className="w-full max-w-[380px] bg-[#081d38] rounded-[40px] p-10 text-center shadow-2xl mb-8 border border-white/5">
-                <img 
-                    src="https://aqgzlavujweornbsnydg.supabase.co/storage/v1/object/public/logos/file_00000000643071f5b44f24278a84a971.png" 
-                    alt="ICC Logo" 
-                    className="w-[110px] h-auto mx-auto mb-6"
-                />
-                <h1 className="text-2xl font-bold text-white mb-1 tracking-tight">Isipingo Community Church</h1>
-                <p className="text-[#38bdf8] italic font-semibold text-base">Where it's all about Jesus</p>
+            {/* Top Card: Branding (LOGO REMOVED) */}
+            <div className="w-full max-w-[390px] bg-[#081c37] rounded-[40px] p-10 py-12 text-center shadow-2xl border border-white/5">
+                <h1 className="text-[26px] font-black text-white mb-2 tracking-tight">Isipingo Community Church</h1>
+                <p className="text-[#38bdf8] italic font-semibold text-[17px]">Where it's all about Jesus</p>
             </div>
 
-            {/* Auth Form Card */}
-            <div className="w-full max-w-[380px] bg-white/10 backdrop-blur-md border border-white/10 rounded-[40px] p-8 shadow-2xl">
-                <div className="text-center mb-8">
+            {/* Bottom Card: Auth Form */}
+            <div className="w-full max-w-[390px] bg-white/[0.08] backdrop-blur-3xl border border-white/10 rounded-[40px] p-10 shadow-2xl">
+                <div className="text-center mb-10">
                     <h2 className="text-[20px] text-white font-bold mb-1">Welcome to ICC</h2>
-                    <p className="text-[#38bdf8] text-[13px] font-semibold">Join our community of believers</p>
+                    <p className="text-[#38bdf8] text-[14px] font-semibold">Join our community of believers</p>
                 </div>
 
-                {/* Login / Sign Up Toggle Pill */}
-                <div className="bg-white rounded-full p-1 flex mb-8 shadow-inner relative h-[54px] items-center">
+                {/* Pill Toggle */}
+                <div className="bg-white rounded-full p-1.5 flex mb-10 shadow-inner relative h-[56px] items-center">
                     <button 
                       type="button" 
                       onClick={() => { setIsLogin(true); setError(''); }} 
-                      className={`flex-1 h-full rounded-full text-[14px] font-bold transition-all duration-300 z-10 ${isLogin ? 'text-slate-900 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.15)] ring-1 ring-black/5' : 'text-slate-400'}`}
+                      className={`flex-1 h-full rounded-full text-[15px] font-bold transition-all duration-300 z-10 flex items-center justify-center ${isLogin ? 'text-[#011027] bg-white shadow-[0_4px_15px_rgba(0,0,0,0.15)] ring-1 ring-black/5' : 'text-slate-400'}`}
                     >
                       Login
                     </button>
                     <button 
                       type="button" 
                       onClick={() => { setIsLogin(false); setError(''); }} 
-                      className={`flex-1 h-full rounded-full text-[14px] font-bold transition-all duration-300 z-10 ${!isLogin ? 'text-slate-900 bg-white shadow-[0_4px_12px_rgba(0,0,0,0.15)] ring-1 ring-black/5' : 'text-slate-400'}`}
+                      className={`flex-1 h-full rounded-full text-[15px] font-bold transition-all duration-300 z-10 flex items-center justify-center ${!isLogin ? 'text-[#011027] bg-white shadow-[0_4px_15px_rgba(0,0,0,0.15)] ring-1 ring-black/5' : 'text-slate-400'}`}
                     >
                       Sign Up
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <form onSubmit={handleSubmit} className="space-y-5">
                   {!isLogin && (
-                      <div className="flex gap-3">
+                      <div className="flex gap-4">
                         <div className="flex-1 space-y-1.5">
-                            <label className="text-[11px] text-slate-300 ml-3 font-semibold">First Name</label>
+                            <label className="text-[12px] text-slate-300 ml-3 font-bold">First Name</label>
                             <div className="relative">
-                              <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                              <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                               <input 
                                 name="firstName" 
                                 value={formData.firstName} 
                                 onChange={handleChange} 
                                 placeholder="John" 
                                 required={!isLogin} 
-                                className="w-full bg-white text-slate-900 rounded-[20px] py-[15px] pl-11 pr-4 text-[14px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                                className="w-full bg-white text-slate-900 rounded-[20px] h-[54px] pl-12 pr-4 text-[14px] font-bold outline-none shadow-sm placeholder:text-slate-400"
                               />
                             </div>
                         </div>
                         <div className="flex-1 space-y-1.5">
-                            <label className="text-[11px] text-slate-300 ml-3 font-semibold">Last Name</label>
+                            <label className="text-[12px] text-slate-300 ml-3 font-bold">Last Name</label>
                             <input 
                               name="lastName" 
                               value={formData.lastName} 
                               onChange={handleChange} 
                               placeholder="Doe" 
                               required={!isLogin} 
-                              className="w-full bg-white text-slate-900 rounded-[20px] py-[15px] px-6 text-[14px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                              className="w-full bg-white text-slate-900 rounded-[20px] h-[54px] px-6 text-[14px] font-bold outline-none shadow-sm placeholder:text-slate-400"
                             />
                         </div>
                       </div>
                   )}
 
                   <div className="space-y-1.5">
-                      <label className="text-[11px] text-slate-300 ml-3 font-semibold">Email</label>
+                      <label className="text-[12px] text-slate-300 ml-3 font-bold">Email</label>
                       <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                         <input 
                           name="email" 
                           type="email" 
@@ -205,15 +199,15 @@ export const Auth: React.FC<AuthProps> = () => {
                           value={formData.email} 
                           onChange={handleChange} 
                           required 
-                          className="w-full bg-white text-slate-900 rounded-[20px] py-[15px] pl-11 pr-4 text-[14px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                          className="w-full bg-white text-slate-900 rounded-[20px] h-[54px] pl-12 pr-4 text-[14px] font-bold outline-none shadow-sm placeholder:text-slate-400"
                         />
                       </div>
                   </div>
 
                   <div className="space-y-1.5">
-                      <label className="text-[11px] text-slate-300 ml-3 font-semibold">Password</label>
+                      <label className="text-[12px] text-slate-300 ml-3 font-bold">Password</label>
                       <div className="relative">
-                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                         <input 
                           name="password" 
                           type={showPassword ? "text" : "password"} 
@@ -221,10 +215,10 @@ export const Auth: React.FC<AuthProps> = () => {
                           value={formData.password} 
                           onChange={handleChange} 
                           required 
-                          className="w-full bg-white text-slate-900 rounded-[20px] py-[15px] pl-11 pr-11 text-[14px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                          className="w-full bg-white text-slate-900 rounded-[20px] h-[54px] pl-12 pr-12 text-[14px] font-bold outline-none shadow-sm placeholder:text-slate-400"
                         />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                          {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
+                          {showPassword ? <EyeOff size={20}/> : <Eye size={20}/>}
                         </button>
                       </div>
                   </div>
@@ -232,23 +226,23 @@ export const Auth: React.FC<AuthProps> = () => {
                   {!isLogin && (
                       <>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] text-slate-300 ml-3 font-semibold">Date of Birth</label>
+                          <label className="text-[12px] text-slate-300 ml-3 font-bold">Date of Birth</label>
                           <div className="relative">
-                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                            <Calendar className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                             <input 
                               name="dob" 
                               type="date" 
                               value={formData.dob} 
                               onChange={handleChange} 
                               required={!isLogin} 
-                              className="w-full bg-white text-slate-900 rounded-[20px] py-[15px] pl-11 pr-4 text-[14px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                              className="w-full bg-white text-slate-900 rounded-[20px] h-[54px] pl-12 pr-4 text-[14px] font-bold outline-none"
                             />
                           </div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] text-slate-300 ml-3 font-semibold">Phone Number</label>
+                          <label className="text-[12px] text-slate-300 ml-3 font-bold">Phone Number</label>
                           <div className="relative">
-                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={16}/>
+                            <Phone className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
                             <input 
                               name="phone" 
                               type="tel" 
@@ -256,23 +250,23 @@ export const Auth: React.FC<AuthProps> = () => {
                               value={formData.phone} 
                               onChange={handleChange} 
                               required={!isLogin} 
-                              className="w-full bg-white text-slate-900 rounded-[20px] py-[15px] pl-11 pr-4 text-[14px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm"
+                              className="w-full bg-white text-slate-900 rounded-[20px] h-[54px] pl-12 pr-4 text-[14px] font-bold outline-none shadow-sm placeholder:text-slate-400"
                             />
                           </div>
                         </div>
                         <div className="space-y-1.5">
-                          <label className="text-[11px] text-slate-300 ml-3 font-semibold">Gender</label>
+                          <label className="text-[12px] text-slate-300 ml-3 font-bold">Gender</label>
                           <div className="relative">
                             <select 
                               name="gender" 
                               value={formData.gender} 
                               onChange={handleChange} 
-                              className="w-full bg-white text-slate-900 rounded-[20px] py-[15px] px-6 text-[14px] font-bold outline-none focus:ring-2 focus:ring-blue-500 shadow-sm appearance-none"
+                              className="w-full bg-white text-slate-900 rounded-[20px] h-[54px] px-6 text-[14px] font-bold outline-none appearance-none"
                             >
                               <option>Female</option>
                               <option>Male</option>
                             </select>
-                            <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={18}/>
+                            <ChevronDown className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={20}/>
                           </div>
                         </div>
                       </>
@@ -285,19 +279,19 @@ export const Auth: React.FC<AuthProps> = () => {
                           type="checkbox" 
                           checked={rememberMe} 
                           onChange={(e) => setRememberMe(e.target.checked)} 
-                          className="w-3.5 h-3.5 rounded border-none bg-white/20 text-blue-600 focus:ring-0 focus:ring-offset-0"
+                          className="w-4 h-4 rounded border-none bg-white/20 text-blue-600 focus:ring-0"
                         />
-                        <span className="text-[11px] text-slate-200 font-semibold">Remember me</span>
+                        <span className="text-[12px] text-slate-200 font-bold">Remember me</span>
                       </label>
-                      <button type="button" className="text-[11px] text-[#38bdf8] font-bold hover:underline">Forgot Password?</button>
+                      <button type="button" className="text-[12px] text-[#38bdf8] font-bold hover:underline">Forgot Password?</button>
                     </div>
                   )}
 
-                  {error && <p className="text-red-300 bg-red-900/40 border border-red-500/20 p-3 rounded-2xl text-[11px] text-center font-bold">{error}</p>}
+                  {error && <p className="text-red-300 bg-red-900/40 border border-red-500/20 p-4 rounded-[20px] text-[11px] text-center font-bold">{error}</p>}
 
                   <button 
                     disabled={isLoading} 
-                    className="w-full bg-[#0c2d58] hover:bg-[#1a3b63] text-white font-black py-[18px] rounded-[24px] shadow-2xl transition-all transform active:scale-[0.98] mt-6 disabled:opacity-50 text-[14px] tracking-tight"
+                    className="w-full bg-[#112a4a] hover:bg-[#1a3b63] text-white font-black h-[60px] rounded-[24px] shadow-2xl transition-all transform active:scale-[0.98] mt-4 disabled:opacity-50 text-[16px] tracking-tight"
                   >
                     {isLoading ? 'Processing...' : isLogin ? 'Sign In' : 'Create Account'}
                   </button>

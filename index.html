@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#0c2d58" />
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
@@ -11,6 +11,41 @@
     
     <!-- PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
+
+    <!-- OneSignal SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
+    <script>
+      window.OneSignalDeferred = window.OneSignalDeferred || [];
+      OneSignalDeferred.push(async function(OneSignal) {
+        await OneSignal.init({
+          appId: "72bf3af9-75ff-4d8d-8d84-4ce1bc38ca04",
+          safari_web_id: "web.onesignal.auto.10a9f1f0-4d43-4f9b-8f1d-2b7e9b0e9f1e",
+          notifyButton: {
+            enable: false,
+          },
+        });
+      });
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            fontFamily: { sans: ['Inter', 'sans-serif'] },
+            animation: {
+              'slide-up': 'slide-up 0.4s ease-out',
+              'fade-in': 'fade-in 0.3s ease-in'
+            },
+            keyframes: {
+              'slide-up': { '0%': { transform: 'translateY(20px)', opacity: '0' }, '100%': { transform: 'translateY(0)', opacity: '1' } },
+              'fade-in': { '0%': { opacity: '0' }, '100%': { opacity: '1' } }
+            }
+          }
+        }
+      }
+    </script>
 
   <script type="importmap">
 {
@@ -26,17 +61,21 @@
   }
 }
 </script>
+<style>
+  .no-scrollbar::-webkit-scrollbar { display: none; }
+  .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+</style>
 </head>
-  <body class="bg-slate-50">
-    <div id="root"></div>
+  <body class="bg-[#051121] antialiased overflow-hidden">
+    <div id="root" class="h-full w-full"></div>
     <script type="module" src="/index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/sw.js').then(registration => {
-            console.log('SW registered: ', registration);
-          }).catch(registrationError => {
-            console.log('SW registration failed: ', registrationError);
+            console.log('SW registered');
+          }).catch(err => {
+            console.log('SW registration failed');
           });
         });
       }

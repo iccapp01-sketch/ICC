@@ -157,13 +157,12 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
   }, []);
 
   return (
-    <div className="p-4 space-y-6 animate-fade-in">
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
       <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
-      <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-6 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
-        <Logo className="absolute -bottom-4 -right-4 w-32 h-32 opacity-10 pointer-events-none" />
-        <h2 className="text-xs font-bold uppercase tracking-widest mb-2 opacity-80">Daily Verse</h2>
-        <p className="text-lg font-serif mb-3 leading-relaxed">"{verse?.text}"</p>
-        <p className="font-bold text-blue-300 text-sm">{verse?.reference}</p>
+      <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-8 rounded-[2rem] text-white shadow-xl relative overflow-hidden">
+        <h2 className="text-xs font-black uppercase tracking-widest mb-3 opacity-80">Daily Verse</h2>
+        <p className="text-lg font-serif mb-4 leading-relaxed">"{verse?.text}"</p>
+        <p className="font-black text-blue-300 text-sm">{verse?.reference}</p>
       </div>
       {sermon && (
         <section>
@@ -209,7 +208,6 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
   );
 };
 
-// --- BIBLE PAGE ---
 export const BibleView = () => {
   const [activeTab, setActiveTab] = useState<'bible' | 'plan'>('bible');
   const [book, setBook] = useState('John');
@@ -269,777 +267,6 @@ export const BibleView = () => {
   );
 };
 
-// --- MUSIC PAGE ---
-export const MusicView = () => {
-  const [activeTab, setActiveTab] = useState<'music' | 'podcast' | 'playlists'>('music');
-  const [tracks, setTracks] = useState<MusicTrack[]>([]);
-  const [userPlaylists, setUserPlaylists] = useState<Playlist[]>([]);
-  const [selectedPlaylist, setSelectedPlaylist] = useState<Playlist | null>(null);
-  const [current, setCurrent] = useState<MusicTrack | null>(null);
-  const [playingList, setPlayingList] = useState<MusicTrack[]>([]);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [isLooping, setIsLooping] = useState(false);
-  
-  const [isCreatingPlaylist, setIsCreatingPlaylist] = useState(false);
-  const [newPlaylistTitle, setNewPlaylistTitle] = useState('');
-  const [trackToAdd, setTrackToAdd] = useState<MusicTrack | null>(null);
-  const [showAddModal, setShowAddModal] = useState(false);
-
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-
-  const fetchTracks = async () => {
-    const { data } = await supabase.from('music_tracks').select('*');
-    setTracks(data || []);
-  };
-
-  const fetchPlaylists = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    
-    try {
-      const { data: playlistsData } = await supabase
-        .from('playlists')
-        .select('*, playlist_tracks(music_tracks(*))')
-        .eq('user_id', user.id);
-      
-      if (playlistsData) {
-        const formatted: Playlist[] = playlistsData.map(p => ({
-          id: p.id,
-          title: p.title,
-          user_id: p.user_id,
-          tracks: p.playlist_tracks?.map((pt: any) => pt.music_tracks).filter(Boolean) || []
-        }));
-        setUserPlaylists(formatted);
-      }
-    } catch (err) {
-      console.warn("Playlists error:", err);
-    }
-  };
-
-  useEffect(() => { fetchTracks(); fetchPlaylists(); }, []);
-
-  useEffect(() => {
-    if (!audioRef.current) return;
-    isPlaying ? audioRef.current.play().catch(() => setIsPlaying(false)) : audioRef.current.pause();
-  }, [isPlaying, current]);
-
-  const toggleTrack = (track: MusicTrack, list: MusicTrack[]) => {
-    if (current?.id === track.id) {
-      setIsPlaying(!isPlaying);
-    } else {
-      setPlayingList(list);
-      setCurrent(track);
-      setIsPlaying(true);
-    }
-  };
-
-  const handleNext = () => {
-    if (!current || playingList.length === 0) return;
-    const currentIndex = playingList.findIndex(t => t.id === current.id);
-    const nextIndex = (currentIndex + 1) % playingList.length;
-    setCurrent(playingList[nextIndex]);
-    setIsPlaying(true);
-  };
-
-  const handleBack = () => {
-    if (!current || playingList.length === 0) return;
-    const currentIndex = playingList.findIndex(t => t.id === current.id);
-    const prevIndex = (currentIndex - 1 + playingList.length) % playingList.length;
-    setCurrent(playingList[prevIndex]);
-    setIsPlaying(true);
-  };
-
-  const handleStop = () => {
-    setIsPlaying(false);
-    if (audioRef.current) {
-      audioRef.current.currentTime = 0;
-    }
-  };
-
-  const createPlaylist = async () => {
-    if (!newPlaylistTitle.trim()) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return alert("Sign in to create playlists.");
-    const { error } = await supabase.from('playlists').insert([{ title: newPlaylistTitle, user_id: user.id }]);
-    if (error) return alert(error.message);
-    setNewPlaylistTitle(''); setIsCreatingPlaylist(false); fetchPlaylists();
-  };
-
-  const addToPlaylist = async (playlistId: string) => {
-    if (!trackToAdd) return;
-    const { error } = await supabase.from('playlist_tracks').insert([{ playlist_id: playlistId, track_id: trackToAdd.id }]);
-    if (error) return alert(error.message);
-    setShowAddModal(false); fetchPlaylists(); alert("Added!");
-  };
-
-  const filtered = activeTab === 'music' ? tracks.filter(t => t.type === 'MUSIC') : 
-                   activeTab === 'podcast' ? tracks.filter(t => t.type === 'PODCAST') : [];
-
-  return (
-    <div className="p-4 flex flex-col h-full pb-56 animate-fade-in relative">
-      <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-black dark:text-white tracking-tighter uppercase">Media Hub</h2>
-        {activeTab === 'playlists' && (
-          <button onClick={() => setIsCreatingPlaylist(true)} className="p-2 bg-blue-600 text-white rounded-xl shadow-lg"><FolderPlus size={20}/></button>
-        )}
-      </div>
-      <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar">
-        {['music', 'podcast', 'playlists'].map(t => (
-          <button key={t} onClick={() => { setActiveTab(t as any); setSelectedPlaylist(null); }} className={`px-6 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${activeTab === t ? 'bg-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-800 text-slate-500 border dark:border-slate-700'}`}>{t}</button>
-        ))}
-      </div>
-      <div className="space-y-3 overflow-y-auto no-scrollbar">
-        {activeTab === 'playlists' && !selectedPlaylist ? (
-          <div className="grid grid-cols-2 gap-4">
-            {userPlaylists.map(pl => (
-              <div key={pl.id} onClick={() => setSelectedPlaylist(pl)} className="bg-white dark:bg-slate-800 p-6 rounded-[2.5rem] shadow-sm border dark:border-slate-700 cursor-pointer">
-                <ListMusic size={24} className="text-blue-600 mb-4"/>
-                <h4 className="font-black text-sm dark:text-white truncate">{pl.title}</h4>
-              </div>
-            ))}
-          </div>
-        ) : (selectedPlaylist?.tracks || filtered).map(track => (
-          <div key={track.id} onClick={() => toggleTrack(track, selectedPlaylist?.tracks || filtered)} className={`p-4 rounded-3xl flex items-center gap-4 border ${current?.id === track.id ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200' : 'bg-white dark:bg-slate-800 border-transparent dark:border-slate-700'}`}>
-            <div className="w-10 h-10 rounded-2xl flex items-center justify-center bg-blue-100 dark:bg-blue-900 text-blue-600">
-              {current?.id === track.id && isPlaying ? <Pause size={18}/> : <Play size={18} fill="currentColor"/>}
-            </div>
-            <div className="flex-1 min-w-0">
-              <h4 className="font-bold text-sm dark:text-white truncate">{track.title}</h4>
-              <p className="text-[10px] font-bold text-slate-400 uppercase">{track.artist}</p>
-            </div>
-            <button onClick={(e) => { e.stopPropagation(); setTrackToAdd(track); setShowAddModal(true); }} className="p-2 text-slate-400"><Plus size={18}/></button>
-          </div>
-        ))}
-      </div>
-      {current && (
-        <div className="fixed bottom-20 left-4 right-4 bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl p-5 rounded-[2.5rem] shadow-2xl border dark:border-slate-700 z-40 animate-slide-up">
-           <div className="flex flex-col gap-4">
-             <div className="flex items-center gap-4">
-               <div className="w-12 h-12 rounded-2xl bg-blue-600 text-white flex items-center justify-center shrink-0 shadow-lg">
-                 <Music size={24}/>
-               </div>
-               <div className="flex-1 min-w-0">
-                 <p className="font-black text-sm dark:text-white truncate">{current.title}</p>
-                 <p className="text-[10px] font-bold text-blue-500 uppercase truncate">{current.artist}</p>
-               </div>
-               <div className="flex items-center gap-1">
-                 <button 
-                  onClick={() => setIsLooping(!isLooping)} 
-                  className={`p-2 rounded-full transition ${isLooping ? 'text-blue-600 bg-blue-50 dark:bg-blue-900/40' : 'text-slate-400'}`}
-                 >
-                   <Repeat size={18}/>
-                 </button>
-                 <button onClick={handleStop} className="p-2 text-slate-400 hover:text-red-500 transition">
-                   <Square size={18}/>
-                 </button>
-               </div>
-             </div>
-             
-             <div className="flex items-center justify-center gap-6">
-                <button onClick={handleBack} className="p-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition active:scale-90">
-                  <SkipBack size={28} fill="currentColor"/>
-                </button>
-                
-                <button 
-                  onClick={() => setIsPlaying(!isPlaying)} 
-                  className="w-16 h-16 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-blue-500/30 active:scale-95 transition-transform"
-                >
-                  {isPlaying ? <Pause size={32} fill="currentColor"/> : <Play size={32} fill="currentColor" className="ml-1"/>}
-                </button>
-
-                <button onClick={handleNext} className="p-2 text-slate-600 dark:text-slate-300 hover:text-blue-600 transition active:scale-90">
-                  <SkipForward size={28} fill="currentColor"/>
-                </button>
-             </div>
-           </div>
-           <audio 
-            ref={audioRef} 
-            src={current.url} 
-            loop={isLooping}
-            onEnded={() => !isLooping && handleNext()}
-           />
-        </div>
-      )}
-      {isCreatingPlaylist && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-[100]">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] p-6">
-            <h3 className="text-lg font-black mb-4 dark:text-white">New Playlist</h3>
-            <input value={newPlaylistTitle} onChange={e => setNewPlaylistTitle(e.target.value)} placeholder="Title" className="w-full p-3 bg-slate-100 dark:bg-slate-900 rounded-xl mb-4 dark:text-white"/>
-            <div className="flex gap-2"><button onClick={() => setIsCreatingPlaylist(false)} className="flex-1">Cancel</button><button onClick={createPlaylist} className="flex-1 bg-blue-600 text-white rounded-xl py-2">Create</button></div>
-          </div>
-        </div>
-      )}
-      {showAddModal && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-6 z-[100]">
-          <div className="bg-white dark:bg-slate-800 w-full max-w-sm rounded-[2rem] p-6 max-h-[70vh] overflow-y-auto">
-            <h3 className="text-lg font-black mb-4 dark:text-white">Add to Playlist</h3>
-            {userPlaylists.map(pl => (
-              <button key={pl.id} onClick={() => addToPlaylist(pl.id)} className="w-full p-3 text-left border-b dark:border-slate-700 dark:text-white">{pl.title}</button>
-            ))}
-            <button onClick={() => setShowAddModal(false)} className="w-full mt-4 text-slate-500">Close</button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-};
-
-// --- BLOG PAGE ---
-export const BlogView = () => {
-  const [blogs, setBlogs] = useState<BlogPost[]>([]);
-  const [categories, setCategories] = useState<string[]>(['All']);
-  const [category, setCategory] = useState('All');
-  const [selectedPost, setSelectedPost] = useState<BlogPost | null>(null);
-  const [apkShareData, setApkShareData] = useState<{url: string, title: string} | null>(null);
-
-  useEffect(() => {
-    supabase.from('blog_posts').select('*').order('created_at', { ascending: false })
-      .then(r => setBlogs(r.data || []));
-
-    supabase.from('blog_categories').select('name').order('name', { ascending: true })
-      .then(r => {
-        if (r.data) {
-          setCategories(['All', ...r.data.map(c => c.name)]);
-        }
-      });
-  }, []);
-
-  const filtered = blogs.filter(b => {
-    if (category === 'All') return true;
-    return (b.category || '').toString().toLowerCase().trim() === category.toLowerCase().trim();
-  });
-
-  if (selectedPost) {
-    const ytId = getYouTubeID(selectedPost.video_url || '');
-    return (
-      <div className="p-4 pb-24 animate-fade-in max-w-4xl mx-auto">
-        <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
-        <button onClick={() => setSelectedPost(null)} className="flex items-center gap-2 text-blue-600 font-black mb-6 uppercase tracking-widest text-[10px]"><ArrowLeft size={16}/> Back</button>
-        <div className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
-          <div className="relative aspect-video bg-black">
-            {selectedPost.video_url ? (
-               ytId ? <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${ytId}?rel=0`} frameBorder="0" allowFullScreen></iframe> : <video src={selectedPost.video_url} controls className="w-full h-full" />
-            ) : <img src={selectedPost.image_url} className="w-full h-full object-cover" alt={selectedPost.title} />}
-            <button 
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                const isYT = selectedPost.video_url && (selectedPost.video_url.includes('youtube.com') || selectedPost.video_url.includes('youtu.be'));
-                const shareTarget = isYT ? selectedPost.image_url : (selectedPost.video_url || selectedPost.image_url);
-                shareMediaFile(shareTarget, selectedPost.title, selectedPost.title.replace(/\s+/g, '-').toLowerCase(), setApkShareData); 
-              }} 
-              className="absolute top-4 right-4 w-10 h-10 bg-white/90 dark:bg-slate-800/90 rounded-full flex items-center justify-center text-blue-600 shadow-lg"
-            >
-              <Share2 size={20}/>
-            </button>
-          </div>
-          <div className="p-8 space-y-8">
-            <div>
-              <span className="text-[10px] font-black text-blue-600 uppercase tracking-widest bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">{selectedPost.category}</span>
-              <h2 className="text-3xl font-black dark:text-white leading-tight mt-2">{selectedPost.title}</h2>
-              <p className="text-[10px] text-slate-500 font-black uppercase mt-2">{selectedPost.author} • {formatDate(selectedPost.created_at)}</p>
-            </div>
-            <div className="text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap font-medium">{selectedPost.content}</div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-4 pb-20 max-w-4xl mx-auto relative">
-      <ShareModal isOpen={!!apkShareData} onClose={() => setApkShareData(null)} shareData={apkShareData} />
-      <Logo className="absolute top-10 right-4 w-24 h-24 opacity-5 pointer-events-none" />
-      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Articles & Inspiration</h2>
-      <div className="flex gap-2 overflow-x-auto no-scrollbar mb-6">
-        {categories.map(c => (
-          <button key={c} onClick={() => setCategory(c)} className={`px-5 py-2 rounded-full text-xs font-black uppercase tracking-widest whitespace-nowrap transition ${category === c ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-slate-500 border dark:border-slate-700'}`}>{c}</button>
-        ))}
-      </div>
-      <div className="space-y-6">
-        {filtered.length > 0 ? filtered.map(blog => (
-          <div key={blog.id} onClick={() => setSelectedPost(blog)} className="flex gap-4 items-center bg-white dark:bg-slate-800 p-4 rounded-[2.5rem] shadow-sm border dark:border-slate-700 cursor-pointer group">
-            <div className="w-32 h-32 bg-slate-100 dark:bg-slate-700 rounded-3xl overflow-hidden flex-shrink-0 relative">
-              <img src={blog.image_url} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-black text-blue-600 uppercase mb-1 block">{blog.category}</span>
-              <h3 className="font-black text-sm dark:text-white line-clamp-2 leading-tight mb-2">{blog.title}</h3>
-              <div className="flex gap-2">
-                 <button 
-                  onClick={(e) => { 
-                    e.stopPropagation(); 
-                    const isYT = blog.video_url && (blog.video_url.includes('youtube.com') || blog.video_url.includes('youtu.be'));
-                    const shareTarget = isYT ? blog.image_url : (blog.video_url || blog.image_url);
-                    shareMediaFile(shareTarget, blog.title, blog.title.replace(/\s+/g, '-').toLowerCase(), setApkShareData); 
-                  }} 
-                  className="p-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 rounded-full hover:bg-blue-100"
-                >
-                   <Share2 size={14}/>
-                 </button>
-                 <button className="px-4 py-1.5 bg-blue-600 text-white text-[10px] font-black rounded-full uppercase">Read</button>
-              </div>
-            </div>
-          </div>
-        )) : <div className="py-20 text-center text-slate-400 font-bold uppercase tracking-widest border-2 border-dashed rounded-3xl">No articles found</div>}
-      </div>
-    </div>
-  );
-};
-
-// --- GROUPS PAGE (THREADED INTERFACE) ---
-
-interface ThreadPostProps {
-  post: GroupPost;
-  allPosts: GroupPost[];
-  currentUserId: string | null;
-  onReply: (post: GroupPost) => void;
-  onEdit: (post: GroupPost) => void;
-  onDelete: (id: string) => void;
-  onLike: (id: string) => void;
-  depth?: number;
-}
-
-const ThreadPost: React.FC<ThreadPostProps> = ({ 
-  post, 
-  allPosts, 
-  currentUserId, 
-  onReply, 
-  onEdit, 
-  onDelete, 
-  onLike,
-  depth = 0 
-}) => {
-  const isMe = post.user_id === currentUserId;
-  const isLiked = post.group_post_likes?.some(l => l.user_id === currentUserId);
-  const replies = allPosts.filter(p => p.parent_id === post.id);
-
-  return (
-    <div className={`flex flex-col w-full ${depth > 0 ? 'mt-4' : 'mt-6'}`}>
-      <div className={`flex gap-3 ${depth > 0 ? 'ml-6 md:ml-12 border-l-2 border-slate-700/50 pl-4' : ''}`}>
-        <div className={`w-10 h-10 rounded-xl flex items-center justify-center font-black text-sm shrink-0 shadow-lg border border-white/5 ${isMe ? 'bg-[#112a4a] text-blue-400' : 'bg-blue-600 text-white'}`}>
-          {(post.profiles?.first_name?.[0] || 'U').toUpperCase()}
-        </div>
-        <div className="flex-1 flex flex-col min-w-0">
-          <div className={`p-4 rounded-[2rem] shadow-xl relative min-w-[120px] ${isMe ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-[#112a4a] text-white rounded-tl-none'}`}>
-             <div className="flex justify-between items-center mb-1">
-                <p className={`text-[10px] font-black uppercase tracking-widest ${isMe ? 'text-blue-100' : 'text-blue-400'}`}>
-                  {post.profiles?.first_name} {post.profiles?.last_name}
-                </p>
-                <p className="text-[8px] font-bold opacity-60">
-                  {new Date(post.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </p>
-             </div>
-             <p className="text-sm font-medium leading-relaxed break-words">{post.content}</p>
-          </div>
-          <div className={`flex items-center gap-4 mt-2 px-2`}>
-            <button onClick={() => onLike(post.id)} className={`flex items-center gap-1.5 text-[11px] font-black transition-colors ${isLiked ? 'text-rose-500' : 'text-slate-400'}`}>
-              <Heart size={14} fill={isLiked ? "currentColor" : "none"}/> {post.group_post_likes?.length || 0}
-            </button>
-            <button onClick={() => onReply(post)} className="flex items-center gap-1.5 text-[11px] font-black text-slate-400 hover:text-blue-500">
-              <MessageSquare size={14}/> Reply
-            </button>
-            {isMe && (
-              <>
-                <button onClick={() => onEdit(post)} className="text-slate-400 hover:text-blue-400"><Pencil size={14}/></button>
-                <button onClick={() => onDelete(post.id)} className="text-slate-400 hover:text-rose-500"><Trash2 size={14}/></button>
-              </>
-            )}
-          </div>
-          {replies.length > 0 && (
-            <div className="flex flex-col">
-              {replies.map(reply => (
-                <ThreadPost 
-                  key={reply.id} 
-                  post={reply} 
-                  allPosts={allPosts} 
-                  currentUserId={currentUserId} 
-                  onReply={onReply}
-                  onEdit={onEdit}
-                  onDelete={onDelete}
-                  onLike={onLike}
-                  depth={depth + 1}
-                />
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export const CommunityView = () => {
-  const [groups, setGroups] = useState<CommunityGroup[]>([]);
-  const [selected, setSelected] = useState<CommunityGroup | null>(null);
-  const [posts, setPosts] = useState<GroupPost[]>([]);
-  const [comment, setComment] = useState('');
-  const [isJoining, setIsJoining] = useState<string | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
-  const [editingPost, setEditingPost] = useState<GroupPost | null>(null);
-  const [replyingTo, setReplyingTo] = useState<GroupPost | null>(null);
-
-  const fetchPosts = async (groupId: string) => {
-    const { data } = await supabase.from('group_posts')
-      .select('*, profiles(first_name, last_name, avatar_url), group_post_likes(user_id)')
-      .eq('group_id', groupId)
-      .order('created_at', { ascending: true });
-    setPosts(data || []);
-  };
-
-  const fetchGroupsData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    setCurrentUserId(user.id);
-    const { data: gs } = await supabase.from('community_groups').select('*');
-    const { data: ms } = await supabase.from('community_group_members').select('*').eq('user_id', user.id);
-    if (gs) setGroups(gs.map(g => {
-      const mem = ms?.find((m: any) => m.group_id === g.id);
-      return { ...g, status: mem?.status || 'none', isMember: mem?.status === 'approved' };
-    }));
-  };
-
-  useEffect(() => { fetchGroupsData(); }, []);
-
-  const handleSendMessage = async () => {
-    if (!comment.trim() || !selected || !currentUserId) return;
-    
-    if (editingPost) {
-      await supabase.from('group_posts').update({ content: comment }).eq('id', editingPost.id);
-      setEditingPost(null);
-    } else {
-      const payload: any = { group_id: selected.id, user_id: currentUserId, content: comment };
-      if (replyingTo) payload.parent_id = replyingTo.id;
-      await supabase.from('group_posts').insert([payload]);
-      setReplyingTo(null);
-    }
-    
-    setComment('');
-    fetchPosts(selected.id);
-  };
-
-  const handleLikePost = async (postId: string) => {
-    if (!currentUserId) return;
-    const post = posts.find(p => p.id === postId);
-    const isLiked = post?.group_post_likes?.some(l => l.user_id === currentUserId);
-    if (isLiked) {
-      await supabase.from('group_post_likes').delete().eq('post_id', postId).eq('user_id', currentUserId);
-    } else {
-      await supabase.from('group_post_likes').insert([{ post_id: postId, user_id: currentUserId }]);
-    }
-    fetchPosts(selected!.id);
-  };
-
-  const handleDeletePost = async (id: string) => {
-    if (!confirm("Delete message?")) return;
-    await supabase.from('group_posts').delete().eq('id', id);
-    fetchPosts(selected!.id);
-  };
-
-  const handleJoin = async (groupId: string) => {
-    setIsJoining(groupId);
-    await supabase.from('community_group_members').upsert({ group_id: groupId, user_id: currentUserId, status: 'pending' }, { onConflict: 'group_id,user_id' });
-    setIsJoining(null); 
-    fetchGroupsData();
-  };
-
-  if (selected) {
-    const rootPosts = posts.filter(p => !p.parent_id);
-    return (
-      <div className="flex flex-col h-full bg-[#08182e] pb-24 relative animate-fade-in overflow-hidden">
-        <div className="p-4 flex items-center justify-between bg-[#08182e] border-b border-slate-800/50 sticky top-0 z-10 h-20">
-          <div className="flex items-center gap-4">
-            <button onClick={() => setSelected(null)} className="p-2 text-white hover:bg-slate-800 rounded-full transition"><ArrowLeft size={24}/></button>
-            <div className="flex flex-col">
-              <h3 className="font-black text-xl text-white leading-none mb-1">{selected.name}</h3>
-              <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest">{posts.length} MESSAGES</p>
-            </div>
-          </div>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-2 scroll-smooth no-scrollbar">
-          {rootPosts.map(p => (
-            <ThreadPost 
-              key={p.id} 
-              post={p} 
-              allPosts={posts} 
-              currentUserId={currentUserId}
-              onReply={setReplyingTo}
-              onEdit={(post) => { setEditingPost(post); setComment(post.content); }}
-              onDelete={handleDeletePost}
-              onLike={handleLikePost}
-            />
-          ))}
-          {posts.length === 0 && (
-            <div className="py-20 text-center opacity-40">
-              <MessageCircle size={48} className="mx-auto mb-4 text-slate-500"/>
-              <p className="text-xs font-black uppercase tracking-widest text-slate-500">No conversations yet</p>
-            </div>
-          )}
-        </div>
-        <div className="fixed bottom-20 left-0 right-0 p-4 bg-transparent z-20 flex flex-col gap-2">
-          {replyingTo && (
-            <div className="bg-[#112a4a] backdrop-blur-xl border border-white/10 rounded-2xl p-3 flex justify-between items-center animate-slide-up mx-2">
-               <div className="border-l-2 border-blue-500 pl-3">
-                 <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Replying to {replyingTo.profiles?.first_name}</p>
-                 <p className="text-xs text-white/60 line-clamp-1 italic">{replyingTo.content}</p>
-               </div>
-               <button onClick={() => setReplyingTo(null)} className="p-1.5 hover:bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
-            </div>
-          )}
-          {editingPost && (
-            <div className="bg-blue-900/40 backdrop-blur-xl border border-blue-500/30 rounded-2xl p-3 flex justify-between items-center animate-slide-up mx-2">
-               <div className="border-l-2 border-blue-400 pl-3">
-                 <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest">Editing Message</p>
-                 <p className="text-xs text-white/60 line-clamp-1 italic">{editingPost.content}</p>
-               </div>
-               <button onClick={() => { setEditingPost(null); setComment(''); }} className="p-1.5 hover:bg-white/5 rounded-full text-slate-400"><X size={16}/></button>
-            </div>
-          )}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 relative">
-              <input 
-                value={comment} 
-                onChange={e => setComment(e.target.value)} 
-                onKeyDown={e => e.key === 'Enter' && handleSendMessage()}
-                placeholder={editingPost ? "Update message..." : "Type a message..."} 
-                className="w-full bg-[#112a4a]/80 backdrop-blur-xl border border-white/10 p-4 rounded-full text-sm font-medium text-white placeholder-slate-400 outline-none focus:ring-1 focus:ring-blue-500/50 shadow-2xl transition-all" 
-              />
-            </div>
-            <button 
-              onClick={handleSendMessage}
-              className="w-14 h-14 bg-blue-600 text-white rounded-full flex items-center justify-center shadow-2xl shadow-blue-500/20 active:scale-90 transition-transform transform shrink-0"
-            >
-              <span className="sr-only">Send message</span>
-              <Send size={24} className="ml-1" />
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="p-4 space-y-6 pb-24">
-      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Community Groups</h2>
-      <div className="grid gap-6">
-        {groups.map(g => (
-          <div key={g.id} className="bg-white dark:bg-slate-800 p-6 rounded-[2rem] shadow-sm border dark:border-slate-700">
-            <h4 className="text-xl font-black mb-1 dark:text-white">{g.name}</h4>
-            <p className="text-xs text-slate-500 mb-6">{g.description}</p>
-            <div className="flex justify-between items-center">
-              <span className="text-[10px] font-black text-blue-600 bg-blue-50 px-3 py-1 rounded-full uppercase">{g.membersCount || 0} Members</span>
-              {g.status === 'approved' ? (
-                <button onClick={() => { setSelected(g); fetchPosts(g.id); }} className="bg-green-600 text-white px-6 py-2 rounded-full text-xs font-black uppercase">Enter</button>
-              ) : (
-                <button disabled={g.status === 'pending'} onClick={() => handleJoin(g.id)} className="bg-[#0c2d58] text-white px-6 py-2 rounded-full text-xs font-black uppercase">
-                  {isJoining === g.id ? '...' : g.status === 'pending' ? 'Pending' : 'Join'}
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-};
-
-// --- SERMONS PAGE ---
-export const SermonsView = () => {
-  const [sermons, setSermons] = useState<Sermon[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.from('sermons').select('*').order('date_preached', { ascending: false })
-      .then(r => { setSermons(r.data || []); setLoading(false); });
-  }, []);
-
-  if (loading) return <div className="py-24 text-center text-slate-400">Loading Library...</div>;
-
-  return (
-    <div className="p-4 space-y-6 pb-24 animate-fade-in">
-      <h2 className="text-2xl font-black mb-6 dark:text-white uppercase tracking-tighter">Sermon Archive</h2>
-      <div className="space-y-6">
-        {sermons.map(sermon => {
-          const ytId = getYouTubeID(sermon.video_url);
-          return (
-            <div key={sermon.id} className="bg-white dark:bg-slate-800 rounded-[2.5rem] overflow-hidden shadow-sm border dark:border-slate-700">
-              <div className="aspect-video bg-black relative">
-                {ytId ? (
-                  <iframe width="100%" height="100%" src={`https://www.youtube.com/embed/${ytId}`} title={sermon.title} frameBorder="0" allowFullScreen className="w-full h-full"></iframe>
-                ) : (
-                  <video src={sermon.video_url} controls className="w-full h-full object-contain" />
-                )}
-              </div>
-              <div className="p-6">
-                <span className="text-[10px] font-black text-blue-600 uppercase bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded-full">{sermon.preacher}</span>
-                <h3 className="text-lg font-black dark:text-white leading-tight mt-2 mb-2">{sermon.title}</h3>
-                <p className="text-[10px] font-bold text-blue-500 uppercase">{formatDate(sermon.date_preached)} • {sermon.duration}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-};
-
-// --- EVENTS PAGE ---
-export const EventsView = ({ onBack }: { onBack: () => void }) => {
-  const [events, setEvents] = useState<Event[]>([]);
-  const [rsvps, setRsvps] = useState<Record<string, { status: string, transport: boolean, guests: number }>>({});
-  const [submitting, setSubmitting] = useState<string | null>(null);
-
-  useEffect(() => {
-    supabase.from('events').select('*').order('date', { ascending: true })
-      .then(r => setEvents(r.data || []));
-  }, []);
-
-  const handleRSVPChange = (eventId: string, status: string) => {
-    setRsvps(prev => ({
-      ...prev,
-      [eventId]: { ...(prev[eventId] || { transport: false, guests: 0 }), status }
-    }));
-  };
-
-  const handleTransportToggle = (eventId: string) => {
-    setRsvps(prev => ({
-      ...prev,
-      [eventId]: { ...(prev[eventId] || { status: 'None', guests: 0 }), transport: !prev[eventId]?.transport }
-    }));
-  };
-
-  const handleGuestsChange = (eventId: string, count: number) => {
-    setRsvps(prev => ({
-      ...prev,
-      [eventId]: { ...(prev[eventId] || { status: 'None', transport: false }), guests: count }
-    }));
-  };
-
-  const submitRSVP = async (eventId: string) => {
-    const data = rsvps[eventId];
-    if (!data || data.status === 'None') return alert("Please select an RSVP option first.");
-
-    setSubmitting(eventId);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Please log in to RSVP.");
-
-      const { error } = await supabase.from('event_rsvps').upsert({
-        event_id: eventId,
-        user_id: user.id,
-        status: data.status,
-        transport_required: data.transport,
-        plus_guests: data.guests
-      }, { onConflict: 'event_id,user_id' });
-
-      if (error) throw error;
-      alert("RSVP Submitted Successfully!");
-    } catch (err: any) {
-      alert("RSVP failed: " + err.message);
-    } finally {
-      setSubmitting(null);
-    }
-  };
-
-  return (
-    <div className="flex flex-col h-full bg-[#08182e] animate-fade-in overflow-hidden">
-      <div className="p-6 flex items-center gap-6 bg-[#08182e] sticky top-0 z-10">
-        <button onClick={onBack} className="p-2 text-white hover:bg-white/10 rounded-full transition">
-          <ArrowLeft size={28}/>
-        </button>
-        <h2 className="text-2xl font-black text-white uppercase tracking-tighter">COMMUNITY UPDATES</h2>
-      </div>
-      <div className="flex-1 overflow-y-auto p-4 space-y-6 pb-24 no-scrollbar">
-        {events.map(event => {
-          const isEvent = event.type === 'EVENT';
-          const currentRSVP = rsvps[event.id] || { status: 'None', transport: false, guests: 0 };
-          return (
-            <div key={event.id} className="bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] p-8 border border-white/5 shadow-2xl transition-all hover:border-white/10">
-              <div className="flex justify-between items-start mb-6">
-                <div className={`w-16 h-16 rounded-3xl flex items-center justify-center shadow-lg ${isEvent ? 'bg-blue-600 text-white' : 'bg-orange-50 text-white'}`}>
-                  {isEvent ? <Calendar size={32}/> : <Info size={32}/>}
-                </div>
-                <div className={`px-5 py-2 rounded-full text-[10px] font-black uppercase tracking-widest ${isEvent ? 'bg-white text-blue-600' : 'bg-[#fff5f0] text-orange-600'}`}>
-                  {event.type}
-                </div>
-              </div>
-              <div className="mb-6">
-                <h3 className="text-3xl font-black text-white leading-tight mb-2 tracking-tight">{event.title}</h3>
-                <p className="text-sm text-slate-400 font-medium leading-relaxed">{event.description}</p>
-              </div>
-              <div className="border-t border-white/5 pt-6 pb-6 flex flex-wrap gap-x-8 gap-y-4 items-center">
-                 <div className="flex items-center gap-2.5 text-blue-500 font-black text-xs uppercase tracking-widest">
-                   <Calendar size={18}/> <span>{formatDate(event.date).toUpperCase()}</span>
-                 </div>
-                 <div className="flex items-center gap-2.5 text-slate-400 font-bold text-xs uppercase tracking-widest">
-                   <Clock size={18}/> <span>{event.time}</span>
-                 </div>
-                 <div className="flex items-center gap-2.5 text-slate-400 font-bold text-xs uppercase tracking-widest">
-                   <MapPin size={18}/> <span>{event.location}</span>
-                 </div>
-              </div>
-              {isEvent && (
-                <div className="bg-[#0c1f38] rounded-[2rem] p-8 space-y-6 border border-white/5 animate-slide-up">
-                  <div className="flex flex-col gap-4">
-                    <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">RSVP CONFIRMATION</p>
-                    <div className="flex bg-[#112a4a] rounded-2xl p-1.5 border border-white/5">
-                      {['YES', 'MAYBE', 'NO'].map((status) => (
-                        <button 
-                          key={status}
-                          onClick={() => handleRSVPChange(event.id, status)}
-                          className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${currentRSVP.status === status ? 'bg-[#1a3b63] text-blue-400 shadow-inner ring-1 ring-white/10' : 'text-slate-500 hover:text-slate-300'}`}
-                        >
-                          {status}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-black text-white tracking-tight">Transport Needed?</p>
-                      <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">Let us help you get here</p>
-                    </div>
-                    <button 
-                      onClick={() => handleTransportToggle(event.id)}
-                      className={`w-14 h-8 rounded-full relative transition-colors p-1 ${currentRSVP.transport ? 'bg-blue-600' : 'bg-slate-700'}`}
-                    >
-                      <div className={`w-6 h-6 bg-white rounded-full shadow-lg transform transition-transform ${currentRSVP.transport ? 'translate-x-6' : 'translate-x-0'}`}></div>
-                    </button>
-                  </div>
-                  <div className="flex items-center justify-between pt-2">
-                    <p className="text-sm font-black text-white tracking-tight">Plus Guest?</p>
-                    <select 
-                      value={currentRSVP.guests}
-                      onChange={(e) => handleGuestsChange(event.id, parseInt(e.target.value))}
-                      className="bg-[#112a4a] text-blue-400 font-black text-xs uppercase tracking-widest px-4 py-2 rounded-xl border border-white/5 outline-none focus:ring-1 focus:ring-blue-500"
-                    >
-                      {[0, 1, 2, 3, 4, 5].map(n => <option key={n} value={n}>{n} Guests</option>)}
-                    </select>
-                  </div>
-                  <button 
-                    disabled={submitting === event.id}
-                    onClick={() => submitRSVP(event.id)}
-                    className="w-full bg-white text-[#08182e] py-5 rounded-2xl flex items-center justify-center gap-3 shadow-2xl hover:bg-slate-100 transition-all transform active:scale-[0.98]"
-                  >
-                    {submitting === event.id ? <Loader2 size={24} className="animate-spin" /> : <FileText size={24}/>}
-                    <span className="font-black text-sm uppercase tracking-widest">{submitting === event.id ? 'SUBMITTING...' : 'SUBMIT RSVP'}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        {events.length === 0 && (
-          <div className="py-24 text-center">
-            <Calendar size={64} className="mx-auto text-slate-800 mb-6 opacity-20" />
-            <p className="text-slate-500 font-black uppercase tracking-widest text-xs">No updates at the moment</p>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-};
-
-// --- PROFILE PAGE ---
 export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkMode, onNavigate }: any) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<User>>({});
@@ -1054,7 +281,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
     <div className="flex flex-col h-full bg-[#08182e] animate-fade-in overflow-hidden">
       <div className="flex-1 overflow-y-auto px-4 py-6 space-y-8 no-scrollbar pb-24">
         <div className="bg-[#0c2d58] rounded-[3rem] p-10 text-white relative overflow-hidden shadow-2xl flex flex-col items-center justify-center">
-          <Logo className="absolute -bottom-10 -right-10 w-48 h-48 opacity-10 pointer-events-none" />
           <div className="w-24 h-24 bg-[#112a4a] border-4 border-white/5 rounded-full flex items-center justify-center text-3xl font-black mb-4 shadow-xl">
              {initials.toUpperCase()}
           </div>
@@ -1068,6 +294,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
             </span>
           </div>
         </div>
+        
         <div className="bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] p-8 border border-white/5 shadow-2xl space-y-6">
           <div className="flex justify-between items-center mb-2">
              <div className="flex items-center gap-2.5">
@@ -1117,6 +344,7 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
             </div>
           )}
         </div>
+        
         <div className="space-y-4">
           <button onClick={toggleTheme} className="w-full bg-[#112a4a]/40 backdrop-blur-md rounded-[2.5rem] p-6 border border-white/5 flex items-center justify-between group transition-all hover:bg-white/5 active:scale-[0.98]">
              <div className="flex items-center gap-5">
@@ -1126,18 +354,6 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
                <div className="text-left">
                  <p className="text-sm font-black text-white tracking-tight">{isDarkMode ? 'Light Mode' : 'Dark Mode'}</p>
                  <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">TOGGLE APPEARANCE</p>
-               </div>
-             </div>
-             <ChevronRight className="text-slate-500" size={24}/>
-          </button>
-          <button onClick={() => onNavigate('contact')} className="w-full bg-[#112a4a]/40 backdrop-blur-md rounded-[2.5rem] p-6 border border-white/5 flex items-center justify-between group transition-all hover:bg-white/5 active:scale-[0.98]">
-             <div className="flex items-center gap-5">
-               <div className="w-14 h-14 bg-[#0c1f38] border border-white/5 rounded-2xl flex items-center justify-center text-slate-400 group-hover:text-blue-400 transition-colors">
-                 <Phone size={24}/>
-               </div>
-               <div className="text-left">
-                 <p className="text-sm font-black text-white tracking-tight">Help & Support</p>
-                 <p className="text-[9px] font-black text-slate-500 uppercase tracking-widest">CONTACT OFFICE</p>
                </div>
              </div>
              <ChevronRight className="text-slate-500" size={24}/>
@@ -1160,120 +376,129 @@ export const ProfileView = ({ user, onUpdateUser, onLogout, toggleTheme, isDarkM
   );
 };
 
-// --- NOTIFICATIONS VIEW ---
-export const NotificationsView = () => {
-  const [notifications, setNotifications] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      setLoading(true);
-      try {
-        const [blogs, sermons, events] = await Promise.all([
-          supabase.from('blog_posts').select('id, title, created_at').order('created_at', { ascending: false }).limit(5),
-          supabase.from('sermons').select('id, title, created_at').order('created_at', { ascending: false }).limit(5),
-          supabase.from('events').select('id, title, created_at, type').order('created_at', { ascending: false }).limit(5)
-        ]);
-        const combined = [
-          ...(blogs.data || []).map(b => ({ ...b, type: 'BLOG', icon: FileText, label: 'New Article' })),
-          ...(sermons.data || []).map(s => ({ ...s, type: 'SERMON', icon: Video, label: 'New Sermon' })),
-          ...(events.data || []).map(e => ({ ...e, type: e.type, icon: Calendar, label: e.type === 'EVENT' ? 'New Event' : 'Announcement' }))
-        ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-        setNotifications(combined);
-      } catch (err) {
-        console.error("Notifications error:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchNotifications();
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
-  }, []);
-
+export const MusicView = () => {
   return (
-    <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 animate-fade-in overflow-hidden">
-      <h2 className="text-2xl font-black text-white uppercase tracking-tighter mt-4 ml-2">Notifications</h2>
-      <div className="flex-1 overflow-y-auto no-scrollbar space-y-4 pb-24 px-2">
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="animate-spin text-blue-500" size={32}/>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Fetching updates...</p>
-          </div>
-        ) : notifications.length === 0 ? (
-          <div className="py-24 flex flex-col items-center bg-[#112a4a]/40 backdrop-blur-md rounded-[3rem] border border-white/5 shadow-2xl">
-            <div className="w-20 h-20 bg-[#0c1f38] rounded-3xl flex items-center justify-center text-slate-700 mb-6 shadow-lg">
-              <Bell size={40}/>
-            </div>
-            <p className="text-slate-500 font-black uppercase tracking-widest text-[10px]">No new notifications for you</p>
-          </div>
-        ) : (
-          notifications.map((n, i) => (
-            <div key={`${n.type}-${n.id}`} className="bg-[#112a4a]/40 backdrop-blur-md p-6 rounded-[2.5rem] border border-white/5 shadow-xl flex items-center gap-5 group transition-all hover:bg-white/5 active:scale-[0.98]">
-              <div className={`w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg transform transition-transform group-hover:scale-110 ${
-                n.type === 'BLOG' ? 'bg-purple-600 text-white shadow-purple-500/20' :
-                n.type === 'SERMON' ? 'bg-rose-600 text-white shadow-rose-500/20' :
-                n.type === 'EVENT' ? 'bg-blue-600 text-white shadow-blue-500/20' : 'bg-orange-600 text-white shadow-orange-500/20'
-              }`}>
-                <n.icon size={24}/>
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex justify-between items-start mb-1">
-                  <span className={`text-[9px] font-black uppercase tracking-widest ${
-                    n.type === 'BLOG' ? 'text-purple-400' :
-                    n.type === 'SERMON' ? 'text-rose-400' :
-                    n.type === 'EVENT' ? 'text-blue-400' : 'text-orange-400'
-                  }`}>{n.label}</span>
-                  <span className="text-[9px] font-bold text-slate-500">{new Date(n.created_at).toLocaleDateString([], { day: 'numeric', month: 'short' })}</span>
-                </div>
-                <h4 className="font-black text-white text-sm leading-tight truncate">{n.title}</h4>
-              </div>
-              <ChevronRight className="text-slate-600 group-hover:text-blue-400 transition-colors" size={20}/>
-            </div>
-          ))
-        )}
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
+      <div className="bg-[#0c2d58] p-8 rounded-[2rem] text-white shadow-xl">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-2">Media Hub</h2>
+        <p className="opacity-80 text-sm">Worship music, podcasts, and recordings.</p>
+      </div>
+      <div className="flex items-center justify-center py-20 text-slate-400">
+        <div className="text-center">
+          <Music size={48} className="mx-auto mb-4 opacity-20" />
+          <p className="font-black uppercase tracking-widest text-xs">Media content coming soon</p>
+        </div>
       </div>
     </div>
   );
 };
 
-export const ContactView = ({ onBack }: { onBack: () => void }) => (
-  <div className="flex flex-col h-full bg-[#08182e] p-4 space-y-6 animate-fade-in">
-    <div className="flex items-center gap-6 mt-4">
-      <button onClick={onBack} className="p-2 text-white hover:bg-white/10 rounded-full transition">
-        <ArrowLeft size={28}/>
-      </button>
-      <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Contact Us</h2>
-    </div>
-    <div className="bg-[#112a4a]/40 backdrop-blur-md p-10 rounded-[3rem] border border-white/5 shadow-2xl space-y-10">
-      <div className="flex items-center gap-6 group">
-        <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
-          <Phone size={28}/>
-        </div>
-        <div>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Call Our Office</p>
-          <p className="text-lg font-black text-white tracking-tight">+27 31 123 4567</p>
-        </div>
+export const BlogView = () => {
+  return (
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
+       <div className="bg-[#0c2d58] p-8 rounded-[2rem] text-white shadow-xl">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-2">Church Articles</h2>
+        <p className="opacity-80 text-sm">Inspiration and news from our community.</p>
       </div>
-      <div className="flex items-center gap-6 group">
-        <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
-          <Mail size={28}/>
-        </div>
-        <div>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Send an Email</p>
-          <p className="text-lg font-black text-white tracking-tight">info@icc.com</p>
-        </div>
-      </div>
-      <div className="flex items-center gap-6 group">
-        <div className="w-16 h-16 bg-[#0c1f38] rounded-[1.5rem] flex items-center justify-center text-blue-400 shadow-lg border border-white/5 transition-transform group-hover:scale-110">
-          <MapPin size={28}/>
-        </div>
-        <div>
-          <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-1">Visit Us</p>
-          <p className="text-lg font-black text-white tracking-tight">Isipingo, Durban</p>
+      <div className="flex items-center justify-center py-20 text-slate-400">
+        <div className="text-center">
+          <FileText size={48} className="mx-auto mb-4 opacity-20" />
+          <p className="font-black uppercase tracking-widest text-xs">No articles available</p>
         </div>
       </div>
     </div>
-  </div>
-);
+  );
+};
+
+export const CommunityView = () => {
+  return (
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
+      <div className="bg-[#0c2d58] p-8 rounded-[2rem] text-white shadow-xl">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-2">Community Groups</h2>
+        <p className="opacity-80 text-sm">Find your place in our church family.</p>
+      </div>
+      <div className="flex items-center justify-center py-20 text-slate-400">
+        <div className="text-center">
+          <Users size={48} className="mx-auto mb-4 opacity-20" />
+          <p className="font-black uppercase tracking-widest text-xs">Groups loading...</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const SermonsView = () => {
+  return (
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
+      <div className="bg-[#0c2d58] p-8 rounded-[2rem] text-white shadow-xl">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-2">Sermon Archive</h2>
+        <p className="opacity-80 text-sm">Listen to the word wherever you go.</p>
+      </div>
+      <div className="flex items-center justify-center py-20 text-slate-400">
+        <div className="text-center">
+          <Video size={48} className="mx-auto mb-4 opacity-20" />
+          <p className="font-black uppercase tracking-widest text-xs">Archiving messages...</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const EventsView = ({ onBack }: { onBack: () => void }) => {
+  return (
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
+       <button onClick={onBack} className="flex items-center gap-2 text-slate-500 font-bold mb-2">
+         <ArrowLeft size={20}/> Back
+       </button>
+       <div className="bg-[#0c2d58] p-8 rounded-[2rem] text-white shadow-xl">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-2">Church Events</h2>
+        <p className="opacity-80 text-sm">Join us for fellowship and worship.</p>
+      </div>
+      <div className="flex items-center justify-center py-20 text-slate-400">
+        <div className="text-center">
+          <Calendar size={48} className="mx-auto mb-4 opacity-20" />
+          <p className="font-black uppercase tracking-widest text-xs">No upcoming events</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const NotificationsView = () => {
+  return (
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
+      <div className="bg-[#0c2d58] p-8 rounded-[2rem] text-white shadow-xl">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-2">Updates</h2>
+        <p className="opacity-80 text-sm">Stay in the loop with ICC notifications.</p>
+      </div>
+      <div className="flex items-center justify-center py-20 text-slate-400">
+        <div className="text-center">
+          <Bell size={48} className="mx-auto mb-4 opacity-20" />
+          <p className="font-black uppercase tracking-widest text-xs">All caught up!</p>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export const ContactView = ({ onBack }: { onBack: () => void }) => {
+  return (
+    <div className="p-4 space-y-6 animate-fade-in bg-slate-50 dark:bg-slate-900 min-h-full">
+       <button onClick={onBack} className="flex items-center gap-2 text-slate-500 font-bold mb-2">
+         <ArrowLeft size={20}/> Back
+       </button>
+       <div className="bg-[#0c2d58] p-8 rounded-[2rem] text-white shadow-xl">
+        <h2 className="text-xl font-black uppercase tracking-widest mb-2">Contact Us</h2>
+        <p className="opacity-80 text-sm">We'd love to hear from you.</p>
+      </div>
+      <div className="space-y-4">
+        <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl shadow-sm">
+           <p className="font-bold mb-2 dark:text-white">Isipingo Community Church</p>
+           <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2"><MapPin size={16}/> 123 Church Road, Isipingo</p>
+           <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-2"><Phone size={16}/> +27 123 456 789</p>
+           <p className="text-sm text-slate-500 dark:text-slate-400 flex items-center gap-2 mt-2"><Mail size={16}/> info@icc.com</p>
+        </div>
+      </div>
+    </div>
+  );
+};

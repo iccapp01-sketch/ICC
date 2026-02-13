@@ -36,12 +36,6 @@ export const Auth: React.FC<AuthProps> = () => {
     setIsLoading(true);
 
     try {
-      if (isLogin && formData.email === 'admin@icc.com' && formData.password === 'admin123') {
-          const { error } = await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password });
-          if (error) throw error;
-          return;
-      }
-
       if (isLogin) {
          const { error } = await supabase.auth.signInWithPassword({ email: formData.email, password: formData.password });
          if (error) throw error;
@@ -88,14 +82,14 @@ export const Auth: React.FC<AuthProps> = () => {
 
   if (needsVerification) {
     return (
-      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#051121] p-4 z-50 font-sans">
-        <div className="w-full max-w-sm bg-[#081c37] border border-white/5 rounded-[40px] p-10 shadow-2xl text-center">
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#051121] p-4 z-50">
+        <div className="w-full max-w-sm bg-[#0c2445] border border-white/5 rounded-[48px] p-10 shadow-2xl text-center">
             <div className="w-20 h-20 bg-blue-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                 <Mail className="text-blue-400 w-10 h-10" />
             </div>
             <h2 className="text-2xl font-bold text-white mb-2 tracking-tight">Check your Inbox</h2>
             <p className="text-blue-200 text-sm mb-8 leading-relaxed">We've sent a verification link to <br/><span className="font-bold text-white">{verificationEmail}</span></p>
-            <button onClick={() => { setNeedsVerification(false); setIsLogin(true); }} className="w-full bg-[#112a4a] text-white font-bold py-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
+            <button onClick={() => { setNeedsVerification(false); setIsLogin(true); }} className="w-full bg-blue-600 text-white font-bold py-4 rounded-2xl shadow-lg transition flex items-center justify-center gap-2 active:scale-95">
               <ArrowLeft size={18} /> Back to Login
             </button>
         </div>
@@ -104,39 +98,40 @@ export const Auth: React.FC<AuthProps> = () => {
   }
 
   return (
-    <div className="fixed inset-0 flex flex-col h-full bg-[#051121] overflow-hidden font-sans">
+    <div className="fixed inset-0 flex flex-col h-full bg-[#051121] overflow-hidden">
       <div className="flex-1 overflow-y-auto w-full no-scrollbar pb-10">
         <div className="min-h-full flex flex-col items-center justify-center p-6 space-y-8 animate-fade-in pt-12">
             
-            {/* Branding Card (Screenshot 1) */}
-            <div className="w-full max-w-[390px] bg-[#0c2445] rounded-[48px] p-10 py-12 text-center shadow-2xl border border-white/5">
+            {/* Branding Card */}
+            <div className="w-full max-w-[420px] bg-[#0c2445] rounded-[48px] p-10 py-12 text-center shadow-2xl border border-white/5">
                 <div className="mb-6 flex justify-center">
                   <Logo className="w-20 h-auto" />
                 </div>
-                <h1 className="text-[22px] font-black text-white mb-1 tracking-tight">Isipingo Community Church</h1>
+                <h1 className="text-[24px] font-black text-white mb-1 tracking-tight">Isipingo Community Church</h1>
                 <p className="text-[#38bdf8] italic font-semibold text-[15px]">Where it's all about Jesus</p>
             </div>
 
-            {/* Auth Form Card (Screenshot 1 & 2) */}
-            <div className="w-full max-w-[390px] bg-[#1a304a]/60 backdrop-blur-xl border border-white/10 rounded-[48px] p-10 shadow-2xl">
+            {/* Auth Form Card */}
+            <div className="w-full max-w-[420px] bg-[#1a304a]/60 backdrop-blur-xl border border-white/10 rounded-[48px] p-10 shadow-2xl">
                 <div className="text-center mb-10">
                     <h2 className="text-[18px] text-white font-bold mb-1">Welcome to ICC</h2>
                     <p className="text-[#38bdf8] text-[13px] font-semibold">Join our community of believers</p>
                 </div>
 
-                {/* Pill Toggle */}
-                <div className="bg-white rounded-full p-1.5 flex mb-8 shadow-inner h-[54px] items-center">
+                {/* Toggle */}
+                <div className="bg-white rounded-full p-1.5 flex mb-8 h-[54px] items-center relative overflow-hidden">
+                    <div className={`absolute top-1.5 bottom-1.5 w-[calc(50%-6px)] bg-white rounded-full shadow-lg border border-slate-100 transition-all duration-300 ${isLogin ? 'left-1.5' : 'left-[50%]'}`}></div>
                     <button 
                       type="button" 
                       onClick={() => { setIsLogin(true); setError(''); }} 
-                      className={`flex-1 h-full rounded-full text-[14px] font-bold transition-all duration-300 z-10 ${isLogin ? 'text-[#011027] bg-white shadow-lg border border-slate-100' : 'text-slate-400'}`}
+                      className={`flex-1 h-full rounded-full text-[14px] font-bold transition-all duration-300 relative z-10 ${isLogin ? 'text-[#011027]' : 'text-slate-400'}`}
                     >
                       Login
                     </button>
                     <button 
                       type="button" 
                       onClick={() => { setIsLogin(false); setError(''); }} 
-                      className={`flex-1 h-full rounded-full text-[14px] font-bold transition-all duration-300 z-10 ${!isLogin ? 'text-[#011027] bg-white shadow-lg border border-slate-100' : 'text-slate-400'}`}
+                      className={`flex-1 h-full rounded-full text-[14px] font-bold transition-all duration-300 relative z-10 ${!isLogin ? 'text-[#011027]' : 'text-slate-400'}`}
                     >
                       Sign Up
                     </button>
@@ -155,7 +150,7 @@ export const Auth: React.FC<AuthProps> = () => {
                                 onChange={handleChange} 
                                 placeholder="John" 
                                 required={!isLogin} 
-                                className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-4 text-[13px] font-bold outline-none shadow-sm"
+                                className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-4 text-[13px] font-bold outline-none"
                               />
                             </div>
                         </div>
@@ -167,7 +162,7 @@ export const Auth: React.FC<AuthProps> = () => {
                               onChange={handleChange} 
                               placeholder="Doe" 
                               required={!isLogin} 
-                              className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] px-5 text-[13px] font-bold outline-none shadow-sm"
+                              className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] px-5 text-[13px] font-bold outline-none"
                             />
                         </div>
                       </div>
@@ -184,7 +179,7 @@ export const Auth: React.FC<AuthProps> = () => {
                           value={formData.email} 
                           onChange={handleChange} 
                           required 
-                          className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-4 text-[13px] font-bold outline-none shadow-sm"
+                          className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-4 text-[13px] font-bold outline-none"
                         />
                       </div>
                   </div>
@@ -200,7 +195,7 @@ export const Auth: React.FC<AuthProps> = () => {
                           value={formData.password} 
                           onChange={handleChange} 
                           required 
-                          className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-11 text-[13px] font-bold outline-none shadow-sm"
+                          className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-11 text-[13px] font-bold outline-none"
                         />
                         <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
                           {showPassword ? <EyeOff size={18}/> : <Eye size={18}/>}
@@ -235,7 +230,7 @@ export const Auth: React.FC<AuthProps> = () => {
                               value={formData.phone} 
                               onChange={handleChange} 
                               required={!isLogin} 
-                              className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-4 text-[13px] font-bold outline-none shadow-sm"
+                              className="w-full bg-white text-slate-900 rounded-[18px] h-[50px] pl-11 pr-4 text-[13px] font-bold outline-none"
                             />
                           </div>
                         </div>

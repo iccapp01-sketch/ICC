@@ -94,7 +94,7 @@ const DashboardView = ({ stats }: { stats: any }) => {
   );
 };
 
-// --- BLOG MANAGEMENT ---
+// --- BLOG MANAGEMENT (Screenshots 16, 17, 18) ---
 const BlogManager = () => {
   const [blogs, setBlogs] = useState<BlogPost[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -404,7 +404,7 @@ const SermonManager = () => {
   );
 };
 
-// --- EVENTS ---
+// --- EVENTS (Screenshots 20, 21) ---
 const EventManager = () => {
   const [events, setEvents] = useState<Event[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -535,7 +535,7 @@ const EventManager = () => {
   );
 };
 
-// --- GROUPS ---
+// --- GROUPS (Screenshots 22, 23) ---
 const GroupManager = () => {
   const [groups, setGroups] = useState<CommunityGroup[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -617,7 +617,7 @@ const GroupManager = () => {
   );
 };
 
-// --- MEDIA HUB ---
+// --- MEDIA HUB (Screenshots 24, 25) ---
 const MediaManager = () => {
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [isFormOpen, setIsFormOpen] = useState(false);
@@ -750,7 +750,7 @@ const MediaManager = () => {
   );
 };
 
-// --- USERS ---
+// --- USERS (Screenshot 26) ---
 const UserManager = () => {
   const [users, setUsers] = useState<User[]>([]);
   useEffect(() => { fetchUsers(); }, []);

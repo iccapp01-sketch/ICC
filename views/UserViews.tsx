@@ -44,7 +44,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
 
   return (
     <div className="p-4 space-y-8 animate-fade-in pb-24">
-      {/* Daily Verse Card (Screenshot 10) */}
+      {/* Daily Verse Card */}
       <div className="bg-gradient-to-br from-[#0c2d58] to-[#1a3b63] p-8 rounded-[2.5rem] text-white shadow-xl relative overflow-hidden">
         <Logo className="absolute -bottom-8 -right-8 w-48 h-48 opacity-10 pointer-events-none" />
         <h2 className="text-[10px] font-black uppercase tracking-[0.2em] mb-4 opacity-70">Daily Verse</h2>
@@ -52,7 +52,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
         <p className="font-bold text-blue-300 text-sm">{verse?.reference}</p>
       </div>
 
-      {/* Latest Sermon (Screenshot 10) */}
+      {/* Latest Sermon */}
       {sermon && (
         <section>
           <h3 className="font-black text-[18px] mb-5 dark:text-white uppercase tracking-tight">Latest Sermon</h3>
@@ -72,7 +72,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
         </section>
       )}
 
-      {/* Articles (Screenshot 10) */}
+      {/* Articles */}
       <section>
         <h3 className="font-black text-[18px] mb-5 dark:text-white uppercase tracking-tight">Recent Articles</h3>
         <div className="space-y-4">
@@ -84,7 +84,9 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
                  </div>
                  <div className="flex-1">
                    <h4 className="font-black text-[15px] dark:text-white leading-tight mb-3">{blog.title}</h4>
-                   <button className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1.5 tracking-[0.2em]"><Share2 size={12}/> Share</button>
+                   <div className="flex items-center gap-3">
+                     <button className="text-[9px] font-black text-blue-500 uppercase flex items-center gap-1.5 tracking-[0.2em]"><Share2 size={12}/> Share</button>
+                   </div>
                  </div>
               </div>
             </div>
@@ -96,7 +98,7 @@ export const HomeView = ({ onNavigate }: { onNavigate: (tab: string) => void }) 
 };
 
 // --- BIBLE VIEW ---
-const BIBLE_BOOKS = ["John", "Genesis", "Matthew", "Psalms", "Proverbs", "Revelation"];
+const BIBLE_BOOKS = ["Genesis", "Exodus", "Psalms", "Proverbs", "Matthew", "Mark", "Luke", "John", "Acts", "Romans", "Revelation"];
 export const BibleView = () => {
   const [activeTab, setActiveTab] = useState<'bible' | 'plan'>('bible');
   const [book, setBook] = useState('John');
@@ -122,16 +124,14 @@ export const BibleView = () => {
           <select value={book} onChange={e => setBook(e.target.value)} className="flex-1 p-4 bg-[#1a304a]/40 text-white rounded-2xl font-bold border-none outline-none appearance-none shadow-sm">
             {BIBLE_BOOKS.map(b => <option key={b} value={b}>{b}</option>)}
           </select>
-          <div className="relative">
-            <input type="number" value={chapter} onChange={e => setChapter(parseInt(e.target.value))} className="w-16 p-4 bg-[#1a304a]/40 text-white rounded-2xl font-bold text-center border-none outline-none shadow-sm" />
-          </div>
-          <select value={version} onChange={e => setVersion(e.target.value)} className="w-24 p-4 bg-[#1a304a]/40 text-white rounded-2xl font-black text-center border-none outline-none appearance-none shadow-sm">
+          <input type="number" value={chapter} onChange={e => setChapter(parseInt(e.target.value))} className="w-16 p-4 bg-[#1a304a]/40 text-white rounded-2xl font-bold text-center border-none outline-none shadow-sm" />
+          <select value={version} onChange={e => setVersion(e.target.value)} className="w-24 p-4 bg-[#1a304a]/40 text-white rounded-2xl font-black text-center border-none outline-none shadow-sm">
             <option>KJV</option>
             <option>ASV</option>
             <option>WEB</option>
           </select>
         </div>
-        <div className="flex-1 overflow-y-auto font-serif leading-loose text-[17px] p-8 bg-[#1a304a]/20 rounded-[2.5rem] text-slate-300 shadow-inner border border-white/5">
+        <div className="flex-1 overflow-y-auto font-serif leading-loose text-[17px] p-8 bg-[#1a304a]/20 rounded-[2.5rem] text-slate-300 shadow-inner border border-white/5 no-scrollbar">
           {content || "Loading Scripture..."}
         </div>
       </div>
@@ -318,7 +318,7 @@ export const CommunityView = () => {
                  </div>
               </div>
               <div className="flex items-center gap-4 mt-2 px-4 text-slate-500">
-                 <button className="flex items-center gap-1.5 text-[10px] font-black uppercase"><Heart size={14} fill="rose" className="text-rose-500"/> 1</button>
+                 <button className="flex items-center gap-1.5 text-[10px] font-black uppercase"><Heart size={14} fill="#f43f5e" className="text-rose-500"/> 1</button>
                  <button><CornerDownRight size={14}/></button>
                  <button><Pencil size={14}/></button>
                  <button><Trash2 size={14}/></button>
@@ -366,14 +366,14 @@ export const EventsView = ({ onBack }: { onBack: () => void }) => (
        <h3 className="text-3xl font-black text-white mb-2">Kids Party</h3>
        <p className="text-slate-500 font-bold mb-10 uppercase tracking-widest text-xs">Kids only</p>
        <div className="grid grid-cols-3 gap-4 pb-10 border-b border-white/5 mb-10">
-          <div className="text-blue-400 flex items-center gap-2 text-xs font-black uppercase"><Calendar size={16}/> 21 Dec 2025</div>
-          <div className="text-slate-500 flex items-center gap-2 text-xs font-black uppercase"><Clock size={16}/> 08:58</div>
-          <div className="text-slate-500 flex items-center gap-2 text-xs font-black uppercase"><MapPin size={16}/> ICC</div>
+          <div className="text-blue-400 flex items-center gap-2 text-xs font-black uppercase tracking-tighter"><Calendar size={16}/> 21 Dec 2025</div>
+          <div className="text-slate-500 flex items-center gap-2 text-xs font-black uppercase tracking-tighter"><Clock size={16}/> 08:58</div>
+          <div className="text-slate-500 flex items-center gap-2 text-xs font-black uppercase tracking-tighter"><MapPin size={16}/> ICC</div>
        </div>
        <div className="bg-[#051121]/50 p-8 rounded-[3rem] border border-white/5">
           <p className="text-[10px] font-black text-slate-500 uppercase tracking-[0.3em] mb-6">RSVP Confirmation</p>
           <div className="flex gap-2 p-1.5 bg-[#051121] rounded-[1.5rem] mb-10 border border-white/5">
-             {['YES', 'MAYBE', 'NO'].map(s => <button key={s} className={`flex-1 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition ${s === 'YES' ? 'text-slate-500' : 'text-slate-500'}`}>{s}</button>)}
+             {['YES', 'MAYBE', 'NO'].map(s => <button key={s} className={`flex-1 py-4 rounded-xl text-xs font-black uppercase tracking-widest transition ${s === 'YES' ? 'bg-white/10 text-white' : 'text-slate-600'}`}>{s}</button>)}
           </div>
           <div className="flex items-center justify-between mb-10 px-4">
              <div>
@@ -457,9 +457,16 @@ export const NotificationsView = () => (
 );
 
 export const ContactView = ({ onBack }: { onBack: () => void }) => (
-  <div className="p-10 text-center text-slate-400">
-    <button onClick={onBack} className="text-white mb-10"><ArrowLeft/></button>
-    <Phone size={40} className="mx-auto mb-4 opacity-20" />
-    Support loading...
+  <div className="p-10 text-center text-slate-400 animate-fade-in">
+    <button onClick={onBack} className="text-white mb-10 flex items-center gap-2 uppercase font-black text-[10px] tracking-widest"><ArrowLeft size={16}/> Back</button>
+    <div className="bg-[#1a304a]/40 p-10 rounded-[3rem] border border-white/5 shadow-2xl">
+      <Phone size={48} className="mx-auto mb-6 text-blue-500" />
+      <h3 className="text-2xl font-black text-white mb-4">Contact Church Office</h3>
+      <p className="text-slate-400 text-sm leading-relaxed mb-8">We are here to pray with you and answer any questions you may have about our community.</p>
+      <div className="space-y-4">
+        <a href="tel:+27123456789" className="block p-5 bg-[#051121]/50 rounded-[1.5rem] text-white font-bold border border-white/5">+27 12 345 6789</a>
+        <a href="mailto:office@icc.com" className="block p-5 bg-[#051121]/50 rounded-[1.5rem] text-white font-bold border border-white/5">office@icc.com</a>
+      </div>
+    </div>
   </div>
 );

@@ -1,5 +1,6 @@
 import React from 'react';
 import { Home, BookOpen, FileText, Music, Users, Video, Bell, Calendar, User, Menu } from 'lucide-react';
+import { Logo } from './Logo';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -29,16 +30,19 @@ export const Layout: React.FC<LayoutProps> = ({
   return (
     <div className="fixed inset-0 flex flex-col w-full h-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300 overflow-hidden">
       
-      {/* Top Navigation Bar - LOGO REMOVED */}
+      {/* Top Navigation Bar with Logo */}
       <div className="absolute top-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)] pointer-events-none">
         <div className="h-16 flex items-center justify-between px-6 pointer-events-auto">
           
-          {/* Left: Greeting */}
-          <div className="flex flex-col justify-center">
-             <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Welcome back,</span>
-             <span className="text-[17px] font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[180px]">
-               {userName || 'Member'}
-             </span>
+          {/* Left: Logo & Greeting */}
+          <div className="flex items-center gap-3">
+             <Logo className="w-8 h-auto" />
+             <div className="flex flex-col justify-center border-l border-slate-200 dark:border-slate-700 pl-3">
+                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Hi,</span>
+                <span className="text-[15px] font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[120px]">
+                  {userName || 'Member'}
+                </span>
+             </div>
           </div>
 
           {/* Right: Events, Notifications & Profile */}
@@ -47,23 +51,23 @@ export const Layout: React.FC<LayoutProps> = ({
               onClick={() => onTabChange('events')}
               className={`p-2.5 rounded-full transition ${activeTab === 'events' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             >
-              <Calendar size={20} />
+              <Calendar size={18} />
             </button>
 
             <button 
               onClick={() => onTabChange('notifications')}
               className={`p-2.5 rounded-full transition relative ${activeTab === 'notifications' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             >
-              <Bell size={20} />
-              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+              <Bell size={18} />
+              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
             </button>
             
             <button 
                onClick={() => onTabChange('profile')}
                className={`p-0.5 rounded-full border-2 transition ${activeTab === 'profile' ? 'border-blue-500' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'}`}
             >
-              <div className="w-9 h-9 bg-gradient-to-br from-[#112a4a] to-[#1a3b63] rounded-full flex items-center justify-center text-white text-xs font-black uppercase overflow-hidden shadow-md">
-                {userName ? userName.substring(0,2) : <User size={16}/>}
+              <div className="w-8 h-8 bg-gradient-to-br from-[#112a4a] to-[#1a3b63] rounded-full flex items-center justify-center text-white text-[10px] font-black uppercase overflow-hidden shadow-md">
+                {userName ? userName.substring(0,2) : <User size={14}/>}
               </div>
             </button>
           </div>
@@ -100,7 +104,7 @@ export const Layout: React.FC<LayoutProps> = ({
                   isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
                 }`}
               >
-                <Icon size={isActive ? 24 : 22} strokeWidth={isActive ? 2.5 : 2} />
+                <Icon size={isActive ? 22 : 20} strokeWidth={isActive ? 2.5 : 2} />
                 <span className={`text-[10px] font-bold tracking-wide ${isActive ? 'opacity-100' : 'opacity-70'}`}>
                   {item.label}
                 </span>

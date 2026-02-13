@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Lock, Mail, User as UserIcon, Calendar, Phone, ChevronDown, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { Logo } from '../components/Logo';
 
 interface AuthProps {
   onLogin: (role: any) => void;
@@ -35,21 +36,11 @@ export const Auth: React.FC<AuthProps> = () => {
     setIsLoading(true);
 
     try {
-      // Admin password is 'admin123'
       if (isLogin && formData.email === 'admin@icc.com' && formData.password === 'admin123') {
-          const { error: signInError } = await supabase.auth.signInWithPassword({
+          await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
           });
-
-          if (signInError) {
-             const { data, error: signUpError } = await supabase.auth.signUp({
-                email: formData.email,
-                password: formData.password,
-                options: { data: { firstName: 'Admin', lastName: 'User', role: 'ADMIN' } }
-             });
-             if (signUpError) throw signUpError;
-          }
           return;
       }
 
@@ -124,16 +115,19 @@ export const Auth: React.FC<AuthProps> = () => {
             paddingBottom: 'env(safe-area-inset-bottom)'
         }}
       >
-        <div className="min-h-full flex flex-col items-center justify-center p-6 py-10 space-y-8 animate-fade-in">
+        <div className="min-h-full flex flex-col items-center justify-center p-6 py-10 space-y-6 animate-fade-in">
             
-            {/* Top Card: Branding (LOGO REMOVED) */}
-            <div className="w-full max-w-[390px] bg-[#081c37] rounded-[40px] p-10 py-12 text-center shadow-2xl border border-white/5">
-                <h1 className="text-[26px] font-black text-white mb-2 tracking-tight">Isipingo Community Church</h1>
-                <p className="text-[#38bdf8] italic font-semibold text-[17px]">Where it's all about Jesus</p>
+            {/* Top Card: Branding with Logo restored */}
+            <div className="w-full max-w-[390px] bg-[#081c37] rounded-[48px] p-10 py-12 text-center shadow-2xl border border-white/5">
+                <div className="mb-6 flex justify-center">
+                  <Logo className="w-24 h-auto" />
+                </div>
+                <h1 className="text-[24px] font-black text-white mb-1 tracking-tight">Isipingo Community Church</h1>
+                <p className="text-[#38bdf8] italic font-semibold text-[15px]">Where it's all about Jesus</p>
             </div>
 
             {/* Bottom Card: Auth Form */}
-            <div className="w-full max-w-[390px] bg-white/[0.08] backdrop-blur-3xl border border-white/10 rounded-[40px] p-10 shadow-2xl">
+            <div className="w-full max-w-[390px] bg-white/[0.08] backdrop-blur-3xl border border-white/10 rounded-[48px] p-10 shadow-2xl">
                 <div className="text-center mb-10">
                     <h2 className="text-[20px] text-white font-bold mb-1">Welcome to ICC</h2>
                     <p className="text-[#38bdf8] text-[14px] font-semibold">Join our community of believers</p>

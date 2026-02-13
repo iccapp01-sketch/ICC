@@ -28,19 +28,19 @@ export const Layout: React.FC<LayoutProps> = ({
   ];
 
   return (
-    <div className="fixed inset-0 flex flex-col w-full h-full bg-slate-50 dark:bg-slate-900 transition-colors duration-300 overflow-hidden">
+    <div className="fixed inset-0 flex flex-col w-full h-full bg-[#051121] transition-colors duration-300 overflow-hidden">
       
-      {/* Top Navigation Bar with Logo */}
-      <div className="absolute top-0 left-0 right-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)] pointer-events-none">
+      {/* Top Navigation Bar with Logo (Screenshot 11) */}
+      <div className="absolute top-0 left-0 right-0 z-50 bg-[#051121]/90 backdrop-blur-md border-b border-white/5 shadow-sm transition-colors duration-300 pt-[env(safe-area-inset-top)] pointer-events-none">
         <div className="h-16 flex items-center justify-between px-6 pointer-events-auto">
           
           {/* Left: Logo & Greeting */}
           <div className="flex items-center gap-3">
              <Logo className="w-8 h-auto" />
-             <div className="flex flex-col justify-center border-l border-slate-200 dark:border-slate-700 pl-3">
-                <span className="text-[9px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest">Hi,</span>
-                <span className="text-[15px] font-black text-[#0c2d58] dark:text-white leading-tight truncate max-w-[120px]">
-                  {userName || 'Member'}
+             <div className="flex flex-col justify-center border-l border-white/10 pl-3">
+                <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest">Welcome,</span>
+                <span className="text-[16px] font-black text-white leading-tight truncate max-w-[120px]">
+                  {userName || 'Tasmim'}
                 </span>
              </div>
           </div>
@@ -49,25 +49,25 @@ export const Layout: React.FC<LayoutProps> = ({
           <div className="flex items-center gap-2">
             <button 
               onClick={() => onTabChange('events')}
-              className={`p-2.5 rounded-full transition ${activeTab === 'events' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              className={`p-2.5 rounded-xl transition ${activeTab === 'events' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-white/5'}`}
             >
-              <Calendar size={18} />
+              <Calendar size={20} />
             </button>
 
             <button 
               onClick={() => onTabChange('notifications')}
-              className={`p-2.5 rounded-full transition relative ${activeTab === 'notifications' ? 'bg-blue-50 text-blue-600' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+              className={`p-2.5 rounded-xl transition relative ${activeTab === 'notifications' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400 hover:bg-white/5'}`}
             >
-              <Bell size={18} />
-              <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border-2 border-white dark:border-slate-900"></span>
+              <Bell size={20} />
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-red-500 rounded-full border-2 border-[#051121]"></span>
             </button>
             
             <button 
                onClick={() => onTabChange('profile')}
-               className={`p-0.5 rounded-full border-2 transition ${activeTab === 'profile' ? 'border-blue-500' : 'border-transparent hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+               className={`ml-1 transition-all ${activeTab === 'profile' ? 'scale-110' : ''}`}
             >
-              <div className="w-8 h-8 bg-gradient-to-br from-[#112a4a] to-[#1a3b63] rounded-full flex items-center justify-center text-white text-[10px] font-black uppercase overflow-hidden shadow-md">
-                {userName ? userName.substring(0,2) : <User size={14}/>}
+              <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white text-[11px] font-black uppercase shadow-xl border border-white/10">
+                {userName ? userName.substring(0,2) : 'TA'}
               </div>
             </button>
           </div>
@@ -76,7 +76,7 @@ export const Layout: React.FC<LayoutProps> = ({
 
       {/* Main Content Area */}
       <div 
-        className="flex-1 overflow-y-auto w-full scroll-smooth bg-slate-50 dark:bg-slate-900 no-scrollbar"
+        className="flex-1 overflow-y-auto w-full scroll-smooth bg-[#051121] no-scrollbar"
         style={{
           paddingTop: 'calc(4rem + env(safe-area-inset-top))',
           paddingBottom: 'calc(5rem + env(safe-area-inset-bottom))',
@@ -88,11 +88,11 @@ export const Layout: React.FC<LayoutProps> = ({
         </div>
       </div>
 
-      {/* Bottom Navigation */}
+      {/* Bottom Navigation (Screenshots) */}
       <div 
-        className="absolute bottom-0 left-0 right-0 z-50 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] transition-colors duration-300 pb-[env(safe-area-inset-bottom)] pointer-events-none"
+        className="absolute bottom-0 left-0 right-0 z-50 bg-[#0c2445]/95 backdrop-blur-xl border-t border-white/5 pb-[env(safe-area-inset-bottom)] pointer-events-none"
       >
-        <div className="flex justify-between items-end px-2 py-3 h-16 pointer-events-auto">
+        <div className="flex justify-between items-center px-4 py-2 h-20 pointer-events-auto">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
@@ -101,11 +101,12 @@ export const Layout: React.FC<LayoutProps> = ({
                 key={item.id}
                 onClick={() => onTabChange(item.id)}
                 className={`group flex flex-col items-center gap-1.5 transition-all duration-300 flex-1 relative ${
-                  isActive ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-200'
+                  isActive ? 'text-blue-400' : 'text-slate-500 hover:text-slate-300'
                 }`}
               >
-                <Icon size={isActive ? 22 : 20} strokeWidth={isActive ? 2.5 : 2} />
-                <span className={`text-[10px] font-bold tracking-wide ${isActive ? 'opacity-100' : 'opacity-70'}`}>
+                {isActive && <div className="absolute -top-3 w-10 h-1 bg-blue-400 rounded-full blur-[1px]"></div>}
+                <Icon size={isActive ? 24 : 22} strokeWidth={isActive ? 2.5 : 2} />
+                <span className={`text-[9px] font-black uppercase tracking-widest ${isActive ? 'opacity-100' : 'opacity-60'}`}>
                   {item.label}
                 </span>
               </button>

@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
@@ -17,13 +18,24 @@
     <script>
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function(OneSignal) {
-        await OneSignal.init({
-          appId: "72bf3af9-75ff-4d8d-8d84-4ce1bc38ca04",
-          safari_web_id: "web.onesignal.auto.10a9f1f0-4d43-4f9b-8f1d-2b7e9b0e9f1e",
-          notifyButton: {
-            enable: false,
-          },
-        });
+        try {
+          // Fix: Only initialize OneSignal if we are on the registered domain or localhost to avoid domain errors
+          const authorizedDomains = ["classy-moonbeam-75a77f.netlify.app", "localhost", "127.0.0.1"];
+          const currentHost = window.location.hostname;
+          if (authorizedDomains.some(domain => currentHost.includes(domain))) {
+            await OneSignal.init({
+              appId: "72bf3af9-75ff-4d8d-8d84-4ce1bc38ca04",
+              safari_web_id: "web.onesignal.auto.10a9f1f0-4d43-4f9b-8f1d-2b7e9b0e9f1e",
+              notifyButton: {
+                enable: false,
+              },
+            });
+          } else {
+            console.warn("OneSignal: Skipping init on unauthorized domain:", currentHost);
+          }
+        } catch (e) {
+          console.error("OneSignal Init Error:", e);
+        }
       });
     </script>
 
